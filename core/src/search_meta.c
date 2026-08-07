@@ -1732,9 +1732,13 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
   }
 
   /* ---- Alternation-of-literals detection ---- */
-  /* Walk the SPLIT tree: every branch must be LIT(…) ACCEPT. */
+  /* Walk the SPLIT tree: every branch must be LIT(…) ACCEPT.  The walk is
+   * bounded to the first 2048 bytes of bytecode — enough for alternations
+   * with well over 100 literal branches while keeping derive_meta O(1)
+   * relative to pathological bytecode sizes.  Patterns beyond the bound
+   * fall through to the (correct) search-VM / general-VM tiers. */
   if (op0 == OP_SPLIT && bc_len >= 10) {
-    size_t bc_remain = bc_len > 512 ? 512 : bc_len;
+    size_t bc_remain = bc_len > 2048 ? 2048 : bc_len;
     out->is_alt_literals = check_alt_literals(bc, bc_remain, 0);
     /* Flat vs bushy: flat alternatives share no prefix and gain nothing
      * from the trie, so they are routed to TIER_GENERAL (which already has
@@ -1938,6 +1942,18 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
         continue;
       }
       if (op == OP_SPLIT && scan + 9 <= bc_len) {
+        /* A SPLIT seen before ANY literal (e.g. a leading alternation
+         * 'a'|'b'|'c' or a loop body SPLIT) makes every later literal
+         * optional: the literals the scan records afterwards may be branches
+         * of this SPLIT, and the pattern can match without any of them.
+         * Without this guard, the last branch's literal of a large leading
+         * alternation was treated as REQUIRED and the prefilter wrongly
+         * rejected subjects that matched any other branch. */
+        if (last_lit_len == 0) {
+          lit_bypassed = true;
+          scan += 9;
+          continue;
+        }
         /* Check if any SPLIT branch bypasses the last literal.  Read both
          * branch targets.  If a branch's first instruction is LIT followed
          * by a JMP that jumps PAST the last literal, that branch skips it.

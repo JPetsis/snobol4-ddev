@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "snobol/search.h"
 #include "snobol/vm.h"
@@ -87,9 +88,40 @@ static void test_prefilter_noop(void) {
   snobol_search_vm_cleanup(&vm);
 }
 
+static void test_prefilter_leading_alternation(void) {
+  snobol_context_t *ctx = snobol_context_create();
+  char *err = NULL;
+  /* A SPLIT encountered before any literal (loop body or leading
+   * alternation) makes every later literal optional — no required literal
+   * may be derived, and subjects without any branch literal must still
+   * match (zero-length).  Regression: ('a'|'b')* derived required='b' and
+   * wrongly rejected "xyz" in the prefilter. */
+  snobol_pattern_t *p = snobol_pattern_compile(ctx, "('a'|'b')*", 10, &err);
+  if (!p) {
+    test_assert(false, "prefilter leading alt: compile");
+    snobol_context_destroy(ctx);
+    return;
+  }
+  free(err);
+  const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
+  test_assert(!meta->has_required_lit,
+              "prefilter leading alt: no required literal derived");
+  snobol_match_t *m = snobol_pattern_search(p, "xyz", 3);
+  test_assert(m && snobol_match_success(m) && snobol_match_get_length(m) == 0,
+              "prefilter leading alt: zero-length match on 'xyz'");
+  snobol_match_free(m);
+  m = snobol_pattern_search(p, "ab", 2);
+  test_assert(m && snobol_match_success(m) && snobol_match_get_length(m) == 2,
+              "prefilter leading alt: 'ab' fully consumed");
+  snobol_match_free(m);
+  snobol_pattern_free(p);
+  snobol_context_destroy(ctx);
+}
+
 void test_search_prefilter_suite(void) {
   test_suite("Search: Required-Byte Prefilter");
   test_prefilter_miss();
   test_prefilter_hit();
   test_prefilter_noop();
+  test_prefilter_leading_alternation();
 }

@@ -315,10 +315,85 @@ void test_alt_literals_bmh_skip(void) {
   snobol_search_vm_cleanup(&vm);
 }
 
+/* Build a source alternation of n literal branches and return it malloc'd. */
+static char *build_alt_source(size_t n, const char *prefix) {
+  size_t cap = n * (strlen(prefix) + 12) + 8;
+  char *src = (char *)malloc(cap);
+  if (!src)
+    return NULL;
+  char *p = src;
+  *p++ = '\'';
+  for (size_t i = 0; i < n; i++) {
+    if (i)
+      p += sprintf(p, "' | '");
+    p += sprintf(p, "%s%zu", prefix, i);
+  }
+  *p++ = '\'';
+  *p = '\0';
+  return src;
+}
+
+/* Alternations whose bytecode exceeds the historical 512-byte alt-literals
+ * walk bound used to fall out of the trie tier AND be misrejected by the
+ * required-literal prefilter (which picked the last branch's literal).
+ * Regression for both: (a) the walk bound raised to 2048 so moderately large
+ * alternations stay on TIER_ALT_LIT; (b) the prefilter no longer derives a
+ * required literal from patterns whose SPLITs precede every literal, so even
+ * >2048-byte alternations match any branch. */
+void test_alt_literals_large_chain(void) {
+  test_suite("Alt-literals: large chains stay on the trie");
+
+  snobol_context_t *ctx = snobol_context_create();
+
+  /* ~40 branches with distinct lengths — bytecode > 512 bytes, < 2048. */
+  char *src = build_alt_source(40, "lit");
+  snobol_pattern_t *p =
+      snobol_pattern_compile(ctx, src, strlen(src), NULL);
+  test_assert(p != NULL, "large alternation compiles");
+  if (p) {
+    const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
+    test_assert(meta->is_alt_literals, "large alternation detected");
+    test_assert(meta->tier == TIER_ALT_LIT,
+                "large alternation stays on TIER_ALT_LIT");
+    snobol_match_t *m = snobol_pattern_search(p, "xx lit17 yy", 11);
+    test_assert(m && snobol_match_success(m),
+                "middle branch matches via the trie");
+    snobol_match_free(m);
+    m = snobol_pattern_search(p, "lit39 end", 9);
+    test_assert(m && snobol_match_success(m), "last branch matches");
+    snobol_match_free(m);
+    m = snobol_pattern_search(p, "none", 4);
+    test_assert(m && !snobol_match_success(m), "no branch -> miss");
+    snobol_match_free(m);
+    snobol_pattern_free(p);
+  }
+  free(src);
+
+  /* ~260 branches — bytecode > 2048 bytes: falls off the trie walk bound
+   * but must still match any branch (prefilter regression). */
+  src = build_alt_source(260, "longlit");
+  p = snobol_pattern_compile(ctx, src, strlen(src), NULL);
+  test_assert(p != NULL, "over-bound alternation compiles");
+  if (p) {
+    const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
+    test_assert(!meta->has_required_lit,
+                "over-bound alternation derives no required literal");
+    snobol_match_t *m = snobol_pattern_search(p, "zz longlit130 zz", 16);
+    test_assert(m && snobol_match_success(m),
+                "over-bound alternation matches a middle branch");
+    snobol_match_free(m);
+    snobol_pattern_free(p);
+  }
+  free(src);
+
+  snobol_context_destroy(ctx);
+}
+
 void test_search_alt_literals_suite(void) {
   test_alt_literals_flat_trie();
   test_alt_literals_bushy_trie();
   test_tier5_start_bitmap_skip();
   test_2byte_prefix_memchr();
   test_alt_literals_bmh_skip();
+  test_alt_literals_large_chain();
 }
