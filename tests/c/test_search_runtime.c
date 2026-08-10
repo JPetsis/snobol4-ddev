@@ -1366,7 +1366,10 @@ static void test_w1b_start_bitmap_after_zero_width(void) {
           size_t pos = snobol_match_get_position(m);
           size_t mlen = snobol_match_get_length(m);
           test_assert(pos == 2, "w1b: 'id:' SPAN match position == 2");
-          test_assert(mlen == 4, "w1b: 'id:' SPAN match length == 4 (id:123)");
+          /* The full digit run: 'id:123' — the SPAN consumes all three
+           * digits, not just the first (an automaton path would stop after
+           * one class byte). */
+          test_assert(mlen == 6, "w1b: 'id:' SPAN match length == 6 (id:123)");
         }
         snobol_match_free(m);
       }
