@@ -112,6 +112,21 @@ cmake -B build-asan -DCMAKE_BUILD_TYPE=Debug -DSNOBOL_SANITIZE=ON
 cmake --build build-asan --target test-asan
 ```
 
+Fuzzing (crash and differential targets; requires Clang):
+
+```bash
+cmake -B build-fuzz -DCMAKE_BUILD_TYPE=Debug -DSNOBOL_FUZZ=ON
+cmake --build build-fuzz
+./build-fuzz/tests/fuzz/fuzz_oracle -max_total_time=600
+```
+
+`fuzz_compiler`/`fuzz_vm` detect crashes and memory errors; `fuzz_oracle`
+detects **wrong answers** — it runs the search-tier dispatch against the
+reference VM on the same input and reports any disagreement in success,
+position, or length. The deterministic equivalent (`test_search_oracle` with
+the corpus in `tests/c/corpus.h`) runs as part of `make test`, so optimized
+search paths must always behave identically to the reference VM.
+
 ### Regenerating Unicode Case-Folding Tables
 
 The BMP case-folding tables in `core/src/unicode_fold_data.c` are auto-generated from
@@ -162,12 +177,17 @@ git checkout -b feature/your-feature-name
 Ensure all tests pass before submitting:
 
 ```bash
-# Core tests
+# Core tests (includes the differential oracle suite — accelerated search
+# results must match the reference VM for the whole pattern corpus)
 make test
 
 # PHP tests (if applicable)
 cd bindings/php && vendor/bin/phpunit tests/php
 ```
+
+Changes to the search engine or metadata derivation should also be smoke-tested
+with the oracle fuzzer (`./build-fuzz/tests/fuzz/fuzz_oracle -runs=10000`) —
+it finds wrong answers, not just crashes.
 
 ### 4. Update the Changelog
 
@@ -287,11 +307,48 @@ hand-edit version literals in any header.
    `bindings/php/CHANGELOG.md` for the PHP binding).
 3. Create git tags:
    ```bash
+   git tag v1.0.2
    git tag core/v1.0.2
    git tag php/v1.0.2
    git push origin --tags
    ```
-4. Create GitHub release with changelog
+   The plain `vX.Y.Z` tag drives the GitHub release workflow and Packagist;
+   `core/vX.Y.Z` and `php/vX.Y.Z` track the components independently.
+4. Create GitHub release with changelog. Minor/major release notes are
+   generated from merged PRs; **patch release notes are written manually**
+   (cherry-picked hotfixes are commits, not PRs, so auto-generated notes
+   would be empty).
+
+### Branching Model
+
+- **`main` is the trunk.** All OpenSpec changes merge directly to `main`;
+  it always accumulates everything since the last release. A release is
+  tagged whenever `main` is cohesive — no curation at merge time.
+- **`release/v1.0.x`-style maintenance branches** exist only for a shipped
+  line and only get bug fixes. They are created from the last release tag
+  of that line when the first hotfix is needed, and are never merged back
+  into `main`.
+- **Long-lived `feature/*` branches** are reserved for work that must be
+  *excluded* from a release (e.g. next-major-engine work). Rebase them onto
+  `main` periodically.
+
+#### Shipping a patch release (hotfix flow)
+
+1. Fix the bug on `main` first (trunk-first — `main` stays the canonical
+   history). Add the changelog entry under `[Unreleased]` as usual.
+2. Cherry-pick the fix (and its changelog entry, moved under the `[1.0.3]`
+   heading — release-branch entries go under the version heading, not
+   `[Unreleased]`) onto `release/v1.0.x`:
+   ```bash
+   git checkout release/v1.0.x
+   git cherry-pick -x <sha>
+   ```
+3. Commit a version bump to `project(libsnobol4 VERSION 1.0.3)` on the
+   release branch (do **not** cherry-pick the bump to `main`, which carries
+   the next minor's version).
+4. Push the release branch; CI (`release/**` triggers) gates it. Tag the
+   release-branch commit with the tag triplet and run the release steps
+   above.
 
 ## Getting Help
 

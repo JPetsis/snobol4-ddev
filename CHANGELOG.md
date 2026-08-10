@@ -35,6 +35,16 @@ tagged `php/vX.Y.Z`.
 
 ### Added
 
+- **Release branching pipeline** — post-1.0 maintenance flow. CI now runs on
+  `release/**` branches (push and PR) in `ci-core`, `ci-php`, `sanitizers`,
+  `valgrind` and `codeql`; the dead `develop` trigger was dropped. The
+  changelog gate in `pr-hygiene.yml` is branch-aware: on `release/*` PRs an
+  entry under the version heading (e.g. `[1.0.3]`) satisfies it, not just
+  `[Unreleased]`. `CONTRIBUTING.md` documents the branching model (trunk-based
+  `main`, `release/v1.0.x` maintenance branches with the cherry-pick hotfix
+  flow, long-lived `feature/*` only for next-major work) and that patch
+  release notes are written manually. `release/v1.0.x` was created from the
+  `v1.0.2` tag and protected (no force-push, no deletion).
 - **`docs/c-manual.md`** — full C/C++ manual mirroring the PHP manual's
   structure: installation and linking (CMake/pkg-config/Homebrew), the
   compilation/match/search API, the Builder API with its ownership contract,

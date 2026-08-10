@@ -2,7 +2,7 @@ name: Valgrind
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, 'release/**' ]
     paths:
       - 'core/**'
       - 'tests/c/**'
@@ -10,7 +10,7 @@ on:
       - 'dev/valgrind.supp'
       - '.github/workflows/valgrind.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, 'release/**' ]
     paths:
       - 'core/**'
       - 'tests/c/**'

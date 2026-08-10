@@ -35,7 +35,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Enforce per-component [Unreleased] entries
+      - name: Enforce per-component changelog entries
         env:
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
@@ -43,9 +43,31 @@ jobs:
           BASE="origin/${BASE_REF}"
           CHANGED=$(git diff --name-only "${BASE}...HEAD" || true)
 
-          # Count "- " bullets under the [Unreleased] section (Keep a Changelog).
-          count_unreleased() {
-            awk '/^## \[Unreleased\]/{f=1; next} /^## /{if (f) exit} f && /^- /{n++} END{print n+0}' "$1"
+          # On main, entries go under [Unreleased].  On release branches
+          # (release/v1.0.x etc.) hotfix entries land under the version
+          # heading (## [1.0.3]) instead, so count both there.
+          RELEASE=0
+          case "$BASE_REF" in
+            release/*) RELEASE=1 ;;
+          esac
+          if [ "$RELEASE" = 1 ]; then
+            SECTION="the version heading ([Unreleased] or ## [x.y.z])"
+          else
+            SECTION="[Unreleased]"
+          fi
+
+          # Count "- " bullets under [Unreleased] — plus, on release
+          # branches, under the first version heading (Keep a Changelog).
+          count_entries() {
+            awk -v rel="$2" '
+              /^## \[Unreleased\]/ { f=1; next }
+              /^## / {
+                if (rel == "1" && /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ && v == 0) { v=1; f=1; next }
+                f=0
+              }
+              f && /^- / { n++ }
+              END { print n+0 }
+            ' "$1"
           }
 
           # Which changelog(s) must gain an entry?  Core/repo files -> root
@@ -66,30 +88,30 @@ jobs:
             if ! git show "${BASE}:CHANGELOG.md" > /tmp/base-changelog.md 2>/dev/null; then
               : > /tmp/base-changelog.md
             fi
-            base_n=$(count_unreleased /tmp/base-changelog.md)
-            pr_n=$(count_unreleased CHANGELOG.md)
+            base_n=$(count_entries /tmp/base-changelog.md "$RELEASE")
+            pr_n=$(count_entries CHANGELOG.md "$RELEASE")
             if [ "$pr_n" -le "$base_n" ]; then
-              echo "❌ CHANGELOG.md: no new entry under [Unreleased]"
-              echo "   Core/repo files changed; add a bullet under [Unreleased]"
+              echo "❌ CHANGELOG.md: no new entry under $SECTION"
+              echo "   Core/repo files changed; add a bullet under $SECTION"
               echo "   describing the change (see CONTRIBUTING.md)."
               FAIL=1
             else
-              echo "✓ CHANGELOG.md: entry added under [Unreleased]"
+              echo "✓ CHANGELOG.md: entry added under $SECTION"
             fi
           fi
           if [ "$needs_php" = 1 ]; then
             if ! git show "${BASE}:bindings/php/CHANGELOG.md" > /tmp/base-php.md 2>/dev/null; then
               : > /tmp/base-php.md
             fi
-            base_n=$(count_unreleased /tmp/base-php.md)
-            pr_n=$(count_unreleased bindings/php/CHANGELOG.md)
+            base_n=$(count_entries /tmp/base-php.md "$RELEASE")
+            pr_n=$(count_entries bindings/php/CHANGELOG.md "$RELEASE")
             if [ "$pr_n" -le "$base_n" ]; then
-              echo "❌ bindings/php/CHANGELOG.md: no new entry under [Unreleased]"
-              echo "   PHP binding files changed; add a bullet under [Unreleased]"
+              echo "❌ bindings/php/CHANGELOG.md: no new entry under $SECTION"
+              echo "   PHP binding files changed; add a bullet under $SECTION"
               echo "   in bindings/php/CHANGELOG.md."
               FAIL=1
             else
-              echo "✓ bindings/php/CHANGELOG.md: entry added under [Unreleased]"
+              echo "✓ bindings/php/CHANGELOG.md: entry added under $SECTION"
             fi
           fi
           exit $FAIL

@@ -2,7 +2,7 @@ name: CI - PHP Binding
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, 'release/**' ]
     paths:
       - 'bindings/php/**'
       - 'bindings/php/composer.json'
@@ -11,7 +11,7 @@ on:
       - 'dev/generate_amalgam.sh'
       - '.github/workflows/ci-php.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, 'release/**' ]
     paths:
       - 'bindings/php/**'
       - 'bindings/php/composer.json'
