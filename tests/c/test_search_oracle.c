@@ -30,6 +30,8 @@ extern void test_suite(const char *name);
 extern void test_assert(bool condition, const char *message);
 
 static void test_must_analysis_walker(void);
+static void test_prefilter_loop_soundness(void);
+static void test_trie_pool_fallback(void);
 
 /* ===========================================================================
  * Reference runner: per-offset vm_exec on the compiled bytecode.
@@ -369,6 +371,8 @@ enum {
   MUST_EDGE_LINEAR,   /* fall through: dst = p + advance */
   MUST_EDGE_JMP,      /* one explicit target */
   MUST_EDGE_SPLIT,    /* two explicit targets */
+  MUST_EDGE_LINEAR_JMP, /* both the linear continuation and one explicit
+                           target (repetition control flow) */
 };
 
 /* Apply the opcode at offset p to the incoming set.  Returns the outgoing
@@ -434,18 +438,25 @@ static void must_transfer(must_ctx_t *ctx, const uint8_t *bc, size_t bc_len,
       ctx->gave_up = true;
       return;
     }
-    /* Conservative: both the linear continuation and the skip target. */
-    *edge_kind = MUST_EDGE_JMP;
-    *e1 = must_read_u32(bc, bc_len, p + 10);
-    *advance = 14;
+    /* min==0: both the linear entry into the body and the skip edge
+     * (zero iterations, a real accepting path).  min>=1: the skip edge is
+     * a failure path, so only the linear continuation counts. */
+    if (must_read_u32(bc, bc_len, p + 2) == 0) {
+      *edge_kind = MUST_EDGE_LINEAR_JMP;
+      *e1 = must_read_u32(bc, bc_len, p + 10);
+      *advance = 14;
+    } else {
+      *edge_kind = MUST_EDGE_LINEAR;
+      *advance = 14;
+    }
     return;
   case OP_REPEAT_STEP:
     if (p + 6 > bc_len) {
       ctx->gave_up = true;
       return;
     }
-    /* Conservative: both the linear exit and the back edge into the body. */
-    *edge_kind = MUST_EDGE_JMP;
+    /* Both the linear loop exit and the back edge into the body. */
+    *edge_kind = MUST_EDGE_LINEAR_JMP;
     *e1 = must_read_u32(bc, bc_len, p + 2);
     *advance = 6;
     return;
@@ -580,10 +591,14 @@ static bool must_analyze(const uint8_t *bc, size_t bc_len, must_ctx_t *ctx,
       for (int e = 0; e < 3; e++) {
         size_t dst = 0;
         bool have = false;
-        if (kind == MUST_EDGE_LINEAR && e == 0) {
+        if ((kind == MUST_EDGE_LINEAR || kind == MUST_EDGE_LINEAR_JMP) &&
+            e == 0) {
           dst = p + adv;
           have = dst < bc_len;
         } else if (kind == MUST_EDGE_JMP && e == 0) {
+          dst = e1;
+          have = dst < bc_len;
+        } else if (kind == MUST_EDGE_LINEAR_JMP && e == 1) {
           dst = e1;
           have = dst < bc_len;
         } else if (kind == MUST_EDGE_SPLIT && e < 2) {
@@ -904,10 +919,139 @@ void test_search_oracle_meta_suite(void) {
   test_assert(meta_checked >= 60, "meta invariants checked for >= 60 patterns");
 
   test_must_analysis_walker();
+  test_prefilter_loop_soundness();
+  test_trie_pool_fallback();
 }
 
 /* Unit assertions for the must-analysis walker (task 2.3): positive and
  * negative bytecode shapes, hand-built so the helper is block-covered. */
+/* Direct test for the trie-pool-overflow fallback (task 4.1): a crafted
+ * VALID alternation whose literal bytes exceed the pool, driven through
+ * the forced TIER_ALT_LIT tier — the tier must fall back to the general
+ * VM and still match. */
+static void test_trie_pool_fallback(void) {
+  test_suite("Search Oracle: trie pool fallback");
+
+  /* SPLIT(a=9, b=327): a = LIT(300 bytes) ACCEPT, b = LIT('x') ACCEPT. */
+  uint8_t bc[512];
+  size_t ip = 0;
+  bc[ip++] = OP_SPLIT;
+  uint32_t tgt_a = 9;
+  uint32_t tgt_b = (uint32_t)(9 + 9 + 300 + 1);
+  bc[ip++] = (uint8_t)(tgt_a >> 24);
+  bc[ip++] = (uint8_t)(tgt_a >> 16);
+  bc[ip++] = (uint8_t)(tgt_a >> 8);
+  bc[ip++] = (uint8_t)tgt_a;
+  bc[ip++] = (uint8_t)(tgt_b >> 24);
+  bc[ip++] = (uint8_t)(tgt_b >> 16);
+  bc[ip++] = (uint8_t)(tgt_b >> 8);
+  bc[ip++] = (uint8_t)tgt_b;
+  bc[ip++] = OP_LIT;
+  uint32_t off = (uint32_t)(ip + 8);
+  bc[ip++] = (uint8_t)(off >> 24);
+  bc[ip++] = (uint8_t)(off >> 16);
+  bc[ip++] = (uint8_t)(off >> 8);
+  bc[ip++] = (uint8_t)off;
+  bc[ip++] = 0;
+  bc[ip++] = 0;
+  bc[ip++] = 1;
+  bc[ip++] = 44; /* len = 300 */
+  for (int i = 0; i < 300; i++)
+    bc[ip++] = (uint8_t)('a' + (i % 26));
+  bc[ip++] = OP_ACCEPT;
+  bc[ip++] = OP_LIT;
+  off = (uint32_t)(ip + 8);
+  bc[ip++] = (uint8_t)(off >> 24);
+  bc[ip++] = (uint8_t)(off >> 16);
+  bc[ip++] = (uint8_t)(off >> 8);
+  bc[ip++] = (uint8_t)off;
+  bc[ip++] = 0;
+  bc[ip++] = 0;
+  bc[ip++] = 0;
+  bc[ip++] = 1;
+  bc[ip++] = 'x';
+  bc[ip++] = OP_ACCEPT;
+  size_t bc_len = ip;
+  test_assert(bc_len > 300, "crafted over-budget alternation built");
+
+  snobol_search_meta_t meta;
+  memset(&meta, 0, sizeof(meta));
+  meta.is_alt_literals = true; /* force the trie tier despite the budget */
+  meta.tier = TIER_ALT_LIT;
+
+  VM vm;
+  memset(&vm, 0, sizeof(vm));
+  vm.bc = bc;
+  vm.bc_len = bc_len;
+  snobol_search_result_t result;
+  memset(&result, 0, sizeof(result));
+  bool ok = snobol_search_exec(&vm, "x", 1, 0, &meta, NULL, &result, NULL);
+  snobol_search_vm_cleanup(&vm);
+  test_assert(ok && result.match_start == 0 && result.match_end == 1,
+              "pool-overflow tier falls back and matches");
+}
+
+/* Regression tests for the Class D prefilter fix: repetition control flow
+ * must bypass the required literal the same way alternation SPLITs do. */
+static void test_prefilter_loop_soundness(void) {
+  test_suite("Search Oracle: prefilter loop soundness");
+
+  snobol_context_t *ctx = snobol_context_create();
+  test_assert(ctx != NULL, "context created");
+
+  struct {
+    const char *name;
+    const char *pat;
+    bool expect_required;
+  } cases[] = {
+      /* min==0 loops: the zero-iteration skip edge bypasses the body.
+       * `+` compiles to a leading literal + a min==0 loop, so the loop
+       * copy is bypassable and no required literal is derived. */
+      {"loop-star", "('ab')*", false},
+      {"loop-body-alt", "('a' | 'b')*", false},
+      {"loop-empty-body", "('')*", false},
+      {"loop-plus", "('ab')+", false},
+      /* A literal AFTER the loop is still on every accepting path. */
+      {"loop-greedy-tail", "('a')* 'b'", true},
+      {"loop-double-star", "('a'*)* 'b'", true},
+      {"loop-plus-tail", "('a'+)+ 'b'", true},
+  };
+
+  for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+    snobol_pattern_t *pat = NULL;
+    const uint8_t *bc = NULL;
+    size_t bc_len = 0;
+    const snobol_search_meta_t *meta = NULL;
+    const snobol_range_meta_t *range = NULL;
+    size_t range_count = 0;
+    if (!oracle_compile(cases[i].pat, strlen(cases[i].pat), 0, ctx, &pat, &bc,
+                        &bc_len, &meta, &range, &range_count)) {
+      continue;
+    }
+    char msg[160];
+    snprintf(msg, sizeof(msg), "%s: has_required_lit == %s", cases[i].name,
+             cases[i].expect_required ? "true" : "false");
+    test_assert(snobol_meta_has_required_lit(meta) == cases[i].expect_required,
+                msg);
+    if (snobol_meta_has_required_lit(meta) && meta->required_lit_len > 0) {
+      /* The derived required literal must be on every accepting path. */
+      must_ctx_t mctx;
+      litset_t accept;
+      if (must_analyze(bc, bc_len, &mctx, &accept)) {
+        int id = must_find_lit(&mctx, bc, meta->required_lit,
+                               meta->required_lit_len);
+        snprintf(msg, sizeof(msg), "%s: required lit in must-set",
+                 cases[i].name);
+        test_assert(id >= 0 && (accept.bits[id >> 6] & (1ULL << (id & 63))),
+                    msg);
+      }
+    }
+    snobol_pattern_free(pat);
+  }
+
+  snobol_context_destroy(ctx);
+}
+
 static void test_must_analysis_walker(void) {
   test_suite("Search Oracle: must-analysis walker");
 

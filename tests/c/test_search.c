@@ -96,8 +96,12 @@ static bool oracle_2byte(const char *s, size_t len, size_t *out_start,
     if (s[i] == 'a' && s[i + 1] == 'b') {
       char c = s[i + 2];
       if (c == 'x' || c == 'y') {
+        /* SPAN consumes the WHOLE x/y run (mirroring the full VM). */
+        size_t end = i + 3;
+        while (end < len && (s[end] == 'x' || s[end] == 'y'))
+          end++;
         *out_start = i;
-        *out_end = i + 3;
+        *out_end = end;
         return true;
       }
     }
@@ -478,16 +482,16 @@ void test_cov_automaton_bmh_gate(void) {
   }
   const snobol_search_meta_t *meta = snobol_pattern_get_meta(pat);
   test_assert(meta->has_bmh_skip, "literal prefix yields BMH skip");
-  test_assert(meta->automaton_eligible, "automaton-eligible");
+  /* SPAN's zero-width run-end exit cannot be encoded in the DFA (it would
+   * accept after the FIRST class byte), so SPAN patterns are NOT
+   * automaton-eligible — the search-VM handles them correctly. */
+  test_assert(!meta->automaton_eligible, "SPAN patterns are not automaton-eligible");
   test_assert(!meta->is_alt_literals, "not alt-literals");
 
-  /* DFA-available path: dispatch must promote to TIER_AUTOMATON. */
-  test_assert(snobol_search_executed_tier(meta, true, 32, false) ==
+  /* No DFA promotion without automaton eligibility. */
+  test_assert(snobol_search_executed_tier(meta, true, 32, false) !=
                   TIER_AUTOMATON,
-              "executed tier promoted to AUTOMATON with DFA");
-  test_assert(snobol_search_executed_tier(meta, false, 32, false) !=
-                  TIER_AUTOMATON,
-              "no DFA available: no automaton promotion");
+              "SPAN pattern never promotes to AUTOMATON");
   test_assert(snobol_search_executed_tier(NULL, true, 32, false) ==
                   TIER_GENERAL,
               "executed_tier(NULL) falls back to GENERAL");
@@ -497,7 +501,9 @@ void test_cov_automaton_bmh_gate(void) {
   vm.bc = snobol_pattern_get_bc(pat);
   vm.bc_len = snobol_pattern_get_bc_len(pat);
 
-  /* Build a DFA and hand it to the dispatcher. */
+  /* A hand-built DFA on a SPAN pattern must not change the match: the
+   * automaton would accept after the first class byte (length 4 for
+   * "ab34"), the correct run is the full 5 bytes. */
   snobol_dfa_t *dfa = build_dfa(vm.bc, vm.bc_len, &vm);
   test_assert(dfa != NULL, "DFA builds for prefix+SPAN");
   if (dfa) {
@@ -505,12 +511,13 @@ void test_cov_automaton_bmh_gate(void) {
     snobol_search_diag_t diag;
     bool ok =
         snobol_search_exec(&vm, "xxab34", 6, 0, meta, dfa, &result, &diag);
-    test_assert(ok && result.match_start == 2, "automaton matches 'ab34'");
-    test_assert(diag.automaton_tests >= 1, "automaton_tests counted");
+    test_assert(ok && result.match_start == 2 && result.match_end == 6,
+                "search-vm matches the full 'ab34' run (not the DFA's 'ab3')");
+    test_assert(diag.automaton_tests == 0, "automaton not used for SPAN");
 
-    /* No-match subject drives the automaton's full scan + fallthrough. */
+    /* No-match subject returns false through the search-vm path. */
     ok = snobol_search_exec(&vm, "zzzzzzz", 7, 0, meta, dfa, &result, &diag);
-    test_assert(!ok, "automaton no-match returns false");
+    test_assert(!ok, "no-match returns false");
     snobol_dfa_free(dfa);
   }
   snobol_search_vm_cleanup(&vm);
