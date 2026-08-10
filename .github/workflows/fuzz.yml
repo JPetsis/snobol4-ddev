@@ -38,6 +38,38 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  fuzz-oracle:
+    name: Fuzz Oracle (Clang, 30 min)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Configure with Clang + fuzz
+        run: >
+          cmake -B build
+          -DCMAKE_C_COMPILER=clang
+          -DCMAKE_CXX_COMPILER=clang++
+          -DBUILD_TESTS=OFF
+          -DBUILD_PHP=OFF
+          -DSNOBOL_FUZZ=ON
+
+      - name: Build fuzz harnesses
+        run: cmake --build build --config Release
+
+      - name: Fuzz oracle (30 min)
+        working-directory: build
+        run: ./tests/fuzz/fuzz_oracle -max_total_time=1800 -artifact_prefix=artifacts-oracle/ || true
+
+      - name: Upload oracle disagreement artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fuzz-oracle-artifacts
+          path: build/artifacts-oracle/
+          if-no-files-found: ignore
+          retention-days: 7
+
   fuzz-vm:
     name: Fuzz VM (Clang, 30 min)
     runs-on: ubuntu-latest
