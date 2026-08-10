@@ -17,8 +17,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SPLIT` precedes the literals, so the last branch's literal was marked
   required and `snobol_pattern_search` returned false negatives for
   subjects matching any other branch. Any `SPLIT` encountered before any
-  literal now sets `lit_bypassed` (no required literal). Regression tests:
-  `test_prefilter_leading_alternation` and `test_alt_literals_large_chain`.
+  literal now sets `lit_bypassed` (no required literal). Found while
+  dogfooding the Builder API in the changelog split tool.
+- **Alt-literals walk bound raised 512 → 2048 bytes**
+  (`core/src/search_meta.c`, `derive_meta`): alternations whose bytecode
+  exceeded the old bound silently lost the trie tier and fell to the
+  search-VM tier. Regression tests:
+  `test_prefilter_leading_alternation` and `test_alt_literals_large_chain`
+  (40-branch chain stays on `TIER_ALT_LIT`; a 260-branch chain exceeds the
+  bound but still matches any branch).
 
 ## [1.0.2] - 2026-08-06
 
