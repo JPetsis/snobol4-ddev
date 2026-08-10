@@ -11,6 +11,14 @@ Changes to the **C core** live in the repository root's
 Git tags for the binding are `php/vX.Y.Z` (Packagist/PIE derive the
 package version from the tag).
 
+## [Unreleased]
+
+### Fixed
+
+- **Stale Packagist branch alias** (`composer.json`): `dev-main` resolved
+  as `0.2.x-dev`; now `1.x-dev` so `dev-main` consumers get correct
+  stability and semver range matching.
+
 ## [1.0.2] - 2026-08-06
 
 ### Fixed
