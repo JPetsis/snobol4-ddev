@@ -5,7 +5,20 @@ All notable changes to the libsnobol4 project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.3] - 2026-08-10
+
+### Fixed
+
+- **Required-byte prefilter rejected subjects matching non-final
+  alternation branches** (`core/src/search_meta.c`, `derive_meta`): the
+  linear scan treated the last `OP_LIT` in bytecode order as required
+  unless a `SPLIT` seen after it provably bypassed it. For left-nested
+  alternation chains (`'a'|'b'|'c'`) and loop bodies (`('a'|'b')*`) every
+  `SPLIT` precedes the literals, so the last branch's literal was marked
+  required and `snobol_pattern_search` returned false negatives for
+  subjects matching any other branch. Any `SPLIT` encountered before any
+  literal now sets `lit_bypassed` (no required literal). Regression tests:
+  `test_prefilter_leading_alternation` and `test_alt_literals_large_chain`.
 
 ## [1.0.2] - 2026-08-06
 
@@ -138,7 +151,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the remaining subject length (fails only when the cursor is past the
   target).
 
-## ## [0.13.0] - 2026-07-28
+## [1.0.1] - 2026-08-02
+
+### Changed
+
+- **Version bumped to 1.0.1** across the project (top-level `CMakeLists.txt`,
+  `core/CMakeLists.txt`, `bindings/php/src/php_snobol.h`, PHP/C API version
+  tests, READMEs).
+
+### Fixed
+
+- **PIE release asset naming matched exactly** (`.github/workflows/release.yml`):
+  the published asset name pattern now matches what PIE expects, and
+  **PHP 8.5 builds** were added to the release matrix.
+- **`snobol/version.h` generated at configure time when missing**
+  (`bindings/php/config.m4`): the PHP binding's build no longer requires a
+  pre-existing generated header, fixing out-of-tree configure runs.
+
+## [1.0.0] - 2026-08-02
+
+First Packagist/PIE release of the 1.x series. The engine is functionally
+the 0.13.0 codebase; this release is the distribution/CI hardening that made
+standalone packaging viable.
+
+### Added
+
+- **CMake guards for examples/bench subdirectories** (`CMakeLists.txt`):
+  distributed source tarballs configure cleanly when the examples and
+  benchmark targets are not built.
+- **LTO behind an option** (`core/CMakeLists.txt`): `SNOBOL_LTO` defaults
+  to OFF for standalone builds, keeping distributed builds toolchain-agnostic.
+
+### Changed
+
+- **Version bumped to 1.0.0** (`CMakeLists.txt`, `core/CMakeLists.txt`):
+  the 0.13.0 engine is released as the first 1.x version; the PHP binding
+  API version test encoding was updated to match.
+
+### Fixed
+
+- **Windows CI builds the PHP extension via a direct dev-pack build**
+  (`.github/workflows/`): the php-windows-builder action was replaced with
+  the native Windows dev-pack flow, and the Windows `arch` input now uses
+  `x64` (was `x86_64`).
+- **macos arm64 jobs moved to `macos-15` runners** (`.github/workflows/`):
+  the arm64 matrix entries previously pinned `macos-14`.
+- **PIE builder upgraded to `pie-ext-binary-builder@0.0.3`** with a
+  `build-path` input so the extension binary lands at the expected path.
+
+## [0.13.0] - 2026-07-28
 
 ### Pattern Fusion (Tier 10)
 
@@ -447,7 +508,9 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **`search_vm_pop_choice()` infinite loop** (`core/src/search.c`): Off-by-one read in `search_vm_pop_choice()` caused it to read the wrong choice entry from the stack, and always returned `true` even when the choice stack was empty. This caused `searchAll()` and `searchSplit()` with multi-character alternation patterns (e.g., `'cat' | 'dog'`) to hang indefinitely. Fixed by reading from the correct offset and removing the `else { ip=0; pos=0; }` fallback that caused infinite restarts. All 1928 C tests + 349 PHP tests pass.
 - **DFA build warnings**: `build_dfa()` in `search.c` had variables declared after `goto fail` paths; moved all cleanup variable declarations before the first failure point and added null guard on `snobol_free(ht)`. 14 `-Wsometimes-uninitialized` warnings eliminated.
 
-### SLJIT Method JIT & Tracing-JIT Retirement — 2026-06-27 [0.11.0]
+## [0.11.0] - 2026-06-24
+
+#### SLJIT Method JIT & Tracing-JIT Retirement — 2026-06-27
 
 ### Added
 
@@ -490,7 +553,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **test_search_meta_cache.c**, **test_search_ex_api.c**: removed
   `entries_total` references.
 
-### searchSplit Bulk-Result Buffer — 2026-06-20 [0.11.0]
+#### searchSplit Bulk-Result Buffer — 2026-06-20
 
 ### Added
 
@@ -526,7 +589,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   the bulk path is reserved for very large subjects (and for future tuning
   when the search region becomes cheaper, e.g. via SSA IR in Phase 11).
 
-### JIT Search Performance Baseline — 2026-06-20 [0.11.0]
+#### JIT Search Performance Baseline — 2026-06-20
 
 ### Added
 
@@ -565,7 +628,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   relative to the captured baseline, catching the case where a JIT
   optimization helps the C path but the PHP binding is forgotten.
 
-### Diagnostic Probe — 2026-06-20 [0.11.0]
+#### Diagnostic Probe — 2026-06-20
 
 ### Added
 
@@ -596,7 +659,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **AGENTS.md** updated with the "JIT changes must cover both C and PHP
   binding" rule and the diagnostic-probe workflow.
 
-### Activate C JIT — 2026-06-20 [0.11.0]
+#### Activate C JIT — 2026-06-20
 
 ### Added
 
@@ -621,7 +684,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   suites now compare interpreter mode (current) against search/JIT mode,
   side by side with PCRE2.
 
-### Binding Performance & Range Syntax — 2026-06-20 [0.11.0]
+#### Binding Performance & Range Syntax — 2026-06-20
 
 ### Added
 
@@ -659,7 +722,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **`docs/why-snobol-vs-pcre.md`** and `docs/examples/*.php` updated
   to use range syntax in illustrative examples.
 
-### Testing & Docs Meta — 2026-06-19 [0.11.0]
+#### Testing & Docs Meta — 2026-06-19
 
 ### Added
 
@@ -685,7 +748,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **`README.md`** and **`CONTRIBUTING.md`** updated for the v0.11.0 /
   v1.0.0 plan and the official scope statement.
 
-### AST Clone & Clean Build — 2026-06-19 [0.11.0]
+#### AST Clone & Clean Build — 2026-06-19
 
 ### Added
 
@@ -709,7 +772,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **`docs/why-snobol-vs-pcre.md` examples** updated to use `Snobol\Builder` API instead
   of unsupported pattern string syntax (`BREAK`, `POS`, `RPOS`).
 
-### Core Primitives & Builtins — 2026-06-15 [0.11.0]
+#### Core Primitives & Builtins — 2026-06-15
 
 ### Added
 
@@ -741,7 +804,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **PHP tests**: `tests/php/PrimitivesTest.php` (90 tests), `tests/php/ComparisonsTest.php` (183 tests).
 - **`snobol_str_to_double()`** helper exposed in `core/include/snobol/type_fn.h` for reuse.
 
-### Array Data Type — 2026-06-16 [0.11.0]
+#### Array Data Type — 2026-06-16
 
 ### Added
 
@@ -766,7 +829,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **PHP tests**: `tests/compat/ArrayTest.php` (176 assertions) covering all `Snobol\Array_`
   operations including edge cases (empty array, single element, many elements, deletion).
 
-### Full BMP Unicode — 2026-06-16 [0.11.0]
+#### Full BMP Unicode — 2026-06-16
 
 ### Added
 
@@ -795,7 +858,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **PHP tests**: `tests/php/UnicodeTest.php` (37 tests) covering BMP UPPER/LOWER with
   Greek, Cyrillic, CJK, and mixed-script strings.
 
-### Convenience API for PHP binding — 2026-06-18 [0.11.0]
+#### Convenience API for PHP binding — 2026-06-18
 
 ### Added
 
