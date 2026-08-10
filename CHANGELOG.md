@@ -62,7 +62,27 @@ tagged `php/vX.Y.Z`.
   historical entries were split by component; `CONTRIBUTING.md` updated to
   require `[Unreleased]` entries in the affected component's file.
 
-C test suite: **358 cases / 74,895 assertions** (custom runner).
+- **Differential search oracle** (`tests/c/corpus.h`,
+  `tests/c/test_search_oracle.c`): an embedded pattern corpus (60+ common
+  and uncommon shapes — tokenization, extraction, validation,
+  alternations incl. leading and >2048-byte ones, prefix-of-another
+  literals, empty literals, loops, BREAK/BREAKX, Unicode, case-insensitive)
+  plus a seeded generator, run through an equivalence harness: the
+  accelerated tier dispatch must match a reference per-offset `vm_exec`
+  run on the same bytecode in success, position, length, and captures
+  (cross-checked via search/_ex/batch/search_next where applicable). A
+  conservative must-analysis bytecode walk asserts metadata soundness
+  (`has_required_lit ⇒ literal on every accepting path`, leading
+  alternations derive no required literal, tier/eligibility consistency).
+  The suite currently reports the divergences it finds — the wrong-answer
+  findings are tracked for a follow-up fix change.
+- **`fuzz_oracle` differential fuzz target** (`tests/fuzz/fuzz_oracle.c`,
+  registered in `tests/fuzz/CMakeLists.txt` + `fuzz.yml` 30-min job):
+  converts the fuzzer from crash-only to a wrong-answer finder — runs tier
+  dispatch AND the reference VM on every input, writes a reproducer and
+  aborts on any disagreement.
+
+C test suite: **362 cases / 74,914 assertions** (custom runner).
 
 ## [1.0.3] - 2026-08-10
 
