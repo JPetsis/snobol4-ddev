@@ -347,6 +347,14 @@ is always cut from the same commit (see "Creating a Release").
 
 #### Shipping a patch release (hotfix flow)
 
+> **Never move a tag that Packagist has already seen.** Packagist stable
+> versions are immutable: the version's git reference is pinned at first
+> publication and a moved tag is a *blocked retag* (warning badge on the
+> package page + maintainer notification). A tag can be moved back to its
+> **original** commit to clear the badge — anything else requires shipping
+> the fix as the **next** version number ("version numbers are cheap").
+> Treat every pushed release tag as permanent.
+
 1. Fix the bug on `main` first (trunk-first — `main` stays the canonical
    history). Add the changelog entry under `[Unreleased]` as usual.
 2. Cherry-pick the fix (and its changelog entry, moved under the `[1.0.3]`
