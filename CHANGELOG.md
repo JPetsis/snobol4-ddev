@@ -13,6 +13,16 @@ tagged `php/vX.Y.Z`.
 
 ## [Unreleased]
 
+### Changed
+
+- **Versioning docs aligned with the harmonized model** — the project
+  releases one shared version number (`project(libsnobol4 VERSION …)`);
+  per-component changelogs and tags (`core/v*`, `php/v*`) record what
+  changed in each component, not independent version numbers. A core-only
+  patch still moves the Packagist package version because the PHP package
+  embeds the core via the amalgam. `CONTRIBUTING.md` and `README.md`
+  updated; `composer.json` name fixed to the registered `libsnobol4/snobol`.
+
 ### Fixed
 
 - **Required-byte prefilter rejected subjects matching non-final

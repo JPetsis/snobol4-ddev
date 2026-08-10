@@ -9,7 +9,18 @@ Changes to the **C core** live in the repository root's
 [CHANGELOG.md](../CHANGELOG.md).
 
 Git tags for the binding are `php/vX.Y.Z` (Packagist/PIE derive the
-package version from the tag).
+package version from the tag). The tag triplet `vX.Y.Z`, `core/vX.Y.Z`
+and `php/vX.Y.Z` is always cut from the same commit, so binding and
+core versions correspond 1:1.
+
+## [1.0.3] - 2026-08-10
+
+### Changed
+
+- **Bundles core v1.0.3** — the extension embeds the C core via the
+  amalgam, so this release ships the required-literal prefilter fix
+  (`snobol_pattern_search` false negatives on alternation chains).
+  No binding code changed; `php/v1.0.3` corresponds to `core/v1.0.3`.
 
 ## [Unreleased]
 

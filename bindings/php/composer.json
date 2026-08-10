@@ -1,5 +1,5 @@
 {
-  "name": "libsnobol4/libsnobol4-php",
+  "name": "libsnobol4/snobol",
   "description": "SNOBOL4 pattern matching for PHP",
   "type": "library",
   "keywords": [

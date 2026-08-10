@@ -286,17 +286,27 @@ The C core libsnobol4 makes the following stability guarantees around allocation
 
 ### Versioning
 
-libsnobol4 uses independent versioning for core and bindings and follows
+libsnobol4 uses **one project-wide version number** and follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html):
 
-- **Core**: `v<major>.<minor>.<patch>` (e.g., `v1.0.2`)
-- **PHP Binding**: `v<major>.<minor>.<patch>` (e.g., `v1.0.2`)
+- **Project version**: `v<major>.<minor>.<patch>` (e.g., `v1.0.2`)
+- **Component tags**: `core/vX.Y.Z` and `php/vX.Y.Z` track the same
+  release per component
 
-The core version has a **single source of truth**: the
+The version has a **single source of truth**: the
 `project(libsnobol4 VERSION X.Y.Z)` declaration in the top-level
 `CMakeLists.txt`. The `SNOBOL_VERSION_*` macros in `<snobol/version.h>` are
 generated from it at configure time via `core/cmake/version.h.in` — do **not**
-hand-edit version literals in any header.
+hand-edit version literals in any header. `PHP_SNOBOL_VERSION` in
+`bindings/php/src/php_snobol.h` mirrors it and is bumped with each release.
+
+**Decoupling is per-component *content*, not per-component *numbers*:** the
+per-component changelogs and tags record what changed in each component,
+but the version number and the release vehicle (plain `vX.Y.Z` tag →
+GitHub release + Packagist) are shared. A core-only patch still moves the
+Packagist package version, because the PHP package embeds the core via the
+amalgam — its shipped artifact changes. For the same reason the tag triplet
+is always cut from the same commit (see "Creating a Release").
 
 ### Creating a Release
 
@@ -313,7 +323,10 @@ hand-edit version literals in any header.
    git push origin --tags
    ```
    The plain `vX.Y.Z` tag drives the GitHub release workflow and Packagist;
-   `core/vX.Y.Z` and `php/vX.Y.Z` track the components independently.
+   `core/vX.Y.Z` and `php/vX.Y.Z` track the components independently. **All
+   three tags are cut from the same commit** — binding and core versions
+   correspond 1:1, even when one component has no code changes (the PHP
+   package still embeds the core via the amalgam).
 4. Create GitHub release with changelog. Minor/major release notes are
    generated from merged PRs; **patch release notes are written manually**
    (cherry-picked hotfixes are commits, not PRs, so auto-generated notes

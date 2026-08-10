@@ -513,15 +513,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ## Versioning
 
-libsnobol4 uses independent versioning for core and each binding:
+libsnobol4 uses **one project-wide version number**; per-component
+changelogs and tags (`core/v*`, `php/v*`) record what changed in each
+component:
 
 | Component              | Current | Next        | Status               | Install                               |
 |------------------------|---------|-------------|----------------------|---------------------------------------|
-| **Core**               | v1.0.2 | v1.0.2     | ✅ v1.0.2 shipped    | `brew install JPetsis/homebrew-tap/libsnobol4` |
-| **PHP Binding**        | v1.0.2 | v1.0.2     | ✅ Stable (graduated) | `pie install libsnobol4/snobol`       |
+| **Core**               | v1.0.3 | v1.0.3     | ✅ v1.0.3 shipped    | `brew install JPetsis/homebrew-tap/libsnobol4` |
+| **PHP Binding**        | v1.0.3 | v1.0.3     | ✅ Stable (graduated) | `pie install libsnobol4/snobol`       |
 | **Python (reference)** | —       | —           | Prototype only       | `examples/python-binding/`            |
 
-This allows bindings to evolve at their own pace while maintaining clear compatibility guarantees.
+A core-only release still moves the shared version number (and the
+Packagist package), because the PHP package embeds the core via the
+amalgam; the per-component changelogs and tags track what actually changed.
 
 The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The **single source of version truth** is the top-level
