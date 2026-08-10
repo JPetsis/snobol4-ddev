@@ -430,7 +430,9 @@ stack — the remaining performance lever for the irreducibly stateful residue
 
 - **`search_vm_pop_choice()` infinite loop** (`core/src/search.c`): Off-by-one read in `search_vm_pop_choice()` caused it to read the wrong choice entry from the stack, and always returned `true` even when the choice stack was empty. This caused `searchAll()` and `searchSplit()` with multi-character alternation patterns (e.g., `'cat' | 'dog'`) to hang indefinitely. Fixed by reading from the correct offset and removing the `else { ip=0; pos=0; }` fallback that caused infinite restarts. All 1928 C tests + 349 PHP tests pass.
 - **DFA build warnings**: `build_dfa()` in `search.c` had variables declared after `goto fail` paths; moved all cleanup variable declarations before the first failure point and added null guard on `snobol_free(ht)`. 14 `-Wsometimes-uninitialized` warnings eliminated.
-### SLJIT Method JIT & Tracing-JIT Retirement — 2026-06-27 [0.11.0]
+## [0.11.0] - 2026-06-24
+
+#### SLJIT Method JIT & Tracing-JIT Retirement — 2026-06-27
 
 ### Added
 
@@ -467,7 +469,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   `method_successes_total` instead of removed tracing counters.
 - **test_search_meta_cache.c**, **test_search_ex_api.c**: removed
   `entries_total` references.
-### searchSplit Bulk-Result Buffer — 2026-06-20 [0.11.0]
+#### searchSplit Bulk-Result Buffer — 2026-06-20
 
 ### Added
 
@@ -485,7 +487,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   savings at the current search-region cost. The threshold is set to 1 MB so
   the bulk path is reserved for very large subjects (and for future tuning
   when the search region becomes cheaper, e.g. via SSA IR in Phase 11).
-### JIT Search Performance Baseline — 2026-06-20 [0.11.0]
+#### JIT Search Performance Baseline — 2026-06-20
 
 ### Added
 
@@ -511,7 +513,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **C tests**: `tests/c/test_search_meta_cache.c` verifies identical results
   before and after caching, and that `snobol_jit_get_stats()` reports the
   same JIT counters.
-### Diagnostic Probe — 2026-06-20 [0.11.0]
+#### Diagnostic Probe — 2026-06-20
 
 ### Added
 
@@ -529,7 +531,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   descriptions, and performance analysis guidance.
 - **AGENTS.md** updated with the "JIT changes must cover both C and PHP
   binding" rule and the diagnostic-probe workflow.
-### Activate C JIT — 2026-06-20 [0.11.0]
+#### Activate C JIT — 2026-06-20
 
 ### Added
 
@@ -553,7 +555,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   `bench_complex_http.c`, `bench_runner.c`): all five C microbenchmark
   suites now compare interpreter mode (current) against search/JIT mode,
   side by side with PCRE2.
-### Binding Performance & Range Syntax — 2026-06-20 [0.11.0]
+#### Binding Performance & Range Syntax — 2026-06-20
 
 ### Added
 
@@ -573,7 +575,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 
 - **`docs/why-snobol-vs-pcre.md`** and `docs/examples/*.php` updated
   to use range syntax in illustrative examples.
-### Testing & Docs Meta — 2026-06-19 [0.11.0]
+#### Testing & Docs Meta — 2026-06-19
 
 ### Added
 
@@ -597,7 +599,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 
 - **`README.md`** and **`CONTRIBUTING.md`** updated for the v0.11.0 /
   v1.0.0 plan and the official scope statement.
-### AST Clone & Clean Build — 2026-06-19 [0.11.0]
+#### AST Clone & Clean Build — 2026-06-19
 
 ### Added
 
@@ -618,7 +620,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   catching any future build directories (e.g. `build-fuzz/`, `build-asan/`, etc.).
 - **`docs/why-snobol-vs-pcre.md` examples** updated to use `Snobol\Builder` API instead
   of unsupported pattern string syntax (`BREAK`, `POS`, `RPOS`).
-### Core Primitives & Builtins — 2026-06-15 [0.11.0]
+#### Core Primitives & Builtins — 2026-06-15
 
 ### Added
 
@@ -644,7 +646,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   (IDs 22–27) in the built-in dispatch table.
 - **C tests**: `tests/c/test_pattern_pos_tab.c` (186 assertions), `tests/c/test_pattern_abort_fail_succeed.c` (172 assertions), `tests/c/test_comparison_numeric.c` (80 assertions).
 - **`snobol_str_to_double()`** helper exposed in `core/include/snobol/type_fn.h` for reuse.
-### Array Data Type — 2026-06-16 [0.11.0]
+#### Array Data Type — 2026-06-16
 
 ### Added
 
@@ -662,7 +664,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
   `vm_get_array()` — parallel to the existing table registry.
 - **C tests**: `tests/c/test_array.c` (214 assertions) covering create/set/get/delete/size/
   keys/values/resize/tombstone/rehash.
-### Full BMP Unicode — 2026-06-16 [0.11.0]
+#### Full BMP Unicode — 2026-06-16
 
 ### Added
 
@@ -686,7 +688,7 @@ stack — the remaining performance lever for the irreducibly stateful residue
 - **C tests**: expanded `tests/c/test_unicode_fold.c` (60 assertions) with Cyrillic,
   Greek, Arabic, Hebrew, CJK case-fold test cases; expanded `tests/c/test_pattern_case.c`
   (36 new assertions) for BMP case-insensitive matching with Greek and Cyrillic patterns.
-### Convenience API for PHP binding — 2026-06-18 [0.11.0]
+#### Convenience API for PHP binding — 2026-06-18
 
 ### Added
 
