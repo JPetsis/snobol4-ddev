@@ -370,6 +370,10 @@ is always cut from the same commit (see "Creating a Release").
 4. Push the release branch; CI (`release/**` triggers) gates it. Tag the
    release-branch commit with the tag triplet and run the release steps
    above.
+5. **Prune main's `[Unreleased]` queue** — the shipped fixes are no longer
+   unreleased. On `main`, move their changelog bullets under a new
+   `[1.0.3]` heading (so main's history stays complete and the *next*
+   minor's section contains only genuinely new entries).
 
 ## Getting Help
 
