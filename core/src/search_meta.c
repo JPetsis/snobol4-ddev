@@ -240,7 +240,14 @@ static void compute_start_bitmap(const uint8_t *bc, size_t bc_len, size_t ip,
           SBM_DONE();
         }
         uint32_t lit_off = search_read_u32(bc, ip + 1);
-        if (lit_off >= bc_len) {
+        uint32_t lit_len = search_read_u32(bc, ip + 5);
+        if (lit_off >= bc_len || lit_off + lit_len > bc_len) {
+          bitmap256_set_all(bm);
+          SBM_DONE();
+        }
+        if (lit_len == 0) {
+          /* Empty literal: the pattern can start at ANY byte (the empty
+           * branch contributes no start byte of its own). */
           bitmap256_set_all(bm);
           SBM_DONE();
         }
@@ -650,12 +657,18 @@ static bool check_automaton_eligible(const uint8_t *bc, size_t bc_len) {
       }
       case OP_ANY:
       case OP_NOTANY:
-      case OP_SPAN:
-      case OP_BREAK:
         if (ip + 2 > bc_len)
           return false;
         ip += 2;
         break;
+      /* SPAN / BREAK: excluded from the DFA.  Their exit to the next
+       * instruction is a zero-width CONDITIONAL (only when the class run
+       * ends / a delimiter is found); the DFA builder encodes it as an
+       * unconditional epsilon, which makes the automaton accept after the
+       * FIRST class byte instead of the whole run (the same reason ANCHOR
+       * and the position primitives are excluded). */
+      case OP_SPAN:
+      case OP_BREAK: return false;
       case OP_LEN:
         if (ip + 4 > bc_len)
           return false;
@@ -710,9 +723,41 @@ static bool check_automaton_eligible(const uint8_t *bc, size_t bc_len) {
  * (Tier 3a) instead of calling vm_exec at each candidate position.
  * ---------------------------------------------------------------------------
  */
+/* True when the SPLIT/LIT alternation tree contains an empty (len 0)
+ * literal branch. */
+static bool SNOBOL_PURE alt_has_empty_branch(const uint8_t *bc,
+                                             size_t bc_len) {
+  size_t stack[64];
+  int sp = 0;
+  stack[sp++] = 0;
+  while (sp > 0) {
+    size_t ip = stack[--sp];
+    if (ip + 2 > bc_len)
+      return false;
+    uint8_t op = bc[ip];
+    if (op == OP_LIT) {
+      if (ip + 10 > bc_len)
+        return false;
+      if (search_read_u32(bc, ip + 5) == 0)
+        return true;
+    } else if (op == OP_SPLIT) {
+      if (ip + 9 > bc_len)
+        return false;
+      uint32_t a = search_read_u32(bc, ip + 1);
+      uint32_t b = search_read_u32(bc, ip + 5);
+      if (a >= bc_len || b >= bc_len)
+        return false;
+      stack[sp++] = b;
+      stack[sp++] = a;
+    } else {
+      return false;
+    }
+  }
+  return false;
+}
+
 static bool SNOBOL_PURE check_alt_literals(const uint8_t *bc, size_t bc_len,
-                                           size_t ip) {
-  if (ip + 2 > bc_len)
+                                           size_t ip, size_t *lit_bytes) {  if (ip + 2 > bc_len)
     return false;
   uint8_t op = bc[ip];
 
@@ -726,6 +771,13 @@ static bool SNOBOL_PURE check_alt_literals(const uint8_t *bc, size_t bc_len,
       return false;
     uint32_t lit_len = search_read_u32(bc, ip + 5);
     if (ip + 9 + lit_len > bc_len)
+      return false;
+    /* Pool budget: the trie needs at most 1 + sum(len_i) nodes, so bound
+     * the total literal bytes to keep every build inside the fixed pool.
+     * Over-budget alternations fall through to the search-VM / general
+     * tiers, which are correct. */
+    *lit_bytes += lit_len;
+    if (*lit_bytes > SNOBOL_AUTO_MAX_LIT_BYTES)
       return false;
     size_t cur = ip + 9 + lit_len;
     size_t guard = 0;
@@ -747,8 +799,8 @@ static bool SNOBOL_PURE check_alt_literals(const uint8_t *bc, size_t bc_len,
     uint32_t b = search_read_u32(bc, ip + 5);
     if (a >= bc_len || b >= bc_len)
       return false;
-    return check_alt_literals(bc, bc_len, a) &&
-           check_alt_literals(bc, bc_len, b);
+    return check_alt_literals(bc, bc_len, a, lit_bytes) &&
+           check_alt_literals(bc, bc_len, b, lit_bytes);
   }
 
   return false;
@@ -771,14 +823,13 @@ static bool check_literal_only(const uint8_t *bc, size_t bc_len) {
     return false;
   size_t ip = 0;
 
-  /* Skip leading zero-width ops */
+  /* Skip leading zero-width ops (NOP / FENCE only).  ANCHOR and the
+   * position primitives (POS/RPOS/TAB/RTAB) are position-constrained and
+   * the memmem/memcmp fast path cannot enforce them — a `^ 'abc'` pattern
+   * must match only at position 0, not wherever the literal occurs. */
   while (ip < bc_len) {
     uint8_t op = bc[ip];
-    if (op == OP_NOP) {
-      ip++;
-      continue;
-    }
-    if (op == OP_FENCE || op == OP_ANCHOR) {
+    if (op == OP_NOP || op == OP_FENCE) {
       ip++;
       continue;
     }
@@ -797,14 +848,11 @@ static bool check_literal_only(const uint8_t *bc, size_t bc_len) {
     return false;
   ip += lit_len;
 
-  /* Skip trailing zero-width ops */
+  /* Skip trailing zero-width ops (NOP / FENCE only — position-constrained
+   * ops disqualify, see above). */
   while (ip < bc_len) {
     uint8_t op = bc[ip];
-    if (op == OP_NOP) {
-      ip++;
-      continue;
-    }
-    if (op == OP_FENCE || op == OP_ANCHOR) {
+    if (op == OP_NOP || op == OP_FENCE) {
       ip++;
       continue;
     }
@@ -1089,14 +1137,14 @@ static snobol_fusion_t *check_fusion_eligible(
       ip++;
       continue;
     }
-    if (op == OP_ANCHOR) {
-      ip += 2;
-      continue;
-    }
-    if ((op == OP_POS || op == OP_RPOS || op == OP_TAB || op == OP_RTAB) &&
-        ip + 5 <= bc_len) {
-      ip += 5;
-      continue;
+    /* ANCHOR and the position primitives are position CONSTRAINTS that the
+     * fusion engine cannot enforce (it walks fused segments only): a
+     * pattern like `'a'$` must match only at the subject end, not wherever
+     * 'a' occurs.  Exclude them — the search-VM enforces anchors. */
+    if (op == OP_ANCHOR || op == OP_POS || op == OP_RPOS || op == OP_TAB ||
+        op == OP_RTAB) {
+      snobol_fusion_free(fusion);
+      return NULL;
     }
 
     if (op == OP_ACCEPT || op == OP_SUCCEED)
@@ -1522,10 +1570,25 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
     break; /* first consuming opcode */
   }
   /* We peek at the first "real" consuming opcode to classify root behavior. */
-  if (ip >= bc_len)
-    return; /* truncated prefix left no valid opcode: unclassified meta */
+  if (ip >= bc_len) {
+    /* The whole pattern is zero-width (anchors, position primitives):
+     * it matches empty at every position.  Classify it so the tier
+     * selection below routes dispatch to a correct tier instead of
+     * leaving the meta unclassified (tier 0 = break-scan would reject
+     * every subject). */
+    out->may_match_empty = true;
+    out->always_consumes = false;
+    ip = 0;
+  }
 
   uint8_t op0 = bc[ip];
+
+  /* OP_ACCEPT / OP_SUCCEED at the root (all-zero-width prefix, e.g. `^$`
+   * or POS(0)): the pattern matches empty. */
+  if (op0 == OP_ACCEPT || op0 == OP_SUCCEED) {
+    out->may_match_empty = true;
+    out->always_consumes = false;
+  }
 
   /* OP_LIT: extract literal prefix bytes */
   if (op0 == OP_LIT && ip + 9 <= bc_len) {
@@ -1550,6 +1613,11 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
         out->has_bmh_skip = true;
         out->bmh_skip_len = prefix_len;
       }
+    } else if (lit_off < bc_len && lit_off + lit_len <= bc_len &&
+               lit_len == 0) {
+      /* Empty literal at the root: matches empty at every position. */
+      out->may_match_empty = true;
+      out->always_consumes = false;
     }
   }
 
@@ -1572,6 +1640,19 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
     if (ranges) {
       out->ascii_class_only =
           ranges_to_ascii_bitmap(ranges, count, out->class_bitmap);
+    }
+  }
+
+  /* OP_REPEAT_INIT: bounded repetition at the root */
+  else if (op0 == OP_REPEAT_INIT && ip + 14 <= bc_len) {
+    uint32_t min = search_read_u32(bc, ip + 2);
+    uint32_t skip = search_read_u32(bc, ip + 10);
+    if (min == 0 && skip < bc_len &&
+        (bc[skip] == OP_ACCEPT || bc[skip] == OP_SUCCEED)) {
+      /* Zero-iteration exit leads straight to ACCEPT: the pattern matches
+       * empty (e.g. `($)*` — the anchor body is bypassed entirely). */
+      out->may_match_empty = true;
+      out->always_consumes = false;
     }
   }
 
@@ -1739,7 +1820,13 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
    * fall through to the (correct) search-VM / general-VM tiers. */
   if (op0 == OP_SPLIT && bc_len >= 10) {
     size_t bc_remain = bc_len > 2048 ? 2048 : bc_len;
-    out->is_alt_literals = check_alt_literals(bc, bc_remain, 0);
+    size_t lit_bytes = 0;
+    out->is_alt_literals =
+        check_alt_literals(bc, bc_remain, 0, &lit_bytes) &&
+        lit_bytes <= SNOBOL_AUTO_MAX_LIT_BYTES;
+    /* An empty branch makes the alternation match empty at any position. */
+    if (out->is_alt_literals && alt_has_empty_branch(bc, bc_remain))
+      out->may_match_empty = true;
     /* Flat vs bushy: flat alternatives share no prefix and gain nothing
      * from the trie, so they are routed to TIER_GENERAL (which already has
      * start-bitmap + BMH + minlength acceleration).  This eliminates the
@@ -1820,6 +1907,12 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
     memset(out->start_bitmap, 0, sizeof(out->start_bitmap));
     compute_start_bitmap(bc, bc_len, 0, out->start_bitmap, 0, &bm_vm);
     out->has_start_bitmap = true;
+    /* A pattern that can match empty has no start byte — it can start at
+     * ANY position, so the start-bitmap filter must not reject candidates
+     * (e.g. an empty alternation branch matches subjects whose bytes are
+     * not in any literal's start set). */
+    if (out->may_match_empty)
+      bitmap256_set_all(out->start_bitmap);
   }
   out->minlength = compute_minlength(bc, bc_len, 0, 0);
 
@@ -1926,8 +2019,24 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
     size_t last_lit_len = 0;
     size_t last_lit_off = 0;
     bool lit_bypassed = false;
+    /* A SPLIT seen before ANY literal (entry alternation or loop-body
+     * SPLIT) makes every later literal a possible branch — sticky. */
+    bool split_seen_before_lit = false;
+    /* A SPLIT branch that JMPs past the last literal makes it optional —
+     * sticky, like split_seen_before_lit. */
+    bool split_branch_bypass = false;
+    /* Bytecode offset just past a min==0 REPEAT_INIT body: literals inside
+     * [init, skip_target) can be bypassed by the zero-iteration skip edge.
+     * Evaluated per literal, so a literal AFTER the loop is unaffected. */
+    size_t skippable_loop_end = 0;
     while (scan < bc_len) {
       uint8_t op = bc[scan];
+      /* The pattern's accepting point ends the linear scan: any LITs after
+       * the first ACCEPT/SUCCEED are unreachable (e.g. charclass metadata
+       * or other trailing data that can mimic literal instructions) and
+       * must not contribute a "required" literal. */
+      if (op == OP_ACCEPT || op == OP_SUCCEED || op == OP_ABORT)
+        break;
       if (op == OP_LIT && scan + 9 <= bc_len) {
         last_lit_off = scan;
         uint32_t lit_off = search_read_u32(bc, scan + 1);
@@ -1937,6 +2046,14 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
                              ? (size_t)lit_len
                              : SNOBOL_SEARCH_MAX_PREFIX;
           memcpy(last_lit, bc + lit_off, last_lit_len);
+          /* The newly recorded literal is bypassable when a SPLIT was seen
+           * before any literal, when a SPLIT branch provably bypasses the
+           * previous literal, or when it sits inside a min==0 loop body.
+           * An EMPTY literal does not replace last_lit, so it must not
+           * change the bypass state of the record it leaves in place. */
+          lit_bypassed =
+              split_seen_before_lit || split_branch_bypass ||
+              (skippable_loop_end > 0 && scan < skippable_loop_end);
         }
         scan += 9 + (size_t)lit_len;
         continue;
@@ -1950,6 +2067,7 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
          * alternation was treated as REQUIRED and the prefilter wrongly
          * rejected subjects that matched any other branch. */
         if (last_lit_len == 0) {
+          split_seen_before_lit = true;
           lit_bypassed = true;
           scan += 9;
           continue;
@@ -1981,6 +2099,7 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
             if (jmp_off + 5 <= bc_len && bc[jmp_off] == OP_JMP) {
               uint32_t jt = search_read_u32(bc, jmp_off + 1);
               if (jt > last_lit_off) {
+                split_branch_bypass = true;
                 lit_bypassed = true;
                 break;
               }
@@ -1992,8 +2111,20 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
       size_t adv = 1;
       if (op == OP_SPLIT)
         adv = 9;
-      else if (op == OP_REPEAT_INIT)
+      else if (op == OP_REPEAT_INIT) {
         adv = 14;
+        /* min==0 repetition: the skip edge (zero iterations) bypasses the
+         * whole loop body, so literals inside [scan, skip_target) are not
+         * required — the same reasoning as the SPLIT-before-literal guard.
+         * Literals recorded after the loop's skip target are unaffected. */
+        if (scan + 14 <= bc_len) {
+          uint32_t min = search_read_u32(bc, scan + 2);
+          uint32_t skip = search_read_u32(bc, scan + 10);
+          if (min == 0 && skip < bc_len && skip > scan) {
+            skippable_loop_end = skip;
+          }
+        }
+      }
       else if (op == OP_REPEAT_STEP)
         adv = 6;
       else if (op == OP_JMP || op == OP_LEN || op == OP_POS || op == OP_RPOS ||

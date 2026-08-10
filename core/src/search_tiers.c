@@ -20,6 +20,15 @@
 #include "snobol/simd.h"
 #include "snobol/vm.h"
 
+/* Tier 8 general-VM fallback, defined below; the alt-literals tier calls it
+ * when the trie pool is exhausted (search_simd.c calls it too). */
+bool tier_general_fallback(VM *vm, const char *subject, size_t subject_len,
+                           size_t start_offset,
+                           const snobol_search_meta_t *meta,
+                           const snobol_dfa_t *dfa,
+                           snobol_search_result_t *out_result,
+                           snobol_search_diag_t *diag, bool anchored);
+
 /* ---- Feature flags ---- */
 /* Pike single-pass scan: replace per-offset restart loop with a single
  * left-to-right pass maintaining a set of NFA threads.  Default OFF;
@@ -38,10 +47,14 @@
 
 /* ---------------------------------------------------------------------------
  * Trie builder — inserts a single literal string into the trie.
+ * `order` is the alternation branch order (0 = first branch): when a node
+ * already terminates a pattern, the LOWEST order wins (ordered-alternation
+ * semantics — the first matching branch decides the match).
  * Returns false when the node/edge pool is exhausted.
  * ---------------------------------------------------------------------------
  */
-static bool trie_insert(snobol_auto_trie_t *t, const uint8_t *s, size_t len) {
+static bool trie_insert(snobol_auto_trie_t *t, const uint8_t *s, size_t len,
+                        uint16_t order) {
   uint16_t n = 0; /* start at root */
   for (size_t i = 0; i < len; i++) {
     uint8_t b = s[i];
@@ -68,6 +81,7 @@ static bool trie_insert(snobol_auto_trie_t *t, const uint8_t *s, size_t len) {
       t->edges[ne].sibling = SNOBOL_AUTO_NULL;
       t->nodes[nn].first_edge = SNOBOL_AUTO_NULL;
       t->nodes[nn].is_end = false;
+      t->nodes[nn].end_order = 0;
       if (prev == SNOBOL_AUTO_NULL) {
         t->nodes[n].first_edge = ne;
       } else {
@@ -76,14 +90,22 @@ static bool trie_insert(snobol_auto_trie_t *t, const uint8_t *s, size_t len) {
       n = nn;
     }
   }
-  t->nodes[n].is_end = true;
+  /* Mark the terminal.  The empty literal (len 0) marks the root itself;
+   * it is a valid first alternative for ordered-alternation semantics. */
+  if (!t->nodes[n].is_end || order < t->nodes[n].end_order) {
+    t->nodes[n].is_end = true;
+    t->nodes[n].end_order = order;
+  }
   return true;
 }
 
 /* ---------------------------------------------------------------------------
  * Trie matcher — scans the subject from `offset`, returning true when the
  * trie matches at that position.  On match, `*match_len` receives the
- * number of bytes consumed.
+ * number of bytes consumed.  Ordered-alternation semantics: when several
+ * terminals match at the position (prefix overlap, or an empty branch), the
+ * LOWEST branch order wins — the same first-branch preference as the full
+ * VM's SPLIT evaluation.
  * ---------------------------------------------------------------------------
  */
 static bool SNOBOL_HOT trie_match(const snobol_auto_trie_t *SNOBOL_RESTRICT t,
@@ -92,19 +114,29 @@ static bool SNOBOL_HOT trie_match(const snobol_auto_trie_t *SNOBOL_RESTRICT t,
                                   size_t *SNOBOL_RESTRICT match_len) {
   size_t pos = offset;
   uint16_t n = 0; /* start at root */
+  uint16_t best_order = UINT16_MAX;
+  size_t best_len = 0;
+  if (t->nodes[0].is_end) {
+    best_order = t->nodes[0].end_order;
+    best_len = 0;
+  }
   while (pos < subject_len) {
     uint8_t b = (uint8_t)subject[pos];
     uint16_t e = t->nodes[n].first_edge;
     while (e != SNOBOL_AUTO_NULL && t->edges[e].byte != b)
       e = t->edges[e].sibling;
     if (e == SNOBOL_AUTO_NULL)
-      return false;
+      break;
     n = t->edges[e].next;
     pos++;
-    if (t->nodes[n].is_end) {
-      *match_len = pos - offset;
-      return true;
+    if (t->nodes[n].is_end && t->nodes[n].end_order < best_order) {
+      best_order = t->nodes[n].end_order;
+      best_len = pos - offset;
     }
+  }
+  if (best_order != UINT16_MAX) {
+    *match_len = best_len;
+    return true;
   }
   return false;
 }
@@ -154,6 +186,7 @@ static inline bool SNOBOL_ALWAYS_INLINE bitmap256_test(const uint8_t bm[32],
 static bool SNOBOL_HOT search_alt_literals_try(
     VM *SNOBOL_RESTRICT vm, const char *SNOBOL_RESTRICT subject,
     size_t subject_len, size_t start_offset, const snobol_search_meta_t *meta,
+    const snobol_dfa_t *dfa, snobol_search_diag_t *diag,
     snobol_search_result_t *out_result, bool anchored) {
   snobol_pattern_t *pat = vm->pattern;
   const snobol_auto_trie_t *trie = NULL;
@@ -175,8 +208,11 @@ static bool SNOBOL_HOT search_alt_literals_try(
     local.edge_count = 0;
     local.nodes[0].first_edge = SNOBOL_AUTO_NULL;
     local.nodes[0].is_end = false;
+    local.nodes[0].end_order = 0;
 
     bool all_ok = true;
+    bool pool_overflow = false;
+    uint16_t leaf_order = 0; /* alternation branch order (visit order) */
     size_t bc_len = vm->bc_len;
     const uint8_t *bc = vm->bc;
 
@@ -203,8 +239,9 @@ static bool SNOBOL_HOT search_alt_literals_try(
           all_ok = false;
           break;
         }
-        if (!trie_insert(&local, bc + off, len)) {
+        if (!trie_insert(&local, bc + off, len, leaf_order++)) {
           all_ok = false;
+          pool_overflow = true;
           break;
         }
       } else if (op == OP_SPLIT) {
@@ -230,8 +267,17 @@ static bool SNOBOL_HOT search_alt_literals_try(
       }
     }
 
-    if (!all_ok)
+    if (!all_ok) {
+      if (pool_overflow) {
+        /* Trie pool exhausted on structurally valid bytecode (e.g. a stale
+         * cache built before the derive_meta budget gate): fall back to the
+         * general VM instead of reporting a false negative. */
+        return tier_general_fallback(vm, subject, subject_len, start_offset,
+                                     meta, dfa, out_result, diag, anchored);
+      }
+      /* Structural failure (truncated/invalid bytecode): fail closed. */
       return false;
+    }
 
     /* Cache the freshly built trie on the owning pattern so subsequent
      * searches reuse it (by pointer — no per-call copy).  Skip flat tries
@@ -1303,14 +1349,18 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
       rp = search_vm_resolve_range(vm, set_id, &cnt, &cflag);
     }
     size_t start = pos;
+    /* All-ASCII classes are matched BYTE-wise, mirroring the full VM:
+     * any byte > 127 stops the run (its UTF-8 codepoint must not be
+     * considered, as an invalid sequence could decode into a class byte).
+     * Non-ASCII classes use codepoint-wise membership. */
+    uint64_t amap[2];
+    bool ascii_class = rp && ranges_to_ascii_bitmap(rp, cnt, amap);
     while (pos < len) {
       bool in_class = false;
       if (rp) {
-        uint8_t c = (uint8_t)s[pos];
-        uint64_t map[2];
-        if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, map) &&
-            bitmap_test(map, c)) {
-          in_class = true;
+        if (ascii_class) {
+          uint8_t c = (uint8_t)s[pos];
+          in_class = (c <= 127) && bitmap_test(amap, c);
         } else {
           uint32_t cp;
           int bytes;
@@ -1843,9 +1893,15 @@ static void epsilon_closure(const uint8_t *bc, size_t bc_len, uint16_t start,
 /**
  * Check if an NFA state (VM offset) contains ACCEPT.
  */
+/* True when the NFA offset is an OP_ACCEPT *instruction* (not a literal
+ * data byte).  Literal payload bytes can equal 0x00 (OP_ACCEPT's opcode),
+ * so the lit_next table — which maps literal-data offsets to their
+ * continuation and is DEAD for instruction offsets — distinguishes them:
+ * a NUL literal-data byte must not look like an accepting instruction. */
 static inline bool nfa_is_accept(const uint8_t *bc, size_t bc_len,
-                                 uint16_t off) {
-  return off < bc_len && bc[off] == OP_ACCEPT;
+                                 uint16_t off, const uint16_t *lit_next) {
+  return off < bc_len && bc[off] == OP_ACCEPT &&
+         (lit_next == NULL || lit_next[off] == SNOBOL_DFA_DEAD);
 }
 
 /**
@@ -2244,7 +2300,7 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
 
     bool is_accepting = false;
     for (uint16_t si = 0; si < cur_set->count && !is_accepting; si++) {
-      if (nfa_is_accept(bc, bc_len, cur_set->states[si]))
+      if (nfa_is_accept(bc, bc_len, cur_set->states[si], lit_next))
         is_accepting = true;
     }
     if (is_accepting) {
@@ -2714,7 +2770,7 @@ static bool tier_alt_literals(VM *vm, const char *subject, size_t subject_len,
   if (diag)
     diag->last_skip_reason = SNOBOL_SEARCH_SKIP_NONE;
   return search_alt_literals_try(vm, subject, subject_len, start_offset, meta,
-                                 out_result, anchored);
+                                 dfa, diag, out_result, anchored);
 }
 
 /* Tier 6: Search-VM for eligible patterns */
@@ -2797,6 +2853,8 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
   bool found = false;
   bool overflowed = false;
   size_t m_start = 0, m_end = 0;
+  if (out_result)
+    out_result->pike_zero_progress = false;
 
   /* Don't seed upfront — spawn dynamically as we scan */
   thread_n = 0;
@@ -2835,6 +2893,7 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
 
     for (size_t wt = 0; wt < work_n; ++wt) {
       pike_thread_t th = work[wt];
+    pike_retry_thread:
       size_t ip = th.ip;
       size_t tp = pos;
 
@@ -2848,7 +2907,11 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         }
         if (op == OP_ANCHOR) {
           uint8_t at = bc[ip + 1];
-          if ((at == 0 && tp != 0) || (at == 1 && tp != subject_len))
+          /* Window-relative semantics like the full VM: the start anchor
+           * succeeds at the thread's match start (not just subject byte 0),
+           * the end anchor at the subject end. */
+          if ((at == 0 && tp != th.match_start) ||
+              (at == 1 && tp != subject_len))
             goto pike_die;
           ip += 2;
           continue;
@@ -2996,8 +3059,21 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
                          ((uint32_t)bc[ip + 4] << 8) | (uint32_t)bc[ip + 5];
           if (lid < MAX_LOOPS) {
             th.counters[lid]++;
-            th.loop_last_pos[lid] = tp;
-            ip = (size_t)tgt;
+            /* Zero-progress guard (mirrors the full VM): an iteration that
+             * consumed nothing cannot repeat — exit the loop.  Without this,
+             * empty-body loops like `('')*` spin forever.
+             * A zero-progress exit also makes pike's match POSITION
+             * unreliable (the min==0 skip path can match empty at an
+             * earlier position), so signal overflow to force the restart
+             * loop — the same fallback as REPEAT_INIT. */
+            if (th.pos == th.loop_last_pos[lid]) {
+              overflowed = true;
+              out_result->pike_zero_progress = true;
+              ip += 6;
+            } else {
+              th.loop_last_pos[lid] = tp;
+              ip = (size_t)tgt;
+            }
           } else {
             ip += 6;
           }
@@ -3046,8 +3122,9 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
       if (op == OP_FAIL || op == OP_ABORT)
         goto pike_die;
 
-      if (tp >= subject_len)
-        goto pike_die;
+      /* NOTE: no blanket `tp >= subject_len` guard here — zero-length ops
+       * (LIT len 0, BREAK at the end) are legal at the subject end; each
+       * consuming op applies its own bounds. */
       if (op == OP_LIT) {
         uint32_t off = ((uint32_t)bc[ip] << 24) | ((uint32_t)bc[ip + 1] << 16) |
                        ((uint32_t)bc[ip + 2] << 8) | (uint32_t)bc[ip + 3];
@@ -3058,7 +3135,7 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         if (off == ip)
           ip += alen; /* literal data stored inline; skip past it */
         if (tp + alen > subject_len ||
-            memcmp(subject + tp, bc + off, alen) != 0)
+          memcmp(subject + tp, bc + off, alen) != 0)
           goto pike_die;
         tp += alen;
         th.ip = ip;
@@ -3068,6 +3145,11 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
             defer[defer_n++] = th;
           else
             overflowed = true;
+        } else {
+          /* Zero progress (empty literal): resume the same thread at this
+           * position instead of dropping it. */
+          work[wt] = th;
+          goto pike_retry_thread;
         }
         goto pike_next;
       }
@@ -3099,6 +3181,8 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
       if (op == OP_NOTANY) {
         uint16_t sid = (uint16_t)((bc[ip] << 8) | bc[ip + 1]);
         ip += 2;
+        if (tp >= subject_len)
+          goto pike_die; /* NOTANY needs a byte; the full VM fails at the end */
         uint16_t cnt = 0;
         const uint8_t *rp = (sid > 0 && (size_t)(sid - 1) < range_meta_count)
                                 ? range_meta[sid - 1].ranges_ptr
@@ -3116,12 +3200,12 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         }
         th.ip = ip;
         th.pos = tp;
-        if (tp > pos) {
-          if (defer_n < PIKE_DEFER_BUF)
-            defer[defer_n++] = th;
-          else
-            overflowed = true;
-        }
+        /* NOTANY always consumes >= 1 byte: only the defer path is
+         * reachable (no zero-progress re-queue needed). */
+        if (defer_n < PIKE_DEFER_BUF)
+          defer[defer_n++] = th;
+        else
+          overflowed = true;
         goto pike_next;
       }
       if (op == OP_SPAN) {
@@ -3132,9 +3216,23 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
                                 ? range_meta[sid - 1].ranges_ptr
                                 : NULL;
         cnt = rp ? range_meta[sid - 1].count : 0;
+        /* All-ASCII classes are matched BYTE-wise, mirroring the full VM:
+         * any byte > 127 stops the run (its UTF-8 codepoint must not be
+         * considered, as an invalid sequence could decode into a class
+         * byte).  Non-ASCII classes use codepoint-wise membership. */
+        uint64_t amap[2];
+        bool ascii_class =
+            rp && ranges_to_ascii_bitmap(rp, cnt, amap);
         size_t sp = tp;
         if (rp) {
           while (sp < subject_len) {
+            if (ascii_class) {
+              uint8_t c = (uint8_t)subject[sp];
+              if (c > 127 || !bitmap_test(amap, c))
+                break;
+              sp++;
+              continue;
+            }
             uint32_t cp;
             int by;
             if (!utf8_peek_next(subject, subject_len, sp, &cp, &by))
@@ -3178,8 +3276,6 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         } else {
           sp = subject_len;
         }
-        if (sp >= subject_len)
-          goto pike_die;
         if (op == OP_BREAKX) {
           uint32_t bx_cp;
           int bx_by = 1;
@@ -3196,10 +3292,18 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         }
         th.ip = ip;
         th.pos = sp;
-        if (defer_n < PIKE_DEFER_BUF)
-          defer[defer_n++] = th;
-        else
-          overflowed = true;
+        if (sp > pos) {
+          if (defer_n < PIKE_DEFER_BUF)
+            defer[defer_n++] = th;
+          else
+            overflowed = true;
+        } else {
+          /* Zero progress (delimiter at the current position, or at the
+           * subject end): BREAK consumes 0 bytes and must continue at the
+           * same position. */
+          work[wt] = th;
+          goto pike_retry_thread;
+        }
         goto pike_next;
       }
       goto pike_die;
@@ -3254,10 +3358,13 @@ static bool tier_search_vm(VM *vm, const char *subject, size_t subject_len,
     bool pike_ok =
         pike_scan(vm->bc, vm->bc_len, subject, subject_len, meta,
                   vm->range_meta, vm->range_meta_count, vm, out_result);
-    if (pike_ok || !out_result->pike_overflowed)
+    if (!out_result->pike_zero_progress &&
+        (pike_ok || !out_result->pike_overflowed))
       return pike_ok;
-    /* Overflow: fall through to the restart loop which tries each position
-     * individually.  Set the result flag so callers can detect overflow. */
+    /* Overflow (thread buffer, REPEAT handling) or a zero-progress loop
+     * exit: pike's greedy result is unreliable — fall through to the
+     * restart loop which tries each position with a proper choice stack.
+     * Set the result flag so callers can detect overflow. */
     out_result->pike_overflowed = true;
     if (diag)
       diag->pike_overflow = true;
@@ -3721,8 +3828,10 @@ snobol_auto_trie_t *snobol_build_alt_trie(const uint8_t *bc, size_t bc_len) {
   trie->edge_count = 0;
   trie->nodes[0].first_edge = SNOBOL_AUTO_NULL;
   trie->nodes[0].is_end = false;
+  trie->nodes[0].end_order = 0;
 
   bool all_ok = true;
+  uint16_t leaf_order = 0; /* alternation branch order (visit order) */
   size_t stack[64];
   int sp = 0;
   stack[sp++] = 0;
@@ -3745,7 +3854,7 @@ snobol_auto_trie_t *snobol_build_alt_trie(const uint8_t *bc, size_t bc_len) {
         all_ok = false;
         break;
       }
-      if (!trie_insert(trie, bc + off, len)) {
+      if (!trie_insert(trie, bc + off, len, leaf_order++)) {
         all_ok = false;
         break;
       }
