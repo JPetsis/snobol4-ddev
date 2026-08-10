@@ -102,6 +102,12 @@ static inline uint16_t search_read_u16(const uint8_t *bc, size_t ip) {
 /** Maximum edges in the automaton trie (stack-allocated pool). */
 #define SNOBOL_AUTO_MAX_EDGES 1024
 
+/** Total literal-byte budget for classifying a pattern as alt-literals.
+ * The trie needs at most 1 + sum(len_i) nodes (disjoint literals), so this
+ * keeps every build inside the fixed pool.  Alternations beyond the budget
+ * fall back to the (correct) search-VM / general tiers. */
+#define SNOBOL_AUTO_MAX_LIT_BYTES 250
+
 /** A single outgoing edge from a trie node. */
 typedef struct {
   uint8_t byte;     /**< Transition byte. */
@@ -113,6 +119,11 @@ typedef struct {
 typedef struct {
   uint16_t first_edge; /**< Index of first outgoing edge (NULL = none). */
   bool is_end;         /**< True when this node terminates a valid pattern. */
+  uint16_t end_order;  /**< Branch order of the terminal (0 = first branch).
+                          Ordered-alternation semantics: when several
+                          terminals match at one position, the LOWEST order
+                          wins.  The root node is a terminal when the
+                          alternation has an empty branch. */
 } snobol_auto_node_t;
 
 /** Pre-allocated trie storage (stack-friendly, ~7 KB). */

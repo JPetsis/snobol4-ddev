@@ -420,6 +420,11 @@ typedef struct {
                           signalling the caller to stop searching entirely. */
   bool pike_overflowed; /**< Set true when pike_scan's thread buffer overflowed
                              and the restart-loop fallback was used. */
+  bool pike_zero_progress; /**< Set true when pike_scan exited a repetition via
+                                the zero-progress guard: pike's greedy match
+                                position is then unreliable (the min==0 skip
+                                path can match empty earlier), so the caller
+                                must fall back to the restart loop. */
   bool prefilter_skip;  /**< Set true when the required-byte prefilter
                              rejected the subject without entering any tier. */
   size_t match_start;   /**< Byte offset of match start within the original
