@@ -333,6 +333,9 @@ void test_search_simd_suite(void);
 void test_search_alt_literals_suite(void);
 void test_automaton_skip_suite(void);
 void test_arena_suite(void);
+void test_search_oracle_suite(void);
+void test_search_oracle_meta_suite(void);
+void test_search_oracle_generator_suite(void);
 
 /* ── main ────────────────────────────────────────────────────────────────── */
 
@@ -444,6 +447,12 @@ int main(void) {
   RUN_SUITE("Reuse Search: _ex parity with search()", test_reuse_search_suite);
   RUN_SUITE("Grammar: BREAK / BREAKX", test_break_grammar_suite);
   RUN_SUITE("Property-Based Tests", test_property_based_suite);
+
+  /* Differential search oracle */
+  RUN_SUITE("Search Oracle: corpus equivalence", test_search_oracle_suite);
+  RUN_SUITE("Search Oracle: meta invariants", test_search_oracle_meta_suite);
+  RUN_SUITE("Search Oracle: generated patterns",
+            test_search_oracle_generator_suite);
 
   /* Stress test */
   {
