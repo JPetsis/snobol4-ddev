@@ -37,13 +37,17 @@ CMAKE_TEST = ctest --test-dir build
 all: build
 
 # Configure and build
+# Note: LTO is pinned to ON — it is the canonical Release configuration and
+# the perf baseline is captured from this build. An explicit -D also beats a
+# stale SNOBOL_LTO=OFF cached from older Makefiles; override with
+# CMAKE_EXTRA_FLAGS=-DSNOBOL_LTO=OFF if you really want a no-LTO build.
 build:
 	@echo "==> Configuring libsnobol4 ($(BUILD_TYPE))..."
 	$(CMAKE) -B build \
 		-DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
 		-DBUILD_TESTS=ON \
 		-DBUILD_PHP=OFF \
-		-DSNOBOL_LTO=OFF \
+		-DSNOBOL_LTO=ON \
 		-DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
 		$(CMAKE_EXTRA_FLAGS)
 	@echo "==> Building libsnobol4..."

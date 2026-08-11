@@ -54,6 +54,14 @@ add_executable(snobol4_probe
 target_link_libraries(snobol4_probe PRIVATE snobol4)
 target_compile_features(snobol4_probe PRIVATE c_std_23)
 
+# The baseline guard (PROBE_BASELINE=1) compares against a baseline captured
+# with the same build configuration — no-LTO codegen is systematically
+# slower, so cross-config comparisons read as mass "regressions".  The probe
+# selects search_perf_baseline(_nolto).json based on this define.
+if(SNOBOL_LTO)
+    target_compile_definitions(snobol4_probe PRIVATE SNOBOL_LTO_BUILD=1)
+endif()
+
 if(PCRE2_FOUND)
     target_include_directories(snobol4_probe PRIVATE ${PCRE2_INCLUDE_DIRS})
     target_compile_definitions(snobol4_probe PRIVATE HAVE_PCRE2=1)

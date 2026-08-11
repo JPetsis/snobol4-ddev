@@ -1261,15 +1261,41 @@ static int read_file(const char *path, char **out) {
 }
 
 static int assert_against_baseline(const probe_result_t *results, size_t n) {
-    /* Try a few likely paths */
+    /* The perf baseline is captured from the canonical Release build
+     * (SNOBOL_LTO=ON — `make build` keeps the CMake default).  No-LTO
+     * codegen is systematically slower, so comparing a no-LTO probe
+     * against it would read as mass fake "regressions"; a no-LTO build
+     * therefore skips the guard with guidance instead (PROBE_BASELINE_PATH
+     * overrides and forces the comparison). */
     const char *env_path = getenv("PROBE_BASELINE_PATH");
-    const char *paths[5] = {0};
+    const char *paths[4] = {0};
+    char buf[3][160];
+    int nbuf = 0;
     int npaths = 0;
     if (env_path) paths[npaths++] = env_path;
-    paths[npaths++] = "bench/results/search_perf_baseline.json";
-    paths[npaths++] = "../bench/results/search_perf_baseline.json";
-    paths[npaths++] = "../../bench/results/search_perf_baseline.json";
+    const char *dirs[3] = {"bench/results/", "../bench/results/",
+                           "../../bench/results/"};
+    for (int d = 0; d < 3; d++) {
+        snprintf(buf[nbuf], sizeof(buf[0]), "%s%s", dirs[d],
+                 "search_perf_baseline.json");
+        paths[npaths++] = buf[nbuf++];
+    }
     paths[npaths] = NULL;
+#ifdef SNOBOL_LTO_BUILD
+    const char *cfg_label = "SNOBOL_LTO=ON (canonical)";
+#else
+    if (!env_path) {
+        printf("\n=== Baseline regression guard (PROBE_BASELINE=1) ===\n");
+        printf("Build config: SNOBOL_LTO=OFF — the perf baseline is captured "
+               "from the canonical LTO build and no-LTO codegen is "
+               "systematically slower.\n");
+        printf("Skipping baseline comparison. Use the LTO build "
+               "(`make build`) or set PROBE_BASELINE_PATH to compare "
+               "anyway.\n");
+        return 0;
+    }
+    const char *cfg_label = "SNOBOL_LTO=OFF (PROBE_BASELINE_PATH override)";
+#endif
     char *json = NULL;
     int found_path = -1;
     for (int i = 0; paths[i]; i++) {
@@ -1279,10 +1305,13 @@ static int assert_against_baseline(const probe_result_t *results, size_t n) {
         }
     }
     if (!json) {
-        fprintf(stderr, "PROBE_BASELINE=1 but no baseline file found\n");
+        fprintf(stderr,
+                "PROBE_BASELINE=1 but no baseline file found (config: %s)\n",
+                cfg_label);
         return 2;
     }
     printf("\n=== Baseline regression guard (PROBE_BASELINE=1) ===\n");
+    printf("Build config: %s\n", cfg_label);
     printf("Baseline file: %s\n", paths[found_path]);
     printf("%-16s %12s %12s %12s\n",
            "scenario", "baseline", "observed", "delta%");

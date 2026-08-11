@@ -129,7 +129,36 @@ improves the C path but the PHP path stays the same, this test fails.
 ddev test --filter CPhpCouplingTest
 ```
 
-The test is intentionally loose (PHP/C ratio ≤ 50x for the `alt_literals`
-scenario) so it doesn't fail on legitimate architectural differences.
-The goal is to catch the case where an optimization is implemented
-in the C engine but the PHP binding doesn't see it.
+The test compares ns-per-iteration with per-scenario PHP/C ratio bounds
+(≈10× for the anchored residue rows — `residue_repeat`, `residue_zero_width`,
+`prefilter_miss`, `zero_progress` — and 50× for `alt_literals`) so it
+doesn't fail on legitimate architectural differences. The goal is to catch
+the case where an optimization is implemented in the C engine but the PHP
+binding doesn't see it.
+
+## Baseline regression guard
+
+Both probes support a `PROBE_BASELINE=1` mode that compares every scenario's
+ns-per-iteration against a captured baseline and fails on rows more than 25%
+slower (rows more than 10% faster are reported as speedups).
+
+The baseline (`bench/results/search_perf_baseline.json`) is captured from
+the canonical Release build — `SNOBOL_LTO=ON`, the CMake default that
+`make build` keeps. No-LTO codegen is systematically slower, so a no-LTO
+probe build skips the guard with guidance instead of producing mass fake
+"regressions"; `PROBE_BASELINE_PATH` overrides and forces the comparison.
+
+```bash
+# Capture/refresh the baseline (after an optimization lands):
+PROBE_ITERS=20000 ./build/bench/c/snobol4_probe
+# ...assemble the after-baseline JSON, then:
+bash bench/results/update_baseline.sh after_baseline.json
+
+# Run the guard:
+PROBE_BASELINE=1 PROBE_ITERS=20000 ./build/bench/c/snobol4_probe
+```
+
+Note: single-iteration rows (e.g. `pcre2_catastrophic`) and sub-100 ns rows
+are noisy by construction; a borderline failure on those is usually machine
+load (background indexing, Docker), not a real regression — re-run before
+investigating.

@@ -165,9 +165,21 @@ C test suite: **364 cases / 74,934 assertions** (custom runner).
   loop, collapsing the row to ~0 ns/iter under LTO while no-LTO builds
   measured ~4.2 µs. The loop now accumulates a work-consumed checksum that
   the probe prints in a new `sum` column (loop-escape guard), keeping the
-  loop observable under LTO. The row measures honestly again (3,300 ns/pass
+  loop observable under LTO. The row measures honestly again (3,239 ns/pass
   at PROBE_ITERS=20000); identical checksums across LTO and no-LTO builds
   confirm both execute the same work.
+- **`make build` uses the canonical LTO configuration and the baseline
+  guard validates only that config** (`Makefile`, `bench/c/bench_probe.c`,
+  `bench/c/CMakeLists.txt`): the Makefile build target dropped its
+  `-DSNOBOL_LTO=OFF` override, so the default dev build now matches the
+  shipped Release configuration (LTO is the CMake default and the CMakeLists
+  documents it as canonical). The `PROBE_BASELINE=1` guard compares against
+  the single baseline captured from that build
+  (`bench/results/search_perf_baseline.json`, which records a
+  `build_config` block); no-LTO codegen is systematically slower, so a
+  no-LTO probe build skips the guard with guidance instead of producing
+  mass fake "regressions" — `PROBE_BASELINE_PATH` overrides and forces the
+  comparison. Documented in `bench/README.md`.
 
 C test suite: **364 cases / 74,945 assertions** (custom runner).
 
