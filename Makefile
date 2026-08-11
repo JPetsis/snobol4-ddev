@@ -183,6 +183,8 @@ clean:
 	find bench -maxdepth 1 -type f -name 'results_*.json' ! -name 'results_example.json' ! -name 'results_builtin.json' ! -name 'results_layered_search.json' -delete 2>/dev/null || true
 	@echo "==> Cleaning coverage artifacts..."
 	find . -maxdepth 3 \( -name '*.info' -o -name '*.gcda' -o -name '*.gcno' \) -delete 2>/dev/null || true
+	@echo "==> Cleaning clangd index cache..."
+	rm -rf .cache/
 	@echo "==> Clean complete!"
 
 # Uninstall previously installed files using CMake's install manifest.
