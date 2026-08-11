@@ -396,6 +396,30 @@ composer install
 vendor/bin/phpunit tests/php
 ```
 
+### Fuzzing (libFuzzer)
+
+Crash-detection and differential targets (build with `-DSNOBOL_FUZZ=ON`,
+requires Clang):
+
+```bash
+cmake -B build-fuzz -DCMAKE_BUILD_TYPE=Debug -DSNOBOL_FUZZ=ON
+cmake --build build-fuzz
+./build-fuzz/tests/fuzz/fuzz_compiler -max_total_time=600
+./build-fuzz/tests/fuzz/fuzz_vm -max_total_time=600
+./build-fuzz/tests/fuzz/fuzz_oracle -max_total_time=600
+```
+
+- `fuzz_compiler`, `fuzz_vm` — crash/leak/OOB detection under ASan
+- `fuzz_oracle` — **differential**: runs the search-tier dispatch and the
+  reference VM on the same pattern+subject and reports any disagreement in
+  success, position, or length — turning the fuzzer from a crash finder into
+  a wrong-answer finder for search-engine optimizations
+
+The C suite's deterministic equivalent (`test_search_oracle.c`, pattern
+corpus in `tests/c/corpus.h`) checks the same accelerated-vs-reference
+equivalence on every `make test` run, so regressions are caught in CI without
+fuzzing.
+
 ## Performance
 
 libsnobol4 is designed for high-performance string processing:
