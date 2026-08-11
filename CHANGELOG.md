@@ -158,6 +158,16 @@ C test suite: **364 cases / 74,934 assertions** (custom runner).
   subjects without the literal asserts `!ok` + `prefilter_skip == true`;
   a subject containing the literal but failing at the anchor asserts the
   prefilter does NOT short-circuit and the failure agrees with the full VM.
+- **`tokenize_next_pass` probe measured ~0 ns under LTO**
+  (`bench/c/bench_probe.c`): the scenario's loop results were dead (nothing
+  reads `pos` or the search state afterwards), and SNOBOL_LTO — the Release
+  default — provably eliminated the entire `snobol_pattern_search_next`
+  loop, collapsing the row to ~0 ns/iter under LTO while no-LTO builds
+  measured ~4.2 µs. The loop now accumulates a work-consumed checksum that
+  the probe prints in a new `sum` column (loop-escape guard), keeping the
+  loop observable under LTO. The row measures honestly again (3,300 ns/pass
+  at PROBE_ITERS=20000); identical checksums across LTO and no-LTO builds
+  confirm both execute the same work.
 
 C test suite: **364 cases / 74,945 assertions** (custom runner).
 

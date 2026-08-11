@@ -92,6 +92,7 @@ with a persistent state, so the DFA/range_meta caches are built once per scenari
 | `unit`         | hardcoded per scenario                    | `match`=one match attempt, `pass`=one full search/split pass, `call`=one search call |
 | `tier`         | `meta->tier`                              | Structural tier (pattern shape)        |
 | `exec`         | `snobol_search_executed_tier`             | Executed dispatch tier (cost model)    |
+| `sum`          | per-scenario work-consumed checksum       | Loop-escape guard: nonzero for `tokenize_next_pass`, keeps LTO from removing benchmark loops whose results are otherwise dead |
 
 ### Interpreting results
 

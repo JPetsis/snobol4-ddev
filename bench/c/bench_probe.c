@@ -27,6 +27,7 @@ typedef struct {
     int64_t ns_per_iter;    /* total_ns / iters */
     int    tier;           /* structural meta->tier (pattern shape) */
     int    exec_tier;      /* executed dispatch tier (may differ from tier) */
+    int64_t checksum;      /* observable work-consumed checksum (loop escape) */
 } probe_result_t;
 
 /* Capture both the structural tier and the executed dispatch tier for a
@@ -439,7 +440,13 @@ static void run_tokenize_next(int64_t iters, probe_result_t *r) {
 
 /* Per-pass variant of tokenize_next: ns per full split pass using the lean
  * snobol_pattern_search_next() API.  Pairs with tokenize_reuse and
- * pcre2_tokenize for head-to-head comparison. */
+ * pcre2_tokenize for head-to-head comparison.
+ *
+ * The loop accumulates a checksum of the consumed positions that is printed
+ * by print_table: the results are otherwise dead (nothing reads pos or
+ * state afterwards), and Release builds default to SNOBOL_LTO=ON — LTO
+ * provably eliminated the entire search loop, collapsing the row to
+ * ~0 ns/iter.  The printed checksum keeps the loop observable. */
 static void run_tokenize_next_pass(int64_t iters, probe_result_t *r) {
     snobol_context_t *ctx = snobol_context_create();
     snobol_pattern_t *pat = compile_or_die(ctx, "' '", 3);
@@ -449,6 +456,7 @@ static void run_tokenize_next_pass(int64_t iters, probe_result_t *r) {
     snobol_pattern_search_state_t *state =
         snobol_pattern_search_state_create(bc, bc_len);
     int64_t passes = 0;
+    uint64_t checksum = 0;
     int64_t start = bench_ns();
     for (int64_t i = 0; i < iters && passes < (int64_t)1e9; i++) {
         size_t pos = 0;
@@ -456,6 +464,7 @@ static void run_tokenize_next_pass(int64_t iters, probe_result_t *r) {
         while (snobol_pattern_search_next(state, SUBJECT_WHITESPACE,
                                           slen, pos, &match_pos, &match_len)) {
             pos = match_pos + match_len;
+            checksum += pos;
         }
         passes++;
     }
@@ -463,6 +472,7 @@ static void run_tokenize_next_pass(int64_t iters, probe_result_t *r) {
     r->iters = passes;
     r->total_ns = end - start;
     r->ns_per_iter = (passes > 0) ? (r->total_ns / passes) : 0;
+    r->checksum = (int64_t)checksum;
     capture_tiers(pat, slen, r);
     snobol_pattern_search_state_destroy(state);
     snobol_pattern_free(pat);
@@ -1129,20 +1139,21 @@ static void print_header(void) {
 }
 
 static void print_table(const probe_result_t *results, size_t n) {
-    printf("%-24s %10s %8s %-5s %4s %4s\n",
-            "scenario", "ns/iter", "iters", "unit", "tier", "exec");
-    printf("%-24s %10s %8s %-5s %4s %4s\n",
-            "-------", "-------", "-----", "----", "----", "----");
+    printf("%-24s %10s %8s %-5s %4s %4s %12s\n",
+            "scenario", "ns/iter", "iters", "unit", "tier", "exec", "sum");
+    printf("%-24s %10s %8s %-5s %4s %4s %12s\n",
+            "-------", "-------", "-----", "----", "----", "----", "---");
 
     for (size_t i = 0; i < n; i++) {
         const probe_result_t *r = &results[i];
-        printf("%-24s %10" PRId64 " %8" PRId64 " %-5s %4d %4d\n",
+        printf("%-24s %10" PRId64 " %8" PRId64 " %-5s %4d %4d %12" PRId64 "\n",
                 r->name,
                 r->ns_per_iter,
                 r->iters,
                 r->unit ? r->unit : "-",
                 r->tier,
-                r->exec_tier);
+                r->exec_tier,
+                r->checksum);
     }
     printf("\n");
     printf("Legend:\n");
@@ -1154,6 +1165,9 @@ static void print_table(const probe_result_t *results, size_t n) {
     printf("             call  = one individual search call inside a pass\n");
     printf("  tier     : structural tier (meta->tier, pattern shape)\n");
     printf("  exec     : executed dispatch tier (cost model + DFA override)\n");
+    printf("  sum      : observable work-consumed checksum (loop escape guard —\n");
+    printf("             nonzero for tokenize_next_pass; keeps LTO from removing\n");
+    printf("             benchmark loops whose results are otherwise dead)\n");
     printf("\n");
     printf("Only rows with the same unit are comparable across the C and PHP\n");
     printf("probes.  pcre2_* rows are UNANCHORED-SEARCH CONTEXT: PCRE2's\n");
