@@ -327,7 +327,12 @@ is always cut from the same commit (see "Creating a Release").
    three tags are cut from the same commit** — binding and core versions
    correspond 1:1, even when one component has no code changes (the PHP
    package still embeds the core via the amalgam).
-4. Create GitHub release with changelog. Minor/major release notes are
+4. **Verify the released tree's documentation** before tagging: any
+   infrastructure or user-facing surface newly shipped in this release must
+   be covered by the README (and any per-binding docs) *in the tagged tree*
+   — a section sitting only in a local stash or on `main` does not travel
+   with the tag, and the tag is immutable once Packagist sees it.
+5. Create GitHub release with changelog. Minor/major release notes are
    generated from merged PRs; **patch release notes are written manually**
    (cherry-picked hotfixes are commits, not PRs, so auto-generated notes
    would be empty).
