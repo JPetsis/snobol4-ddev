@@ -723,56 +723,22 @@ static const char *SUBJECT_RESIDUE =
 /* REPEAT/EMIT-heavy residue: repetition over a span produces many choice
  * points on backtracking. The trail/arena choice stack keeps each push O(1).
  * The capture forces the full-VM (Tier 8) residue path so the choice stack is
- * the dominant cost. */
+ * the dominant cost.  Anchored first-match, pairing with PHP's match(). */
 static void run_residue_repeat(int64_t iters, probe_result_t *r) {
-    snobol_context_t *ctx = snobol_context_create();
-    snobol_pattern_t *pat = compile_or_die(ctx, "@r('a'*) 'b'",
-                                          strlen("@r('a'*) 'b'"));
-    size_t slen = strlen(SUBJECT_RESIDUE);
-
-    int64_t start = bench_ns();
-    for (int64_t i = 0; i < iters; i++) {
-        snobol_match_t *m = snobol_pattern_search(pat, SUBJECT_RESIDUE, slen);
-        snobol_match_free(m);
-    }
-    int64_t end = bench_ns();
-
-    r->iters = iters;
-    r->total_ns = end - start;
-    r->ns_per_iter = (iters > 0) ? (r->total_ns / iters) : 0;
-
-    capture_tiers(pat, slen, r);
-
-    snobol_pattern_free(pat);
-    snobol_context_destroy(ctx);
+    run_anchored_scenario("@r('a'*) 'b'", strlen("@r('a'*) 'b'"),
+                          SUBJECT_RESIDUE, strlen(SUBJECT_RESIDUE), iters, r,
+                          true);
 }
 
 /* Zero-width closure: repetition over a nullable body (here the empty literal)
  * would otherwise push a choice point per iteration without consuming input,
  * blowing up exponentially. W2b bounds iterations to subject_len + 1, so the
- * match completes in bounded (linear) time. */
+ * match completes in bounded (linear) time.  Anchored, pairing with PHP's
+ * match(). */
 static void run_residue_zero_width(int64_t iters, probe_result_t *r) {
-    snobol_context_t *ctx = snobol_context_create();
-    /* ('')* — each iteration matches the empty string (nullable closure). */
-    snobol_pattern_t *pat = compile_or_die(ctx, "(''*) 'b'",
-                                          strlen("(''*) 'b'"));
-    size_t slen = strlen(SUBJECT_RESIDUE);
-
-    int64_t start = bench_ns();
-    for (int64_t i = 0; i < iters; i++) {
-        snobol_match_t *m = snobol_pattern_search(pat, SUBJECT_RESIDUE, slen);
-        snobol_match_free(m);
-    }
-    int64_t end = bench_ns();
-
-    r->iters = iters;
-    r->total_ns = end - start;
-    r->ns_per_iter = (iters > 0) ? (r->total_ns / iters) : 0;
-
-    capture_tiers(pat, slen, r);
-
-    snobol_pattern_free(pat);
-    snobol_context_destroy(ctx);
+    run_anchored_scenario("(''*) 'b'", strlen("(''*) 'b'"),
+                          SUBJECT_RESIDUE, strlen(SUBJECT_RESIDUE), iters, r,
+                          true);
 }
 
 /* All-matches counterparts of the residue scenarios (pair with the PHP
@@ -1040,29 +1006,12 @@ static void run_pcre2_catastrophic(int64_t iters, probe_result_t *r) {
 }
 
 static void run_residue_catastrophic(int64_t iters, probe_result_t *r) {
-    snobol_context_t *ctx = snobol_context_create();
     /* Equivalent SNOBOL pattern to PCRE2 (a+)+b: one-or-more 'a', repeated,
      * then 'b'. 'b' is absent, so it fails — but bounded, not exponentially.
-     * Uses SUBJECT_CAT (10 'a's) matching the PCRE2 catastrophic test. */
-    snobol_pattern_t *pat = compile_or_die(ctx, "('a'+)+ 'b'",
-                                          strlen("('a'+)+ 'b'"));
-    size_t slen = strlen(SUBJECT_CAT);
-
-    int64_t start = bench_ns();
-    for (int64_t i = 0; i < iters; i++) {
-        snobol_match_t *m = snobol_pattern_search(pat, SUBJECT_CAT, slen);
-        snobol_match_free(m);
-    }
-    int64_t end = bench_ns();
-
-    r->iters = iters;
-    r->total_ns = end - start;
-    r->ns_per_iter = (iters > 0) ? (r->total_ns / iters) : 0;
-
-    capture_tiers(pat, slen, r);
-
-    snobol_pattern_free(pat);
-    snobol_context_destroy(ctx);
+     * Uses SUBJECT_CAT (10 'a's) matching the PCRE2 catastrophic test.
+     * Anchored, pairing with PHP's match(). */
+    run_anchored_scenario("('a'+)+ 'b'", strlen("('a'+)+ 'b'"), SUBJECT_CAT,
+                          strlen(SUBJECT_CAT), iters, r, true);
 }
 
 static void run_pcre2_span_simd(int64_t iters, probe_result_t *r) {
@@ -1108,30 +1057,14 @@ static void run_pcre2_span_simd_miss(int64_t iters, probe_result_t *r) {
  * --------------------------------------------------------------------------- */
 
 /* pike_overflow: BREAKX(' ') over 1KB subject with delimiter at position 900.
- * Forces pike_scan thread-buffer overflow + restart-loop fallback. */
+ * Forces pike_scan thread-buffer overflow + restart-loop fallback.  Anchored,
+ * pairing with PHP's match(). */
 static void run_pike_overflow(int64_t iters, probe_result_t *r) {
-    snobol_context_t *ctx = snobol_context_create();
-    snobol_pattern_t *pat = compile_or_die(ctx, "BREAKX(' ')", 11);
     char subj[1025];
     memset(subj, 'x', 900);
     subj[900] = ' ';
     subj[901] = '\0';
-
-    capture_tiers(pat, 901, r);
-
-    int64_t start = bench_ns();
-    for (int64_t i = 0; i < iters; i++) {
-        snobol_match_t *m = snobol_pattern_search(pat, subj, 901);
-        snobol_match_free(m);
-    }
-    int64_t end = bench_ns();
-
-    r->iters = iters;
-    r->total_ns = end - start;
-    r->ns_per_iter = (iters > 0) ? (r->total_ns / iters) : 0;
-
-    snobol_pattern_free(pat);
-    snobol_context_destroy(ctx);
+    run_anchored_scenario("BREAKX(' ')", 11, subj, 901, iters, r, true);
 }
 
 /* pike_overflow_all: same pattern/subject, all-matches per iteration. */
@@ -1144,29 +1077,13 @@ static void run_pike_overflow_all(int64_t iters, probe_result_t *r) {
 }
 
 /* prefilter_miss: ('a'+)+ 'b' on 10 'a's — required-byte prefilter memchr
- * rejects the subject without entering any tier. */
+ * rejects the subject without entering any tier.  Anchored, pairing with
+ * PHP's match(). */
 static void run_prefilter_miss(int64_t iters, probe_result_t *r) {
-    snobol_context_t *ctx = snobol_context_create();
-    snobol_pattern_t *pat = compile_or_die(ctx, "('a'+)+ 'b'", 12);
     char subj[11];
     memset(subj, 'a', 10);
     subj[10] = '\0';
-
-    capture_tiers(pat, 10, r);
-
-    int64_t start = bench_ns();
-    for (int64_t i = 0; i < iters; i++) {
-        snobol_match_t *m = snobol_pattern_search(pat, subj, 10);
-        snobol_match_free(m);
-    }
-    int64_t end = bench_ns();
-
-    r->iters = iters;
-    r->total_ns = end - start;
-    r->ns_per_iter = (iters > 0) ? (r->total_ns / iters) : 0;
-
-    snobol_pattern_free(pat);
-    snobol_context_destroy(ctx);
+    run_anchored_scenario("('a'+)+ 'b'", 12, subj, 10, iters, r, true);
 }
 
 /* prefilter_miss_all: same pattern/subject, all-matches per iteration. */
@@ -1178,29 +1095,13 @@ static void run_prefilter_miss_all(int64_t iters, probe_result_t *r) {
 }
 
 /* zero_progress: ('a'*) 'b' on 64-byte subject of 'a's — zero-progress guard
- * should make the loop O(1) instead of O(n). */
+ * should make the loop O(1) instead of O(n).  Anchored, pairing with PHP's
+ * match(). */
 static void run_zero_progress(int64_t iters, probe_result_t *r) {
-    snobol_context_t *ctx = snobol_context_create();
-    snobol_pattern_t *pat = compile_or_die(ctx, "('a'*) 'b'", 10);
     char subj[65];
     memset(subj, 'a', 64);
     subj[64] = '\0';
-
-    capture_tiers(pat, 64, r);
-
-    int64_t start = bench_ns();
-    for (int64_t i = 0; i < iters; i++) {
-        snobol_match_t *m = snobol_pattern_search(pat, subj, 64);
-        snobol_match_free(m);
-    }
-    int64_t end = bench_ns();
-
-    r->iters = iters;
-    r->total_ns = end - start;
-    r->ns_per_iter = (iters > 0) ? (r->total_ns / iters) : 0;
-
-    snobol_pattern_free(pat);
-    snobol_context_destroy(ctx);
+    run_anchored_scenario("('a'*) 'b'", 10, subj, 64, iters, r, true);
 }
 
 /* zero_progress_all: same pattern/subject, all-matches per iteration. */

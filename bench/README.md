@@ -60,16 +60,16 @@ comparisons against snobol anchored rows.
 | `span_simd`                | `SPAN('0-9')`                  | 1KB digits                 | `snobol_pattern_search`              | match |
 | `span_simd_miss`           | `SPAN('0-9')`                  | 1KB letters                | `snobol_pattern_search`              | match |
 | `notany_simd_miss`         | `NOTANY('0')`                  | 1KB zeros                  | `snobol_pattern_search`              | match |
-| `residue_repeat`           | `@r('a'*) 'b'`                 | 128 'a's, no 'b'           | `snobol_pattern_search` (first)     | match |
+| `residue_repeat`           | `@r('a'*) 'b'`                 | 128 'a's, no 'b'           | `snobol_search_exec_anchored`        | match |
 | `residue_repeat_all`       | `@r('a'*) 'b'`                 | 128 'a's, no 'b'           | `snobol_pattern_search_batch_ex`     | pass  |
-| `residue_zero_width`       | `(''*) 'b'`                    | 128 'a's, no 'b'           | `snobol_pattern_search` (first)     | match |
+| `residue_zero_width`       | `(''*) 'b'`                    | 128 'a's, no 'b'           | `snobol_search_exec_anchored`        | match |
 | `residue_zero_width_all`   | `(''*) 'b'`                    | 128 'a's, no 'b'           | `snobol_pattern_search_batch_ex`     | pass  |
-| `residue_catastrophic`     | `('a'+)+ 'b'`                  | 10 'a's, no 'b'            | `snobol_pattern_search` (first)     | match |
-| `pike_overflow`            | `BREAKX(' ')`                  | 900 'x's + space           | `snobol_pattern_search` (first)     | match |
+| `residue_catastrophic`     | `('a'+)+ 'b'`                  | 10 'a's, no 'b'            | `snobol_search_exec_anchored`        | match |
+| `pike_overflow`            | `BREAKX(' ')`                  | 900 'x's + space           | `snobol_search_exec_anchored`        | match |
 | `pike_overflow_all`        | `BREAKX(' ')`                  | 900 'x's + space           | `snobol_pattern_search_batch_ex`     | pass  |
-| `prefilter_miss`           | `('a'+)+ 'b'`                  | 10 'a's, no 'b'            | `snobol_pattern_search` (first)     | match |
+| `prefilter_miss`           | `('a'+)+ 'b'`                  | 10 'a's, no 'b'            | `snobol_search_exec_anchored`        | match |
 | `prefilter_miss_all`       | `('a'+)+ 'b'`                  | 10 'a's, no 'b'            | `snobol_pattern_search_batch_ex`     | pass  |
-| `zero_progress`            | `('a'*) 'b'`                   | 64 'a's, no 'b'            | `snobol_pattern_search` (first)     | match |
+| `zero_progress`            | `('a'*) 'b'`                   | 64 'a's, no 'b'            | `snobol_search_exec_anchored`        | match |
 | `zero_progress_all`        | `('a'*) 'b'`                   | 64 'a's, no 'b'            | `snobol_pattern_search_batch_ex`     | pass  |
 | `tokenize_conv`            | `' '`                          | whitespace stream          | `snobol_pattern_match` loop         | pass  |
 | `tokenize_reuse`           | `' '`                          | whitespace stream          | `snobol_pattern_search_ex` loop      | pass  |
