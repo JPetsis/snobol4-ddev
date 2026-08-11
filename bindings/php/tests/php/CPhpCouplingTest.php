@@ -19,15 +19,29 @@ use PHPUnit\Framework\TestCase;
  * This test runs both probes and asserts:
  *
  *   1. Both probes produce non-zero iterations for every scenario.
- *   2. The PHP cost for the alt_literals scenario is at most 50x the C
- *      cost. This is a loose guard; if the C path improves dramatically
- *      and the PHP path doesn't, the ratio jumps — the test catches that.
+ *   2. Per-scenario PHP/C ratio bounds on ns-per-iteration: the anchored
+ *      match rows of the residue family (residue_repeat, residue_zero_width,
+ *      prefilter_miss, zero_progress) plus the original alt_literals check.
+ *      Each bound is loose (≈10x) — failing anchored matches and
+ *      result-array building legitimately cost more on the PHP side — but a
+ *      PHP path falling back to a slower engine path while the C path stays
+ *      on an accelerated tier pushes the ratio past the bound.
  */
 class CPhpCouplingTest extends TestCase
 {
     private const ITER_ENV = 'PROBE_ITERS';
-    private const ITER_DEFAULT = 10000;   // smaller than probe default for fast test
-    private const PHP_C_RATIO_MAX = 50.0; // loose upper bound
+    private const ITER_DEFAULT = 10000;   // C probe iterations (fast test)
+    private const PHP_ITER_DEFAULT = 50000; // PHP probe: residue rows use iters/100,
+                                            // so 50000 keeps them JIT-warm (~500 iters)
+
+    /** @var array<string, float> scenario name => max PHP/C ratio */
+    private const RATIO_BOUNDS = [
+        'alt_literals'       => 50.0, // original loose check
+        'residue_repeat'     => 10.0,
+        'residue_zero_width' => 10.0,
+        'prefilter_miss'     => 10.0,
+        'zero_progress'      => 10.0,
+    ];
 
     /** @return array<int, array<string, mixed>>|null */
     private function runPhpProbe(): ?array
@@ -39,11 +53,13 @@ class CPhpCouplingTest extends TestCase
         }
 
         /* Set PROBE_ITERS in the environment so shell_exec() child inherits it,
-         * and also pass it as a shell variable for robustness. */
-        putenv(self::ITER_ENV . '=' . self::ITER_DEFAULT);
+         * and also pass it as a shell variable for robustness. The PHP probe
+         * divides by 100 for the slow residue scenarios; 50000 keeps those at
+         * ~500 iterations so the numbers are JIT-warm and stable. */
+        putenv(self::ITER_ENV . '=' . self::PHP_ITER_DEFAULT);
         $cmd = sprintf(
             'PROBE_ITERS=%d %s %s',
-            self::ITER_DEFAULT,
+            self::PHP_ITER_DEFAULT,
             escapeshellarg(PHP_BINARY),
             escapeshellarg($probe)
         );
@@ -107,34 +123,44 @@ class CPhpCouplingTest extends TestCase
         $c = $this->runCProbe();
         if ($php === null || $c === null) return;
 
-        // Match scenarios by name. Compare alt_literals (both probes
-        // have it with the same name).
-        $c_alt = $this->findRow($c, 'alt_literals');
-        $php_alt = $this->findRow($php, 'alt_literals');
-        if ($c_alt === null || $php_alt === null) {
-            $this->markTestSkipped('alt_literals scenario missing in one probe');
-            return;
+        $checked = 0;
+        foreach (self::RATIO_BOUNDS as $name => $max_ratio) {
+            // Match by scenario name AND unit: the guarded rows are
+            // anchored first-match (unit=match) on both probes.
+            $c_row = $this->findRow($c, $name, 'match');
+            $php_row = $this->findRow($php, $name, 'match');
+            if ($c_row === null || $php_row === null) {
+                // Per-row skip when a probe lacks the row (existing pattern).
+                continue;
+            }
+
+            // Compare ns-per-iteration: the probes may use different
+            // iteration counts for the same scenario (PHP runs the slow
+            // residue rows at iters/100), so total_ns is not comparable —
+            // the per-unit-of-work cost is.
+            $c_ns = (int)$c_row['ns_per_iter'];
+            $php_ns = (int)$php_row['ns_per_iter'];
+            $this->assertGreaterThan(0, $c_ns, "C probe {$name} ns_per_iter is zero");
+            $this->assertGreaterThan(0, $php_ns, "PHP probe {$name} ns_per_iter is zero");
+
+            $ratio = $php_ns / $c_ns;
+            $this->assertLessThanOrEqual(
+                $max_ratio,
+                $ratio,
+                sprintf(
+                    "PHP/C %s ratio %.1fx exceeds guard %.1fx\n"
+                    . "  C:   %d ns/iter (iters=%d)\n"
+                    . "  PHP: %d ns/iter (iters=%d)\n"
+                    . "The binding is dominating.",
+                    $name, $ratio, $max_ratio,
+                    $c_ns, (int)$c_row['iters'],
+                    $php_ns, (int)$php_row['iters']
+                )
+            );
+            $checked++;
         }
 
-        $c_ns = (int)$c_alt['ns_per_iter'] * (int)$c_alt['iters'];
-        $php_ns = (int)$php_alt['ns_per_iter'] * (int)$php_alt['iters'];
-        $this->assertGreaterThan(0, $c_ns, 'C probe alt_literals total_ns is zero');
-        $this->assertGreaterThan(0, $php_ns, 'PHP probe alt_literals total_ns is zero');
-
-        $ratio = $php_ns / $c_ns;
-        $this->assertLessThanOrEqual(
-            self::PHP_C_RATIO_MAX,
-            $ratio,
-            sprintf(
-                "PHP/C alt_literals ratio %.1fx exceeds guard %.1fx\n"
-                . "  C:   %d ns total (iters=%d, ns/iter=%d)\n"
-                . "  PHP: %d ns total (iters=%d, ns/iter=%d)\n"
-                . "The binding is dominating.",
-                $ratio, self::PHP_C_RATIO_MAX,
-                $c_ns, (int)$c_alt['iters'], (int)$c_alt['ns_per_iter'],
-                $php_ns, (int)$php_alt['iters'], (int)$php_alt['ns_per_iter']
-            )
-        );
+        $this->assertGreaterThan(0, $checked, 'No comparable probe rows found');
     }
 
     // -----------------------------------------------------------------------
@@ -142,10 +168,16 @@ class CPhpCouplingTest extends TestCase
     // -----------------------------------------------------------------------
 
     /** @param array<int, array<string, mixed>> $rows */
-    private function findRow(array $rows, string $name): ?array
+    private function findRow(array $rows, string $name, ?string $unit = null): ?array
     {
         foreach ($rows as $r) {
-            if ($r['name'] === $name) return $r;
+            if ($r['name'] !== $name) {
+                continue;
+            }
+            if ($unit !== null && ($r['unit'] ?? null) !== $unit) {
+                continue;
+            }
+            return $r;
         }
         return null;
     }
@@ -214,13 +246,14 @@ class CPhpCouplingTest extends TestCase
             if (preg_match('/^Legend:/', $line)) break;
             if (trim($line) === '') continue;
 
-            // Format: name ns/iter iters
+            // Format: name ns/iter iters [unit [tier exec]]
             $cols = preg_split('/\s+/', trim($line));
             if (count($cols) < 3) continue;
             $rows[] = [
                 'name'        => $cols[0],
                 'ns_per_iter' => (int)$cols[1],
                 'iters'       => (int)$cols[2],
+                'unit'        => $cols[3] ?? '',
                 'total_ns'    => (int)$cols[1] * (int)$cols[2],
             ];
         }
