@@ -876,12 +876,13 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
   size_t match_count = batch.match_count;
 
   if (opts->result == PHP_SNOBOL_RESULT_FLAT) {
-    /* Flat result mode: parallel arrays */
+    /* Flat result mode: parallel arrays.  match_count is known up front, so
+     * pre-size every array (mirrors the searchSplit pre-sizing pattern). */
     zval match_starts, match_lengths, captures_arr, outputs_buf;
-    array_init(&match_starts);
-    array_init(&match_lengths);
-    array_init(&captures_arr);
-    array_init(&outputs_buf);
+    array_init_size(&match_starts, match_count);
+    array_init_size(&match_lengths, match_count);
+    array_init_size(&captures_arr, match_count);
+    array_init_size(&outputs_buf, match_count);
 
     for (size_t mi = 0; mi < match_count; mi++) {
       size_t match_start = batch.positions[mi];
@@ -903,7 +904,8 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
             zend_hash_str_find(Z_ARRVAL_P(&captures_arr), key, key_len);
         if (!reg_arr_zv) {
           zval reg_arr;
-          array_init(&reg_arr);
+          /* One entry per match in this register's flat array. */
+          array_init_size(&reg_arr, match_count);
           zend_hash_str_add_new(Z_ARRVAL_P(&captures_arr), key, key_len,
                                 &reg_arr);
           reg_arr_zv =
@@ -959,15 +961,15 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
     return true;
   }
 
-  /* Default array-of-arrays result mode */
-  array_init(result);
+  /* Default array-of-arrays result mode: one sub-array per match. */
+  array_init_size(result, match_count);
 
   for (size_t mi = 0; mi < match_count; mi++) {
     size_t match_start = batch.positions[mi];
     size_t match_len = batch.lengths[mi];
 
     zval match_arr;
-    array_init(&match_arr);
+    array_init_size(&match_arr, batch.var_count + 3);
 
     for (size_t ri = 0; ri < batch.var_count && ri < MAX_VARS; ri++) {
       char key[32];
@@ -1397,12 +1399,14 @@ static snobol_match_record_t *php_snobol_searchsplit_record_offsets(
     snobol_pattern_search_state_t *state, const char *subject_val,
     size_t subject_len, size_t *out_count, const uint8_t *bc, size_t bc_len,
     const snobol_search_meta_t *meta) {
-  /* Try batch API first: single-pass for eligible patterns */
+  /* Try batch API first: single-pass for eligible patterns.  Uses the
+   * caller's persistent search state (batch_ex) so the cached
+   * range_meta/DFA/trie are reused instead of rebuilt per call. */
   if (bc && meta && bc_len > 0) {
     snobol_batch_result_t batch;
     memset(&batch, 0, sizeof(batch));
-    bool batch_ok = snobol_pattern_search_batch(bc, bc_len, subject_val,
-                                                subject_len, meta, &batch);
+    bool batch_ok = snobol_pattern_search_batch_ex(state, subject_val,
+                                                    subject_len, &batch);
 
     if (batch_ok && batch.match_count > 0) {
       size_t n = batch.match_count;
