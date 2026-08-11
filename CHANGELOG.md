@@ -5,6 +5,55 @@ All notable changes to the libsnobol4 project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-08-11
+
+### Fixed
+
+- **Search-engine wrong answers found by the differential oracle** — the
+  oracle suite (corpus equivalence, meta invariants, generator) and the
+  `fuzz_oracle` target are green after fixing every divergence they
+  reported, across four bug classes:
+  - **Empty matches** (`core/src/search_tiers.c`, `search_meta.c`): pike
+    scans now re-queue zero-progress threads (empty literals, BREAK at
+    the end), apply a zero-progress guard + overflow fallback for
+    repetitions, use window-relative ANCHOR semantics, and match
+    all-ASCII SPAN classes byte-wise; `derive_meta` now classifies
+    empty-literal roots, all-zero-width patterns (`^$`), and min==0 loop
+    roots as empty-capable, and start-bitmaps are all-ones for them.
+  - **Prefilter soundness** (`search_meta.c`): the required-literal scan
+    stops at the first ACCEPT (no derivation from trailing charclass
+    metadata), treats `OP_REPEAT_INIT` min==0 skip edges as bypasses (with
+    per-literal evaluation so post-loop literals stay required), and
+    preserves the bypass state across empty literals.
+  - **Alt-literals trie** (`search_tiers.c`, `search_internal.h`):
+    terminals now carry their branch order (first matching alternative
+    wins on prefix overlap), empty branches mark the root terminal, and
+    `derive_meta` gates classification on the trie pool budget with a
+    general-VM fallback on overflow.
+  - **Automaton/literal/fusion fast paths** (`search_meta.c`, `search_tiers.c`):
+    SPAN/BREAK excluded from DFA eligibility (their run-end exit cannot be
+    encoded), ANCHOR/position ops excluded from literal-only and fusion
+    classification (the fast paths cannot enforce them), and the DFA's
+    accepting check distinguishes literal data bytes (e.g. NUL) from
+    OP_ACCEPT instructions.
+
+### Added
+
+- **Differential search oracle** (`tests/c/corpus.h`,
+  `tests/c/test_search_oracle.c`): an embedded pattern corpus (60+ common
+  and uncommon shapes) plus a seeded generator, run through an equivalence
+  harness: the accelerated tier dispatch must match a reference per-offset
+  `vm_exec` run on the same bytecode in success, position, length, and
+  captures; a conservative must-analysis bytecode walk asserts metadata
+  soundness. The harness stays as the regression guard for the fixes above.
+- **`fuzz_oracle` differential fuzz target** (`tests/fuzz/fuzz_oracle.c`,
+  registered in `tests/fuzz/CMakeLists.txt` + `fuzz.yml` 30-min job):
+  converts the fuzzer from crash-only to a wrong-answer finder — runs tier
+  dispatch AND the reference VM on every input, writes a reproducer and
+  aborts on any disagreement.
+
+C test suite: **359 cases / 74,892 assertions** (custom runner).
+
 ## [1.0.3] - 2026-08-10
 
 ### Fixed

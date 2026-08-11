@@ -13,6 +13,24 @@ package version from the tag). The tag triplet `vX.Y.Z`, `core/vX.Y.Z`
 and `php/vX.Y.Z` is always cut from the same commit, so binding and
 core versions correspond 1:1.
 
+## [1.0.4] - 2026-08-11
+
+### Fixed
+
+- **Stale Packagist branch alias** (`composer.json`): `dev-main` resolved
+  as `0.2.x-dev`; now `1.x-dev` so `dev-main` consumers get correct
+  stability and semver range matching.
+- **`PHP_SNOBOL_VERSION` bumped to 1.0.4** (`php_snobol.h`) to match the
+  release.
+
+### Changed
+
+- **Bundles core v1.0.4** — the extension embeds the C core via the
+  amalgam, so this release ships the search-engine fixes (empty-match
+  handling, prefilter soundness, alt-literals trie, fast-path
+  eligibility). No binding code changed beyond the metadata fixes;
+  `php/v1.0.4` corresponds to `core/v1.0.4`.
+
 ## [1.0.3] - 2026-08-10
 
 ### Changed

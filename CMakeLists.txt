@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(libsnobol4 VERSION 1.0.3 LANGUAGES C)
+project(libsnobol4 VERSION 1.0.4 LANGUAGES C)
 
 # Single source of version truth: expose the resolved components to every
 # subdirectory (the core subproject calls its own project(), which would

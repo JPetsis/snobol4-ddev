@@ -30,7 +30,7 @@ extern zend_module_entry snobol_module_entry;
 #define phpext_snobol_ptr &snobol_module_entry
 
 /** @brief Extension version string reported to phpinfo(). */
-#define PHP_SNOBOL_VERSION "1.0.3"
+#define PHP_SNOBOL_VERSION "1.0.4"
 
 /** @brief Module initialization entry point (php_snobol.c). */
 PHP_MINIT_FUNCTION(snobol);
