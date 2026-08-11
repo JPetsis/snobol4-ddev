@@ -231,6 +231,48 @@ int main(void) {
 }
 ```
 
+#### Builder API (programmatic pattern construction)
+
+For patterns composed from named, maintainable pieces instead of source
+strings, build an AST with `snobol_pattern_build_*()` and compile it in one
+call with `snobol_pattern_build_compile()`:
+
+```c
+#include <snobol/snobol.h>
+
+int main(void) {
+    snobol_context_t* ctx = snobol_context_create();
+    snobol_pattern_build_t* b = snobol_pattern_build_create();
+
+    ast_node_t* lit = snobol_pattern_build_lit(b, "hello", 5);
+    ast_node_t* root = snobol_pattern_build_emit(b, lit);
+
+    char* err = NULL;
+    snobol_pattern_t* pat = snobol_pattern_build_compile(ctx, root, 0, &err);
+    if (!pat) {
+        fprintf(stderr, "compile failed: %s\n", err ? err : "unknown");
+        free(err);
+        return 1;
+    }
+    // root is consumed by compile; the builder can be reused or destroyed.
+    snobol_pattern_build_destroy(b);
+
+    snobol_match_t* m = snobol_pattern_search(pat, "say hello world", 15);
+    if (m && snobol_match_success(m)) {
+        printf("matched at offset %zu\n", snobol_match_get_position(m));
+    }
+    snobol_match_free(m);
+    snobol_pattern_free(pat);
+    snobol_context_destroy(ctx);
+    return 0;
+}
+```
+
+The AST root's ownership transfers to `snobol_pattern_build_compile()` (it is
+freed on both success and failure); the returned pattern matches identically
+to the same pattern compiled from source and frees with
+`snobol_pattern_free()`.
+
 #### Using from C++
 
 All public headers are wrapped in `extern "C"` guards, so libsnobol4 can be
@@ -354,6 +396,30 @@ composer install
 vendor/bin/phpunit tests/php
 ```
 
+### Fuzzing (libFuzzer)
+
+Crash-detection and differential targets (build with `-DSNOBOL_FUZZ=ON`,
+requires Clang):
+
+```bash
+cmake -B build-fuzz -DCMAKE_BUILD_TYPE=Debug -DSNOBOL_FUZZ=ON
+cmake --build build-fuzz
+./build-fuzz/tests/fuzz/fuzz_compiler -max_total_time=600
+./build-fuzz/tests/fuzz/fuzz_vm -max_total_time=600
+./build-fuzz/tests/fuzz/fuzz_oracle -max_total_time=600
+```
+
+- `fuzz_compiler`, `fuzz_vm` — crash/leak/OOB detection under ASan
+- `fuzz_oracle` — **differential**: runs the search-tier dispatch and the
+  reference VM on the same pattern+subject and reports any disagreement in
+  success, position, or length — turning the fuzzer from a crash finder into
+  a wrong-answer finder for search-engine optimizations
+
+The C suite's deterministic equivalent (`test_search_oracle.c`, pattern
+corpus in `tests/c/corpus.h`) checks the same accelerated-vs-reference
+equivalence on every `make test` run, so regressions are caught in CI without
+fuzzing.
+
 ## Performance
 
 libsnobol4 is designed for high-performance string processing:
@@ -409,6 +475,9 @@ See `bench/` directory for benchmark scripts and `bench/results_builtin.json` fo
 ## Documentation
 
 - **[Why SNOBOL4 vs PCRE](docs/why-snobol-vs-pcre.md)** — comparison guide with side-by-side examples
+- **[C/C++ Manual](docs/c-manual.md)** — full C API reference: compile, match, search, builder, batch, tiers, C++ interop
+- **[PHP Manual](docs/php-manual.md)** — full PHP binding reference
+- **[Language Compatibility](docs/LANGUAGE_COMPATIBILITY.md)** — which classic SNOBOL4 language features are implemented (tables, labelled control flow, EVAL, templates) with bytecode and fixture details
 - **Hosted Doxygen**: [JPetsis.github.io/libsnobol4](https://JPetsis.github.io/libsnobol4/) — auto-deployed on push to main
 - **Core API**: Headers in `core/include/snobol/`
 - **PHP Binding**: [bindings/php/README.md](bindings/php/README.md)
@@ -468,15 +537,19 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for contribution guidelines.
 
 ## Versioning
 
-libsnobol4 uses independent versioning for core and each binding:
+libsnobol4 uses **one project-wide version number**; per-component
+changelogs and tags (`core/v*`, `php/v*`) record what changed in each
+component:
 
 | Component              | Current | Next        | Status               | Install                               |
 |------------------------|---------|-------------|----------------------|---------------------------------------|
-| **Core**               | v1.0.2 | v1.0.2     | ✅ v1.0.2 shipped    | `brew install JPetsis/homebrew-tap/libsnobol4` |
-| **PHP Binding**        | v1.0.2 | v1.0.2     | ✅ Stable (graduated) | `pie install libsnobol4/snobol`       |
+| **Core**               | v1.0.3 | v1.0.3     | ✅ v1.0.3 shipped    | `brew install JPetsis/homebrew-tap/libsnobol4` |
+| **PHP Binding**        | v1.0.3 | v1.0.3     | ✅ Stable (graduated) | `pie install libsnobol4/snobol`       |
 | **Python (reference)** | —       | —           | Prototype only       | `examples/python-binding/`            |
 
-This allows bindings to evolve at their own pace while maintaining clear compatibility guarantees.
+A core-only release still moves the shared version number (and the
+Packagist package), because the PHP package embeds the core via the
+amalgam; the per-component changelogs and tags track what actually changed.
 
 The project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 The **single source of version truth** is the top-level
