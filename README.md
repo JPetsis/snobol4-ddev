@@ -543,8 +543,8 @@ component:
 
 | Component              | Current | Next        | Status               | Install                               |
 |------------------------|---------|-------------|----------------------|---------------------------------------|
-| **Core**               | v1.0.3 | v1.0.3     | ✅ v1.0.3 shipped    | `brew install JPetsis/homebrew-tap/libsnobol4` |
-| **PHP Binding**        | v1.0.3 | v1.0.3     | ✅ Stable (graduated) | `pie install libsnobol4/snobol`       |
+| **Core**               | v1.0.4 | v1.0.4     | ✅ v1.0.4 shipped    | `brew install JPetsis/homebrew-tap/libsnobol4` |
+| **PHP Binding**        | v1.0.4 | v1.0.4     | ✅ Stable (graduated) | `pie install libsnobol4/snobol`       |
 | **Python (reference)** | —       | —           | Prototype only       | `examples/python-binding/`            |
 
 A core-only release still moves the shared version number (and the
