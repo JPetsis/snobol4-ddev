@@ -216,6 +216,13 @@ The match must start at offset 0 (SNOBOL-style anchored semantics). The
 result is a heap-allocated `snobol_match_t`; free it with `snobol_match_free()`.
 Always check `snobol_match_success()` before reading fields.
 
+Anchored matches run the same required-byte prefilter as unanchored searches:
+when the pattern provably requires a literal that is absent from the subject,
+`snobol_search_exec_anchored` fails fast with `prefilter_skip` set (one O(n)
+`memchr`/`memmem` scan, no tier/VM execution). The prefilter is a
+necessary-condition check only — a subject containing the literal but failing
+at the anchor falls through to the normal tier dispatch.
+
 ```c
 snobol_match_t *m = snobol_pattern_match(pat, "id:1234 rest", 13);
 if (m && snobol_match_success(m)) {

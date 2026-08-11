@@ -120,7 +120,46 @@ C test suite: **364 cases / 74,934 assertions** (custom runner).
   historical entries were split by component; `CONTRIBUTING.md` updated to
   require `[Unreleased]` entries in the affected component's file.
 
-C test suite: **362 cases / 74,914 assertions** (custom runner).
+### Changed
+
+- **Anchored-path required-byte prefilter** (`core/src/search_tiers.c`): the
+  required-byte prefilter (`memchr`/`memmem` for the literal present on every
+  accepting path) now runs in `snobol_search_exec_anchored` before tier
+  dispatch, not only in `snobol_search_exec`. Failing anchored matches on
+  subjects lacking the required literal reject in one O(n) scan
+  (`prefilter_skip = true`) instead of full VM backtracking — the PHP
+  `Pattern::match()` anchored rows drop from up to ~166 µs to ~90–230 ns.
+  Necessary-condition only: subjects containing the literal still fall
+  through to the tier dispatch, and results are unchanged for every subject
+  that passes the prefilter (`test_search_oracle` stays green). Extracted
+  into a `static search_prefilter_miss()` helper shared by both entry points.
+- **Portable memmem made O(n)** (`core/src/search_internal.h`): the fallback
+  `snobol_memmem` used on non-glibc platforms (macOS, MSVC) was a naive
+  O(n·m) per-position `memcmp` loop. It now skips via `memchr` on the first
+  needle byte, keeping the prefilter fail-fast O(n) on those platforms
+  (anchored `literal_fail` probe row: ~5.4 µs → ~55 ns).
+- **C probe "match" rows aligned to anchored semantics**
+  (`bench/c/bench_probe.c`): `residue_repeat`, `residue_zero_width`,
+  `residue_catastrophic`, `pike_overflow`, `prefilter_miss`, `zero_progress`
+  now run through `run_anchored_scenario` with the same pattern source and
+  subject as the PHP probe, so "match"-unit rows pair anchored-to-anchored
+  across the two probes (previously the C rows were unanchored
+  `snobol_pattern_search` while the PHP twins were anchored `match()`).
+  Baselines refreshed (`bench/results/search_perf_baseline.json`,
+  `bench/BENCHMARKS.md`, `bench/README.md` scenario table). The
+  `pike_overflow` anchored row (~2.6 µs) is the intentionally unoptimized
+  anchored BREAKX byte-walk (design non-goal).
+
+### Added
+
+- **Anchored prefilter tests** (`tests/c/test_search_prefilter.c`):
+  `snobol_search_exec_anchored` on `('a'*) 'b'`, `('a'+)+ 'b'`,
+  `@r('a'*) 'b'` and `('a'+) 'pqr'` (multi-byte required literal) over
+  subjects without the literal asserts `!ok` + `prefilter_skip == true`;
+  a subject containing the literal but failing at the anchor asserts the
+  prefilter does NOT short-circuit and the failure agrees with the full VM.
+
+C test suite: **364 cases / 74,945 assertions** (custom runner).
 
 ## [1.0.3] - 2026-08-10
 

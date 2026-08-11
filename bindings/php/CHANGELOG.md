@@ -24,6 +24,32 @@ core versions correspond 1:1.
 
 ## [Unreleased]
 
+### Changed
+
+- **Anchored `match()` benefits from the core prefilter** — the required-byte
+  prefilter now also runs on the anchored entry
+  (`snobol_search_exec_anchored`), which `Pattern::match()` uses. Failing
+  matches on subjects lacking the required literal drop from full VM
+  backtracking (up to ~166 µs) to one O(n) scan (~90–230 ns; ~90 ns
+  JIT-warm). No binding code changed for this part.
+- **`searchAll` batch path pre-sizes result arrays**
+  (`bindings/php/src/snobol_pattern.c`, `php_snobol_try_batch`): the flat
+  parallel arrays (`match_starts`, `match_lengths`, `captures_arr`,
+  `outputs_buf`), the array-of-arrays outer array, and the per-match
+  sub-arrays are allocated with `array_init_size` using the known
+  `match_count` / `batch.var_count`, mirroring the `searchSplit` pattern.
+- **`searchSplit` offset recording uses the persistent state's batch**
+  (`php_snobol_searchsplit_record_offsets`): switched from the stateless
+  `snobol_pattern_search_batch()` to `snobol_pattern_search_batch_ex(state, …)`
+  so the state's cached range_meta/DFA/trie are reused across calls.
+- **Coupling guard covers the anchored match rows**
+  (`tests/php/CPhpCouplingTest.php`): the ratio check is now a per-scenario
+  table comparing ns-per-iteration — `residue_repeat`, `residue_zero_width`,
+  `prefilter_miss`, `zero_progress` at ≈10× plus the existing `alt_literals`
+  at 50× — with per-row skip when a probe lacks the row. The PHP probe runs
+  at `PROBE_ITERS=50000` so its slow scenarios (~iters/100) stay JIT-warm
+  and stable.
+
 ### Fixed
 
 - **Stale Packagist branch alias** (`composer.json`): `dev-main` resolved

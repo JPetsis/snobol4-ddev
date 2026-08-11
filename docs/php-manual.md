@@ -1415,7 +1415,7 @@ libsnobol4's search engine automatically selects the optimal matching strategy b
 - **Tier 3** — Pattern with a literal prefix (starts with one or more `OP_LIT`)
 - **Tier 4** — Pattern whose root is `OP_SPLIT` with all branches being single-character match and no captures
 - **Tier 5** — Pattern whose root is flat alternation of literal strings
-- **Pre-filter** (before any tier): A required-byte study identifies the rightmost literal before ACCEPT/SUCCEED. Before dispatching to any tier, `dispatch_search_impl` runs `memchr`/`memmem` — if the required literal is absent, returns immediately with `prefilter_skip=true`, bypassing all tiers. No-op for patterns without a provably required literal.
+- **Pre-filter** (before any tier): A required-byte study identifies the rightmost literal before ACCEPT/SUCCEED. Both search entry points — `snobol_search_exec` (unanchored) and `snobol_search_exec_anchored` (anchored, used by `Pattern::match()`) — run `memchr`/`memmem` before any tier handler; if the required literal is absent, the call returns immediately with `prefilter_skip=true`, bypassing all tiers. No-op for patterns without a provably required literal.
 - **Tier 6** — Patterns eligible for the lightweight search-VM: charclass ops (`SPAN`/`BREAK`/`BREAKX`/`ANY`/`NOTANY`), positional ops (`POS`/`TAB`/`RPOS`/`RTAB`/`REM`/`ANCHOR`/`FENCE`), **captures** (`CAP_START`/`CAP_END`), bounded repeats (`REPEAT_INIT`/`REPEAT_STEP`), and `ARB`/`ARBNO` — i.e. the NFA-compatible subset **with captures**, provided no stateful/side-effect op (`EVAL`, `DYNAMIC`, `TABLE_*`, `ARRAY_*`, `EMIT_*`, `GOTO`/`LABEL`, `BAL`) is present.  Execution uses the Pike/TDFA single-pass scan (pike_scan) by default for O(n) matching; falls back to the per-offset restart loop for anchored-only or non-zero start offsets. On thread-buffer overflow, pike_scan falls back to the restart loop (no silent false negatives).
 - **Tier 7** — Tier 6-eligible pattern that is ASCII-only charclass and **capture-free**, and DFA powerset construction succeeds (< 4096 states). Only promoted when the pattern has `has_bmh_skip` (literal prefix ≥ 2 bytes) to avoid O(n²) per-position trial loop for 1-byte literals.
 - **Tier 8** — Everything else (fallback through full VM)
@@ -1427,37 +1427,37 @@ libsnobol4's search engine automatically selects the optimal matching strategy b
 ```
 Pattern Type                     → Tier       → Speed (C, ns/iter)
 ──────────────────────────────────────────────────────────────────
-Pure literal (match, success)      Tier 2       ~49 ns
-Pure literal (match, fail)         Tier 2       ~52 ns
-Pure literal at offset 16 (rej)    Tier 2       ~44 ns
-SPAN(',') (match)                  Tier 0–1     ~132 ns
-BREAK(',') (match)                 Tier 0       ~110 ns
-Alternation (match)                Tier 4       ~90 ns
-Alt-of-literals (match)            Tier 5       ~60 ns
-Automaton pattern (match)          Tier 7       ~96 ns
-Fused concat (match)               Tier 10      ~50 ns
+Pure literal (match, success)      Tier 2       ~31 ns
+Pure literal (match, fail)         Tier 2       ~55 ns (prefilter reject)
+Pure literal at offset 16 (rej)    Tier 2       ~31 ns
+SPAN(',') (match)                  Tier 0–1     ~85 ns
+BREAK(',') (match)                 Tier 0       ~32 ns
+Alternation (match)                Tier 4       ~56 ns
+Alt-of-literals (match)            Tier 5       ~45 ns
+Automaton pattern (match)          Tier 7       ~31 ns
+Fused concat (match)               Tier 10      ~34 ns
 Fused concat (unanchored)          Tier 10      ~150 ns
-SPAN('0-9') on 1KB digits          Tier 9       ~580 ns
-SPAN('0-9') on 1KB letters (miss)  Tier 9       ~619 ns
-SIMD NOTANY miss                   Tier 9       ~558 ns
-Tokenize per pass                  Tier 2–3     ~73 µs
-Tokenize per call                  Tier 2–3     ~132 ns
-Pike overflow (BREAKX, first)      Tier 0–6     ~771 ns
-Required-byte miss (prefilter)     —            ~119 ns
-Zero-progress guard (first)        Tier 6       ~117 ns
+SPAN('0-9') on 1KB digits          Tier 9       ~501 ns
+SPAN('0-9') on 1KB letters (miss)  Tier 9       ~566 ns
+SIMD NOTANY miss                   Tier 9       ~566 ns
+Tokenize per pass                  Tier 2–3     ~100 µs
+Tokenize per call                  Tier 2–3     ~25 ns
+Pike overflow (BREAKX, anchored)   Tier 0–6     ~2.6 µs
+Required-byte miss (prefilter)     —            ~25 ns
+Zero-progress guard (anchored)     Tier 6       ~25 ns
 
 Batch all-matches (pass unit):
-Alt-of-literals all-matches        Tier 5       ~2.7 µs
-Residue repeat all (capture)       Tier 6       ~193 ns
-Residue zero-width all              Tier 6       ~107 ns
-Pike overflow all                  Tier 0–6     ~1.0 µs
-Prefilter miss all                 Tier 3       ~98 ns
-Zero-progress all                  Tier 6       ~103 ns
+Alt-of-literals all-matches        Tier 5       ~3.2 µs
+Residue repeat all (capture)       Tier 6       ~230 ns
+Residue zero-width all              Tier 6       ~113 ns
+Pike overflow all                  Tier 0–6     ~1.1 µs
+Prefilter miss all                 Tier 3       ~129 ns
+Zero-progress all                  Tier 6       ~111 ns
 
 PHP binding overhead (pass unit):
-Alt-of-literals all-matches        Tier 5       ~14 µs (5× C)
-Prefilter miss all                 Tier 3       ~209 ns (2× C)
-Zero-progress all                  Tier 6       ~208 ns (2× C)
+Alt-of-literals all-matches        Tier 5       ~16 µs (5× C)
+Prefilter miss all                 Tier 3       ~239 ns (1.9× C)
+Zero-progress all                  Tier 6       ~225 ns (2× C)
 General pattern          Tier 8       ~500-1500 ns
 ```
 
