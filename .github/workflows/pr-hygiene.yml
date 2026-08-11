@@ -6,7 +6,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   title-format:
@@ -29,29 +28,153 @@ jobs:
           fi
 
   changelog:
-    name: CHANGELOG entry required
+    name: CHANGELOG entry under [Unreleased]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - name: Check CHANGELOG modified
+      - name: Enforce per-component changelog entries
         env:
-          HEAD_REF: ${{ github.event.pull_request.head.ref }}
           BASE_REF: ${{ github.event.pull_request.base.ref }}
         run: |
-          # Compare the PR branch against the base branch; require a CHANGELOG diff.
           git fetch origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}" --quiet
           BASE="origin/${BASE_REF}"
-          HEAD="origin/${HEAD_REF}"
-          CHANGED=$(git diff --name-only "${BASE}"..."${HEAD}" 2>/dev/null || true)
-          if echo "${CHANGED}" | grep -q "^CHANGELOG.md$"; then
-            echo "✓ CHANGELOG.md updated"
-          elif ! echo "${CHANGED}" | grep -qE '\.(c|h|php)$'; then
-            echo "✓ Docs-only change — no CHANGELOG entry required"
+          CHANGED=$(git diff --name-only "${BASE}...HEAD" || true)
+
+          # On main, entries go under [Unreleased].  On release branches
+          # (release/v1.0.x etc.) hotfix entries land under the version
+          # heading (## [1.0.3]) instead, so count both there.
+          RELEASE=0
+          case "$BASE_REF" in
+            release/*) RELEASE=1 ;;
+          esac
+          if [ "$RELEASE" = 1 ]; then
+            SECTION="the version heading ([Unreleased] or ## [x.y.z])"
           else
-            echo "❌ CHANGELOG.md must be updated (add your change under [Unreleased])."
-            echo "   Docs-only PRs are exempt."
-            exit 1
+            SECTION="[Unreleased]"
           fi
+
+          # Count "- " bullets under [Unreleased] — plus, on release
+          # branches, under the first version heading (Keep a Changelog).
+          count_entries() {
+            awk -v rel="$2" '
+              /^## \[Unreleased\]/ { f=1; next }
+              /^## / {
+                if (rel == "1" && /^## \[[0-9]+\.[0-9]+\.[0-9]+\]/ && v == 0) { v=1; f=1; next }
+                f=0
+              }
+              f && /^- / { n++ }
+              END { print n+0 }
+            ' "$1"
+          }
+
+          # Which changelog(s) must gain an entry?  Core/repo files -> root
+          # CHANGELOG.md; PHP binding files -> bindings/php/CHANGELOG.md.
+          # Docs, CI, examples and benchmarks are exempt (existing policy).
+          needs_root=0
+          needs_php=0
+          while IFS= read -r f; do
+            case "$f" in
+              bindings/php/*) needs_php=1 ;;
+              core/*|tests/c/*|CMakeLists.txt|Makefile) needs_root=1 ;;
+              *) ;;
+            esac
+          done <<< "$CHANGED"
+
+          FAIL=0
+          if [ "$needs_root" = 1 ]; then
+            if ! git show "${BASE}:CHANGELOG.md" > /tmp/base-changelog.md 2>/dev/null; then
+              : > /tmp/base-changelog.md
+            fi
+            base_n=$(count_entries /tmp/base-changelog.md "$RELEASE")
+            pr_n=$(count_entries CHANGELOG.md "$RELEASE")
+            if [ "$pr_n" -le "$base_n" ]; then
+              echo "❌ CHANGELOG.md: no new entry under $SECTION"
+              echo "   Core/repo files changed; add a bullet under $SECTION"
+              echo "   describing the change (see CONTRIBUTING.md)."
+              FAIL=1
+            else
+              echo "✓ CHANGELOG.md: entry added under $SECTION"
+            fi
+          fi
+          if [ "$needs_php" = 1 ]; then
+            if ! git show "${BASE}:bindings/php/CHANGELOG.md" > /tmp/base-php.md 2>/dev/null; then
+              : > /tmp/base-php.md
+            fi
+            base_n=$(count_entries /tmp/base-php.md "$RELEASE")
+            pr_n=$(count_entries bindings/php/CHANGELOG.md "$RELEASE")
+            if [ "$pr_n" -le "$base_n" ]; then
+              echo "❌ bindings/php/CHANGELOG.md: no new entry under $SECTION"
+              echo "   PHP binding files changed; add a bullet under $SECTION"
+              echo "   in bindings/php/CHANGELOG.md."
+              FAIL=1
+            else
+              echo "✓ bindings/php/CHANGELOG.md: entry added under $SECTION"
+            fi
+          fi
+          exit $FAIL
+
+  format-check:
+    name: clang-format (changed files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Install clang-format-18
+        run: sudo apt-get update && sudo apt-get install -y clang-format-18
+
+      - name: Check formatting of changed C/H files
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git fetch origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}" --quiet
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD" | grep -E '\.(c|h)$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "✓ no C/C++ files changed"
+            exit 0
+          fi
+          FAIL=0
+          while IFS= read -r f; do
+            if ! clang-format-18 --dry-run --Werror "$f"; then
+              echo "❌ $f is not formatted (run: clang-format -i $f)"
+              FAIL=1
+            fi
+          done <<< "$CHANGED"
+          exit $FAIL
+
+  warnings:
+    name: Compiler warnings (-Wall -Wextra -Wpedantic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Build with strict warning flags
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Debug -DBUILD_TESTS=ON -DBUILD_PHP=OFF \
+            -DCMAKE_C_FLAGS="-Wall -Wextra -Wpedantic"
+          cmake --build build -j"$(nproc)" 2>&1 | tee /tmp/warnings.log
+
+      - name: Fail on warnings in changed files
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.ref }}
+        run: |
+          git fetch origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}" --quiet
+          CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD" | grep -E '\.(c|h)$' || true)
+          FAIL=0
+          while IFS= read -r f; do
+            if grep -F "$f" /tmp/warnings.log | grep -q "warning:"; then
+              echo "❌ warnings in $f:"
+              grep -F "$f" /tmp/warnings.log | grep "warning:" | head -5
+              FAIL=1
+            fi
+          done <<< "$CHANGED"
+          if [ "$FAIL" = 0 ]; then
+            echo "✓ no warnings in changed files"
+          fi
+          exit $FAIL

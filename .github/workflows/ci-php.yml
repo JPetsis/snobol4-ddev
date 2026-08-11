@@ -2,7 +2,7 @@ name: CI - PHP Binding
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, 'release/**' ]
     paths:
       - 'bindings/php/**'
       - 'bindings/php/composer.json'
@@ -11,7 +11,7 @@ on:
       - 'dev/generate_amalgam.sh'
       - '.github/workflows/ci-php.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, 'release/**' ]
     paths:
       - 'bindings/php/**'
       - 'bindings/php/composer.json'
@@ -29,7 +29,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ ubuntu-latest, macos-latest ]
-        php-version: [ '8.4', '8.5' ]
+        php-version: [ '8.3', '8.4', '8.5' ]
 
     steps:
       - name: Checkout code
@@ -195,7 +195,7 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # PHP 8.3 (EOL Nov 2025) requires VS2019 (v16) but windows-2019
+          # PHP 8.3 requires VS2019 (v16) but windows-2019
           # has been removed from GitHub Actions.  Skip on Windows.
           - php-version: '8.4'
             os: windows-2022

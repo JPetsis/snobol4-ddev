@@ -2,14 +2,14 @@ name: Sanitizers
 
 on:
   push:
-    branches: [ main, develop ]
+    branches: [ main, 'release/**' ]
     paths:
       - 'core/**'
       - 'tests/c/**'
       - 'CMakeLists.txt'
       - '.github/workflows/sanitizers.yml'
   pull_request:
-    branches: [ main, develop ]
+    branches: [ main, 'release/**' ]
     paths:
       - 'core/**'
       - 'tests/c/**'
