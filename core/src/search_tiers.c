@@ -3720,6 +3720,35 @@ static bool SNOBOL_HOT dispatch_search_impl(
   return dispatched;
 }
 
+/* Required-byte pre-filter: before entering any tier or DFA setup, check
+ * whether a literal that MUST appear in the subject is present.  When the
+ * literal is absent, mark out_result with prefilter_skip and return true —
+ * the caller returns false immediately, with no VM/tier/DFA invocation.
+ * Hoisted out of dispatch_search_impl so callers like snobol_pattern_search
+ * can skip DFA building when the prefilter rejects, and shared by the
+ * anchored entry point so anchored matches get the same fail-fast. */
+static bool SNOBOL_HOT search_prefilter_miss(
+    const snobol_search_meta_t *meta, const char *SNOBOL_RESTRICT subject,
+    size_t subject_len, size_t start_offset,
+    snobol_search_result_t *out_result) {
+  if (meta && meta->has_required_lit && meta->required_lit_len > 0) {
+    bool absent;
+    if (meta->required_lit_len == 1) {
+      absent = !memchr(subject + start_offset, meta->required_lit[0],
+                       subject_len - start_offset);
+    } else {
+      absent = !memmem(subject + start_offset, subject_len - start_offset,
+                       meta->required_lit, meta->required_lit_len);
+    }
+    if (absent) {
+      out_result->success = false;
+      out_result->prefilter_skip = true;
+      return true;
+    }
+  }
+  return false;
+}
+
 SNOBOL_ALIGNED(64)
 bool SNOBOL_HOT snobol_search_exec(VM *SNOBOL_RESTRICT vm,
                                    const char *SNOBOL_RESTRICT subject,
@@ -3758,23 +3787,9 @@ bool SNOBOL_HOT snobol_search_exec(VM *SNOBOL_RESTRICT vm,
    * literal is absent, return false immediately — no VM/tier/DFA invocation.
    * This is hoisted here (not inside dispatch_search_impl) so callers like
    * snobol_pattern_search can skip DFA building when the prefilter rejects. */
-  if (meta && meta->has_required_lit && meta->required_lit_len > 0) {
-    if (meta->required_lit_len == 1) {
-      if (!memchr(subject + start_offset, meta->required_lit[0],
-                  subject_len - start_offset)) {
-        out_result->success = false;
-        out_result->prefilter_skip = true;
-        return false;
-      }
-    } else {
-      if (!memmem(subject + start_offset, subject_len - start_offset,
-                  meta->required_lit, meta->required_lit_len)) {
-        out_result->success = false;
-        out_result->prefilter_skip = true;
-        return false;
-      }
-    }
-  }
+  if (search_prefilter_miss(meta, subject, subject_len, start_offset,
+                            out_result))
+    return false;
   return dispatch_search_impl(vm, subject, subject_len, start_offset, meta, dfa,
                               out_result, diag, false);
 }
@@ -3806,6 +3821,12 @@ bool SNOBOL_HOT snobol_search_exec_anchored(VM *SNOBOL_RESTRICT vm,
                                             const snobol_dfa_t *dfa,
                                             snobol_search_result_t *out_result,
                                             snobol_search_diag_t *diag) {
+  /* Required-byte pre-filter: an anchored match cannot succeed when a
+   * literal required on every accepting path is absent from the subject, so
+   * the same fail-fast as snobol_search_exec applies.  Necessary-condition
+   * only: subjects containing the literal fall through to dispatch. */
+  if (search_prefilter_miss(meta, subject, subject_len, 0, out_result))
+    return false;
   return dispatch_search_impl(vm, subject, subject_len, 0, meta, dfa,
                               out_result, diag, true);
 }

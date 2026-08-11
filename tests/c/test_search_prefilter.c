@@ -118,10 +118,96 @@ static void test_prefilter_leading_alternation(void) {
   snobol_context_destroy(ctx);
 }
 
+/* Full VM with the subject preloaded — the reference for anchored agreement. */
+static VM make_vm(const uint8_t *bc, size_t bc_len, const char *subject) {
+  VM vm;
+  memset(&vm, 0, sizeof(vm));
+  vm.bc = bc;
+  vm.bc_len = bc_len;
+  vm.s = subject;
+  vm.len = strlen(subject);
+  vm.ip = 0;
+  vm.pos = 0;
+  vm.var_count = 0;
+  return vm;
+}
+
+/* The anchored entry (snobol_search_exec_anchored) must run the same
+ * required-byte prefilter as the unanchored one: a subject lacking the
+ * required literal fails with prefilter_skip = true before any tier runs. */
+static void test_anchored_prefilter_miss(void) {
+  /* The last case uses a multi-byte required literal ("pqr") to exercise
+   * the memmem prefilter path on the anchored entry. */
+  const char *patterns[] = {"('a'*) 'b'", "('a'+)+ 'b'", "@r('a'*) 'b'",
+                            "('a'+) 'pqr'"};
+  const char *subject = "aaaaaaaaaa";
+  for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
+    snobol_context_t *ctx = snobol_context_create();
+    char *err = NULL;
+    snobol_pattern_t *p = snobol_pattern_compile(ctx, patterns[i],
+                                                 strlen(patterns[i]), &err);
+    if (!p) {
+      test_assert(false, "anchored prefilter miss: compile");
+      snobol_context_destroy(ctx);
+      return;
+    }
+    VM vm;
+    memset(&vm, 0, sizeof(vm));
+    vm.bc = (uint8_t *)snobol_pattern_get_bc(p);
+    vm.bc_len = snobol_pattern_get_bc_len(p);
+    const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
+    snobol_search_result_t r;
+    bool ok = snobol_search_exec_anchored(&vm, subject, strlen(subject), meta,
+                                          NULL, &r, NULL);
+    test_assert(!ok, "anchored prefilter miss: no match on a-only subject");
+    test_assert(r.prefilter_skip,
+                "anchored prefilter miss: prefilter_skip set");
+    snobol_pattern_free(p);
+    snobol_context_destroy(ctx);
+    snobol_search_vm_cleanup(&vm);
+  }
+}
+
+/* The prefilter is a necessary-condition check: when the required literal is
+ * present but the pattern still fails at the anchor, the prefilter must NOT
+ * short-circuit and the failure must agree with the full VM. */
+static void test_anchored_prefilter_no_shortcircuit(void) {
+  snobol_context_t *ctx = snobol_context_create();
+  char *err = NULL;
+  /* ('a'+) needs an 'a' at the anchor; "bbbbbb" has the required 'b' but no
+   * anchored match. */
+  snobol_pattern_t *p = snobol_pattern_compile(ctx, "('a'+) 'b'", 10, &err);
+  if (!p) {
+    test_assert(false, "anchored prefilter no-shortcircuit: compile");
+    snobol_context_destroy(ctx);
+    return;
+  }
+  const uint8_t *bc = snobol_pattern_get_bc(p);
+  size_t bc_len = snobol_pattern_get_bc_len(p);
+  const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
+  VM vm;
+  memset(&vm, 0, sizeof(vm));
+  vm.bc = (uint8_t *)bc;
+  vm.bc_len = bc_len;
+  snobol_search_result_t r;
+  bool ok = snobol_search_exec_anchored(&vm, "bbbbbb", 6, meta, NULL, &r, NULL);
+  test_assert(!ok, "anchored prefilter no-shortcircuit: no anchored match");
+  test_assert(!r.prefilter_skip,
+              "anchored prefilter no-shortcircuit: prefilter did not reject");
+  VM fvm = make_vm(bc, bc_len, "bbbbbb");
+  test_assert(ok == vm_run(&fvm),
+              "anchored prefilter no-shortcircuit: agrees with full VM");
+  snobol_pattern_free(p);
+  snobol_context_destroy(ctx);
+  snobol_search_vm_cleanup(&vm);
+}
+
 void test_search_prefilter_suite(void) {
   test_suite("Search: Required-Byte Prefilter");
   test_prefilter_miss();
   test_prefilter_hit();
   test_prefilter_noop();
   test_prefilter_leading_alternation();
+  test_anchored_prefilter_miss();
+  test_anchored_prefilter_no_shortcircuit();
 }

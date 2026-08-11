@@ -41,9 +41,19 @@ static const void *snobol_memmem(const void *hay, size_t hlen,
   const char *h = (const char *)hay;
   const char *n = (const char *)needle;
   size_t limit = hlen - nlen;
-  for (size_t i = 0; i <= limit; i++) {
-    if (memcmp(h + i, n, nlen) == 0)
-      return h + i;
+  size_t i = 0;
+  /* Skip straight to positions where the first needle byte matches: memchr
+   * is vectorized, so the scan is O(n) in practice instead of the naive
+   * O(n·m) per-position memcmp loop.  This keeps the required-byte
+   * prefilter's fail-fast O(n) on platforms without a libc memmem. */
+  while (i <= limit) {
+    const char *p = (const char *)memchr(h + i, (unsigned char)n[0],
+                                         limit - i + 1);
+    if (!p)
+      return nullptr;
+    if (memcmp(p, n, nlen) == 0)
+      return p;
+    i = (size_t)(p - h) + 1;
   }
   return nullptr;
 }
