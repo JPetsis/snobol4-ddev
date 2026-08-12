@@ -39,10 +39,10 @@ class Builder
     /** @param mixed $arg @return static */
     public static function arbno($arg): static { return new static(); }
 
-    /** @param mixed $arg @return static */
+    /** @param mixed $arg @return static Register in [0, 63]; ValueError outside */
     public static function cap($arg): static { return new static(); }
 
-    /** @param mixed $name @param mixed $value @return static */
+    /** @param mixed $name @param mixed $value @return static Registers in [0, 63]; ValueError outside */
     public static function assign($name, $value): static { return new static(); }
 
     /** @param mixed ...$parts @return static */
@@ -51,7 +51,7 @@ class Builder
     /** @param mixed ...$alts @return static */
     public static function alt(...$alts): static { return new static(); }
 
-    /** @param mixed $arg @return static */
+    /** @param mixed $arg @return static Register in [0, 63]; ValueError outside */
     public static function eval($arg): static { return new static(); }
 
     /** @param mixed $arg @return static */
@@ -63,7 +63,7 @@ class Builder
     /** @param mixed $arg @return static */
     public static function emit($arg): static { return new static(); }
 
-    /** @param mixed $arg @return static */
+    /** @param mixed $arg @return static Register in [0, 63]; ValueError outside */
     public static function emitRef($arg): static { return new static(); }
 
     /** @param mixed $arg @return static */

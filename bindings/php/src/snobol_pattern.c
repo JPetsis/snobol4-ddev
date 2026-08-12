@@ -1667,13 +1667,14 @@ PHP_METHOD(Snobol_Pattern, searchSplitOffsets) {
  * Pattern::searchSplitCuts(string $subject): array
  *
  * Returns a flat array of cut-point offsets delimiting segments.
- * Segment i spans subject[cuts[i-1]:cuts[i]], with the trailing
- * segment spanning subject[cuts[N-1]:].  The cheapest possible
- * split result: one flat array of longs, zero string allocation,
- * zero sub-array allocation.
+ * Each cut is the END position of a delimiter match. Segment i spans
+ * subject[cuts[i-1]:cuts[i]], with the trailing segment spanning
+ * subject[cuts[N-1]:].  The cheapest possible split result: one flat
+ * array of longs, zero string allocation, zero sub-array allocation.
  *
- * Example: subject "a b c", pattern "' '" (split on space)
- *   => [1, 3, 5]   (segments: "a", "b", "c")
+ * Example: subject "a b c", pattern "' '" (split on space, matches at
+ * 1..2 and 3..4)
+ *   => [2, 4]   (segments: "a ", "b ", "c")
  */
 /** @brief Pattern::searchSplitCuts(string $subject): array
  *  Flat array of cut points: each match's end position. */

@@ -181,7 +181,28 @@ C test suite: **364 cases / 74,934 assertions** (custom runner).
   mass fake "regressions" — `PROBE_BASELINE_PATH` overrides and forces the
   comparison. Documented in `bench/README.md`.
 
-C test suite: **364 cases / 74,945 assertions** (custom runner).
+- **Sequential capture registers for `@name` patterns** (`core/src/parser.c`):
+  every `@name` capture now allocates the next register in order of
+  appearance, starting at register 0 (previously all captures hardcoded
+  register 1, so the second `@name` in a pattern overwrote the first).
+  The advertised-but-nonexistent `@*` / `@integer` forms are rejected with
+  a parse error. Registers are 0-based end-to-end (`v0`..`v63`); the PHP
+  binding emits capture keys as `"v0"`, `"v1"`, … and the Builder validates
+  `0 <= reg < 64`.
+- **Length-aware array/table APIs** (`core/src/array.c`, `core/src/table.c`):
+  `table_set_ex/get_ex/has_ex/delete_ex` and
+  `snobol_array_set_ex/get_ex` operate on byte-exact keys and values, so
+  keys that differ only after an embedded NUL are distinct entries and
+  values with embedded NULs round-trip unmodified. The NUL-terminated
+  variants remain as `strlen` wrappers; `snobol_array_values` copies
+  byte-exact. C tests: NUL-key/NUL-value suites in `test_tables.c` and
+  `test_array.c`.
+- **NUL-safe EMIT literals** (`core/src/ast.c`, `core/src/compiler_codegen.c`):
+  the `AST_EMIT` node now carries the literal's byte length (the length
+  was previously dropped and re-derived with `strlen`, truncating emitted
+  output at the first NUL byte); `ast_clone` had the same bug and is fixed.
+
+C test suite: **366 cases / 72,970 assertions** (custom runner).
 
 ## [1.0.3] - 2026-08-10
 

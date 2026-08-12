@@ -55,6 +55,64 @@ core versions correspond 1:1.
 - **Stale Packagist branch alias** (`composer.json`): `dev-main` resolved
   as `0.2.x-dev`; now `1.x-dev` so `dev-main` consumers get correct
   stability and semver range matching.
+- **`@name` captures no longer overwrite each other** — the parser now
+  allocates a sequential register per `@name` capture (starting at `v0`,
+  see the core changelog). The binding emits capture keys as `"v0"`,
+  `"v1"`, … and `match()` results gained `_match_start` on both the
+  generic and literal fast paths.
+- **Flat-mode `searchAll` capture offsets were anchored at the search
+  start instead of the match start** — the per-call flat result builder
+  used `search_offset` as the offset base; matches after a pre-match gap
+  reported captures relative to the wrong position. All four capture
+  loops (match, searchAll flat + array, batch flat + array) now share
+  one bounds-checked emitter (`php_snobol_emit_capture`) anchored at
+  `match_start`.
+- **Search/split iterators held raw pointers without refcounts** —
+  `SearchIterator` and `SplitIterator` now own references to the Pattern
+  object and the subject string (freed in the object dtor), so unsetting
+  the pattern or subject mid-iteration no longer risks use-after-free.
+  `SplitIterator` also gained the non-literal fallback (SPAN/BREAK/
+  alternation delimiters previously collapsed to one whole-subject
+  segment) and `rewind()` works on empty subjects for empty-matching
+  patterns.
+- **Batch output extraction is O(1) per match and NUL-safe** — the
+  `strlen` re-walk over the outputs blob was replaced by the core's
+  per-match `output_lens`; `searchReplace` now runs through the
+  persistent search state (`batch_ex`) and no longer executes a
+  separate counting pass over the subject; `subst()` executes its search
+  phase through the persistent state instead of a per-iteration stack VM
+  memset (templates run on a VM reconstructed from the match, so
+  table-backed templates keep working).
+- **`subst()` and `Pattern::subst` emit byte-exact output** — the
+  `AST_EMIT` literal length bug (truncation at embedded NULs) is fixed in
+  the core; `Array_`/`Table` keys and values round-trip embedded NULs
+  byte-exact (length-aware core APIs, `stringl` reads).
+- **`PatternHelper::tableSubst` actually uses the table** — the table is
+  passed to `subst` keyed by its own name, so `$STATE[$v0]`-style
+  templates resolve; `PatternHelper::fromAst` surfaces the compiler's own
+  exception (as a cause) instead of a generic ValueError; the helper
+  slot cache compares the effective options (e.g. `caseInsensitive`)
+  before serving a cached pattern.
+- **Allocator-matched freeing in `Array_::keys()/values()`** — core
+  arrays are released with `snobol_free` (the phpize build compiles the
+  core with `STANDALONE_BUILD`, so the allocator is libc `malloc`, not
+  `emalloc`); the latent double-free of the VM's `dyn_pending_*` buffers
+  in `subst()` was removed (the core owns them).
+- **LRU caches no longer corrupt their access order** —
+  `DynamicPatternCache` and `PatternCache` rebuild the access-order array
+  densely after deletions instead of manual index shifts (which created
+  key-space holes and orphaned entries, defeating the capacity bound);
+  a refcount bug in the touch path (dtor-after-move) was fixed. Capacity
+  bounds are now tested end-to-end.
+- **Validation & arginfo alignment** — `Builder::cap/assign/eval/emitRef`
+  reject registers outside `[0, 63]` with a ValueError; `Builder::repeat`
+  accepts `null` for `max`; `new DynamicPatternCache(null)` and
+  `new PatternCache(null)` fall back to the default capacity per their
+  nullable arginfo; `Table::__construct(null)` works; `Array_` rejects
+  sizes/keys outside the int32 range.
+- **`snobol_text_lpad`/`rpad` pad with the full UTF-8 codepoint** — a
+  multi-byte pad such as `'€'` is decoded via `snobol_ord` instead of
+  being truncated to its first byte.
 
 ## [1.0.2] - 2026-08-06
 

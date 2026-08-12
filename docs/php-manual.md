@@ -331,6 +331,8 @@ Builder::assign(int $var, int $reg): array       // Assign register to variable
 
 Captures are stored in **numbered registers** (0–63). The matched text of a capture register appears in the result as `$result['v<reg>']`. Assigning to a variable makes it available for template substitution.
 
+String patterns (`Pattern::fromString()`) support captures with the `@name` syntax: each `@name` occurrence allocates the next register in order of appearance (starting at `v0`). A zero-width or unset capture renders as `null` in string mode and as a `[position, 0]` pair in offsets mode.
+
 ```php
 // Capture digits after "id:"
 $ast = Builder::concat([

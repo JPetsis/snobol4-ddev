@@ -28,11 +28,11 @@ The engine now supports full SNOBOL language compatibility including:
 | Runtime: Capture-derived table lookups        | ✅ Complete | Key from capture register                         |
 | Runtime: Formatted substitutions              | ✅ Complete | upper, lower, length operations                   |
 | Helper API: `PatternHelper::evalPattern()`    | ✅ Complete | Routes through core runtime with caching          |
-| Helper API: `PatternHelper::tableSubst()`     | ✅ Complete | Table-backed substitution helper                  |
+| Helper API: `PatternHelper::tableSubst()`     | ✅ Complete | Table-backed substitution helper (tables bound by name, e.g. `$STATE[$v0]`) |
 | Helper API: `PatternHelper::formattedSubst()` | ✅ Complete | Formatted template helper                         |
 | Helper API: `DynamicPatternCache`             | ✅ Complete | Truthful runtime-backed cache interface           |
 | Compatibility fixtures                        | ✅ Complete | Use runtime-backed semantics (no fallback)        |
-| Test coverage                                 | ✅ Complete | 516 PHP tests, 74945 C assertions (custom runner) |
+| Test coverage                                 | ✅ Complete | 568 PHP tests, 72970 C assertions (custom runner) |
 
 ### ⚠️ Known Limitations
 
