@@ -19,6 +19,10 @@
 extern zend_class_entry *snobol_pattern_ce;
 zend_class_entry *snobol_pattern_helper_ce;
 
+#include "snobol/table.h"
+/* Forward declaration: extract C table pointer from a PHP Snobol\Table zval */
+extern snobol_table_t *php_snobol_get_table_from_zval(zval *zv);
+
 /* ------------------------------------------------------------------ */
 /*  Internal helpers                                                   */
 /* ------------------------------------------------------------------ */
@@ -64,27 +68,22 @@ static int php_phelper_call_from_ast(zval *ast, zval *options, zval *ret) {
 
 #define PH_CACHE_SLOTS 128
 
-/* Each slot holds a string key and a Pattern object zval. */
+/* Each slot holds a string key, the effective options hash, and a Pattern
+ * object zval. */
 typedef struct {
   zend_string *key;
+  uint32_t options_hash;
   zval value;
   bool valid;
 } php_phelper_cache_slot_t;
 
 static php_phelper_cache_slot_t ph_cache[PH_CACHE_SLOTS];
 
-/* djb2-style hash for the raw pattern string (with or without options). */
-/** @brief djb2-style hash over the pattern source and (optionally) the
- *  string/long values of the options array. */
-static uint32_t php_phelper_cache_hash(zval *pattern, zval *options) {
-  const char *p = Z_STRVAL_P(pattern);
-  size_t plen = Z_STRLEN_P(pattern);
+/** @brief djb2-style hash over the string/long values of the options array
+ *  (empty/absent options hash to the same value). */
+static uint32_t php_phelper_options_hash(zval *options) {
   uint32_t h = 5381;
-  for (size_t i = 0; i < plen; i++) {
-    h = ((h << 5) + h) + (unsigned char)p[i];
-  }
   if (options && Z_TYPE_P(options) == IS_ARRAY) {
-    /* Mix in a hash of the options array content */
     zend_string *k;
     zval *v;
     ZEND_HASH_FOREACH_STR_KEY_VAL(Z_ARRVAL_P(options), k, v) {
@@ -107,22 +106,33 @@ static uint32_t php_phelper_cache_hash(zval *pattern, zval *options) {
   return h;
 }
 
+/* djb2-style hash for the raw pattern string (with or without options). */
+/** @brief djb2-style hash over the pattern source and the options hash. */
+static uint32_t php_phelper_cache_hash(zval *pattern, zval *options) {
+  const char *p = Z_STRVAL_P(pattern);
+  size_t plen = Z_STRLEN_P(pattern);
+  uint32_t h = 5381;
+  for (size_t i = 0; i < plen; i++) {
+    h = ((h << 5) + h) + (unsigned char)p[i];
+  }
+  h = ((h << 5) + h) + (unsigned char)(php_phelper_options_hash(options) & 0xFF);
+  return h;
+}
+
 /* Compare a cache slot against the given pattern+options. */
-/** @brief Check a cache slot against a pattern source (options are not
- *  compared beyond the hash — a rough check for the benchmark cache). */
+/** @brief Check a cache slot: the source string must match exactly and the
+ *  effective options must hash identically (different options — e.g.
+ *  case_insensitive — produce different compiled patterns and must not
+ *  share a slot). */
 static bool php_phelper_cache_match(php_phelper_cache_slot_t *slot,
                                     zval *pattern, zval *options) {
   if (!slot->valid)
     return false;
   if (!zend_string_equals(slot->key, Z_STR_P(pattern)))
     return false;
-  /* Options comparison: both must be null/empty or equal arrays */
-  if (!options || Z_TYPE_P(options) != IS_ARRAY ||
-      zend_hash_num_elements(Z_ARRVAL_P(options)) == 0) {
-    return true;
-  }
-  /* Options present — compare keys (rough check) */
-  return true; /* hash collision is rare enough for a benchmark cache */
+  if (slot->options_hash != php_phelper_options_hash(options))
+    return false;
+  return true;
 }
 
 /* Resolve a pattern spec to a Pattern object.
@@ -156,6 +166,7 @@ static int php_phelper_resolve(zval *pattern_or_ast, zval *options, zval *out) {
         zval_ptr_dtor(&slot->value);
       }
       slot->key = zend_string_copy(Z_STR_P(pattern_or_ast));
+      slot->options_hash = php_phelper_options_hash(options);
       ZVAL_COPY(&slot->value, out);
       slot->valid = true;
       return SUCCESS;
@@ -324,8 +335,14 @@ PHP_METHOD(Snobol_PatternHelper, fromAst) {
 
   if (Z_TYPE_P(return_value) != IS_OBJECT ||
       !instanceof_function(Z_OBJCE_P(return_value), snobol_pattern_ce)) {
-    zend_throw_exception(zend_ce_value_error,
-                         "Failed to compile pattern from AST", 0);
+    /* compileFromAst throws with the compiler's real message on failure;
+     * keep that exception and only fall back to a generic one when the
+     * compilation failed silently. */
+    if (!EG(exception)) {
+      zend_throw_exception(zend_ce_value_error,
+                           "Failed to compile pattern from AST", 0);
+    }
+    RETURN_NULL();
   }
 }
 
@@ -628,21 +645,64 @@ PHP_METHOD(Snobol_PatternHelper, tableSubst) {
     return;
   }
 
-  zval args_subst[2], subst_ret;
+  zval args_subst[3], subst_ret;
   ZVAL_STRINGL(&args_subst[0], subject, subject_len);
   ZVAL_STRINGL(&args_subst[1], template_str, template_str_len);
-  zend_call_method_with_2_params(Z_OBJ_P(&pattern_obj), Z_OBJCE_P(&pattern_obj),
-                                 NULL, "subst", &subst_ret, &args_subst[0],
-                                 &args_subst[1]);
+  /* Pass the table to subst so template lookups like $STATE[$v0] resolve
+     against it. subst binds tables by name, so the array key must be the
+     table's own name (this is what makes the helper table-backed). */
+  array_init(&args_subst[2]);
+  {
+    snobol_table_t *ct = php_snobol_get_table_from_zval(table_zv);
+    const char *tbl_name = ct ? table_name(ct) : NULL;
+    if (ct && tbl_name) {
+      zval copy;
+      ZVAL_COPY(&copy, table_zv);
+      add_assoc_zval(&args_subst[2], tbl_name, &copy);
+    } else {
+      Z_TRY_ADDREF_P(table_zv);
+      add_next_index_zval(&args_subst[2], table_zv);
+    }
+  }
+  ZVAL_UNDEF(&subst_ret);
+  {
+    zend_fcall_info fci;
+    zend_fcall_info_cache fcc;
+    zend_string *callable_name = NULL;
+    /* The callable is [$pattern_obj, 'subst'] — a bare object is not
+     * callable. */
+    zval callable;
+    array_init(&callable);
+    zval obj_copy;
+    ZVAL_COPY(&obj_copy, &pattern_obj);
+    add_next_index_zval(&callable, &obj_copy);
+    zval mname;
+    ZVAL_STRINGL(&mname, "subst", sizeof("subst") - 1);
+    add_next_index_zval(&callable, &mname);
+    if (zend_fcall_info_init(&callable, 0, &fci, &fcc, &callable_name,
+                             NULL) == SUCCESS) {
+      fci.retval = &subst_ret;
+      fci.params = args_subst;
+      fci.param_count = 3;
+      zend_call_function(&fci, &fcc);
+    }
+    zval_ptr_dtor(&callable);
+    if (callable_name) {
+      zend_string_release(callable_name);
+    }
+  }
   if (Z_TYPE(subst_ret) == IS_STRING) {
     ZVAL_COPY(return_value, &subst_ret);
   } else {
     ZVAL_STRINGL(return_value, subject, subject_len);
   }
-  zval_ptr_dtor(&subst_ret);
+  if (Z_TYPE(subst_ret) != IS_UNDEF) {
+    zval_ptr_dtor(&subst_ret);
+  }
 
   zval_ptr_dtor(&args_subst[0]);
   zval_ptr_dtor(&args_subst[1]);
+  zval_ptr_dtor(&args_subst[2]);
   zval_ptr_dtor(&pattern_obj);
   zval_ptr_dtor(&pattern_zv);
 }

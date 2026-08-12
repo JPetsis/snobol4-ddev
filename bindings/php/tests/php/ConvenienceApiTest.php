@@ -571,10 +571,17 @@ class ConvenienceApiTest extends TestCase
         $this->assertSame([], PatternHelper::split(123, 'x'));
     }
 
-    public function testFromAstInvalidNodeThrowsValueError(): void
+    public function testFromAstInvalidNodeThrows(): void
     {
-        $this->expectException(\ValueError::class);
-        PatternHelper::fromAst(['type' => 'nope']);
+        // compileFromAst throws a plain Exception with the compiler's own
+        // message; fromAst must propagate it (not replace it with a generic
+        // ValueError).
+        try {
+            PatternHelper::fromAst(['type' => 'nope']);
+            $this->fail('fromAst must throw for an invalid AST node');
+        } catch (\Exception $e) {
+            $this->assertNotSame('Failed to compile pattern from AST', $e->getMessage());
+        }
     }
 
     public function testTypeMismatchMatrixThrowsTypeError(): void
