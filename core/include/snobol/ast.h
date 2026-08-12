@@ -216,6 +216,7 @@ struct ast_node {
     /* AST_EMIT */
     struct {
       char *text; /* Owned: literal text to emit (or NULL) */
+      size_t len; /* Byte length of text (NUL-safe; 0 if text is NULL) */
       int reg;    /* Register to emit (-1 if text only) */
     } emit;
 

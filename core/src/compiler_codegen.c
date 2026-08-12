@@ -235,10 +235,9 @@ static int emit_anchor_c(const char *type, CodeBuf *c) {
   }
   return 0;
 }
-static int emit_emit_c(const char *text, int reg, CodeBuf *c) {
+static int emit_emit_c(const char *text, size_t len, int reg, CodeBuf *c) {
   if (text != nullptr) {
-    /* Emit literal text */
-    size_t len = strlen(text);
+    /* Emit literal text (NUL-safe: the AST carries the exact byte length) */
     size_t off_of_payload = cb_pos(c) + 1 + 4 + 4;
     cb_emit_u8(c, OP_EMIT_LITERAL);
     cb_emit_u32(c, (uint32_t)off_of_payload);
@@ -670,7 +669,8 @@ static int emit_node_c(ast_node_t *node, CodeBuf *c) {
           node->data.anchor.atype == ANCHOR_START ? "start" : "end", c);
 
     case AST_EMIT:
-      return emit_emit_c(node->data.emit.text, node->data.emit.reg, c);
+      return emit_emit_c(node->data.emit.text, node->data.emit.len,
+                         node->data.emit.reg, c);
 
     case AST_BREAKX:
       return emit_breakx_c(node->data.breakx.set, node->data.breakx.len, c);

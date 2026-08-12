@@ -554,6 +554,10 @@ PHP_METHOD(Snobol_Pattern, match) {
         ip++;
         continue;
       }
+      if ((op == OP_POS || op == OP_RPOS) && ip + 5 <= bc_len) {
+        ip += 5;
+        continue;
+      }
       break;
     }
     if (ip + 9 <= bc_len && bc[ip] == OP_LIT) {
@@ -563,26 +567,31 @@ PHP_METHOD(Snobol_Pattern, match) {
       uint32_t lit_len = ((uint32_t)bc[ip + 5] << 24) |
                          ((uint32_t)bc[ip + 6] << 16) |
                          ((uint32_t)bc[ip + 7] << 8) | (uint32_t)bc[ip + 8];
-      const char *lit = (const char *)(bc + lit_off);
-      if (ZSTR_LEN(input) >= lit_len &&
-          memcmp(ZSTR_VAL(input), lit, lit_len) == 0) {
-        array_init(return_value);
-        add_assoc_long(return_value, "_match_len", (zend_long)lit_len);
-        add_assoc_long(return_value, "_match_start", 0);
-        add_assoc_string(return_value, "_output", "");
-        if (opts.metrics) {
-          zval metrics;
-          array_init(&metrics);
-          add_assoc_long(&metrics, "choice_push_count", 0);
-          add_assoc_long(&metrics, "choice_allocated", 0);
-          add_assoc_long(&metrics, "choice_peak_depth", 0);
-          add_assoc_long(&metrics, "choice_peak_memory", 0);
-          snobol_assoc_zval(return_value, "_metrics", 8, &metrics);
-          zval_ptr_dtor(&metrics);
+      /* Bounds-validate the literal operand before reading it; on a
+         malformed layout fall through to the general search path. */
+      if (lit_off + lit_len <= bc_len) {
+        const char *lit = (const char *)(bc + lit_off);
+        if (ZSTR_LEN(input) >= lit_len &&
+            memcmp(ZSTR_VAL(input), lit, lit_len) == 0) {
+          array_init(return_value);
+          add_assoc_long(return_value, "_match_len", (zend_long)lit_len);
+          add_assoc_long(return_value, "_match_start", 0);
+          add_assoc_string(return_value, "_output", "");
+          if (opts.metrics) {
+            zval metrics;
+            array_init(&metrics);
+            add_assoc_long(&metrics, "choice_push_count", 0);
+            add_assoc_long(&metrics, "choice_allocated", 0);
+            add_assoc_long(&metrics, "choice_peak_depth", 0);
+            add_assoc_long(&metrics, "choice_peak_memory", 0);
+            snobol_assoc_zval(return_value, "_metrics", 8, &metrics);
+            zval_ptr_dtor(&metrics);
+          }
+          return;
         }
-        return;
+        RETURN_FALSE;
       }
-      RETURN_FALSE;
+      /* Malformed operand region: fall through to the general path. */
     }
   }
 
@@ -688,85 +697,108 @@ PHP_METHOD(Snobol_Pattern, subst) {
   size_t subject_len = ZSTR_LEN(subject);
   size_t last_match_end = 0;
 
-  /* Use cached metadata from compile time */
-  const snobol_search_meta_t *meta = &intern->meta;
+  /* Lazy-create the persistent search state so the search phase reuses the
+     cached VM, DFA, range_meta and eval wiring (mirrors match()/searchAll()
+     — no per-iteration stack-VM memset). */
+  if (!intern->search_state) {
+    intern->search_state =
+        snobol_pattern_search_state_create(intern->bc, intern->bc_len);
+    if (!intern->search_state) {
+      zend_throw_exception(zend_ce_exception, "Out of memory", 0);
+      snobol_buf_free(&out);
+      RETURN_FALSE;
+    }
+  }
+  snobol_pattern_search_state_t *state = intern->search_state;
 
-  /* Core search loop */
+  /* Pre-build and cache the alt-literals trie so the tier dispatch can use
+     it without rebuilding per call. */
+  if (intern->meta.is_alt_literals && !intern->trie_cache) {
+    intern->trie_cache = snobol_build_alt_trie(intern->bc, intern->bc_len);
+  }
+  if (intern->trie_cache) {
+    snobol_pattern_search_state_set_trie_cache(state, intern->trie_cache);
+  }
+
+  /* Wire up cached eval callbacks on the persistent VM. */
+  if (Z_TYPE(intern->eval_callbacks) != IS_UNDEF) {
+    snobol_pattern_search_state_set_eval_fn(state, php_snobol_eval_cb, intern);
+  }
+
+  /* Core search loop through the persistent state. */
   size_t search_offset = 0;
   while (search_offset <= subject_len) {
-    VM vm;
-    memset(&vm, 0, sizeof(VM));
-    vm.bc = intern->bc;
-    vm.bc_len = intern->bc_len;
-    vm.range_meta = intern->range_meta;
-    vm.range_meta_count = intern->range_meta_count;
-
-#ifdef SNOBOL_DYNAMIC_PATTERN
-    dynamic_pattern_cache_t dyn_cache;
-    if (dynamic_pattern_cache_init(&dyn_cache, 64)) {
-      vm.dyn_cache = &dyn_cache;
-    } else {
-      vm.dyn_cache = NULL;
-    }
-    vm.dyn_pending_source = NULL;
-    vm.dyn_pending_source_len = 0;
-    vm.dyn_pending_bc = NULL;
-    vm.dyn_pending_bc_len = 0;
-#endif
-
-    snobol_search_result_t match_result;
-    bool found =
-        snobol_search_exec(&vm, subject_val, subject_len, search_offset, meta,
-                           NULL, &match_result, NULL);
-
-#ifdef SNOBOL_DYNAMIC_PATTERN
-    if (vm.dyn_cache)
-      dynamic_pattern_cache_destroy(vm.dyn_cache);
-    if (vm.dyn_pending_source)
-      efree(vm.dyn_pending_source);
-    if (vm.dyn_pending_bc)
-      efree(vm.dyn_pending_bc);
-#endif
-
-    if (!found)
+    snobol_match_t *m = snobol_pattern_search_ex(state, subject_val,
+                                                 subject_len, search_offset);
+    if (!m || !snobol_match_success(m))
       break;
+
+    size_t match_start = snobol_match_get_position(m);
+    size_t match_end = match_start + snobol_match_get_length(m);
 
     /* Append prefix */
     snobol_buf_append(&out, subject_val + last_match_end,
-                      match_result.match_start - last_match_end);
+                      match_start - last_match_end);
 
-    /* Switch VM to template bytecode */
-    vm.bc = tpl_bc;
-    vm.bc_len = tpl_bc_len;
-    vm.ip = 0;
-    vm.out = &out;
+    /* Run the template bytecode on a VM reconstructed from the match.
+       Cap registers are window-relative, so anchor s at the match start
+       (subject + match position), exactly like the search VM did. */
+    VM tvm;
+    memset(&tvm, 0, sizeof(tvm));
+    tvm.s = subject_val + match_start;
+    tvm.len = subject_len - match_start;
+    tvm.bc = tpl_bc;
+    tvm.bc_len = tpl_bc_len;
+    tvm.ip = 0;
+    tvm.out = &out;
+    tvm.var_count = m->var_count;
+    for (size_t ri = 0; ri < m->var_count && ri < MAX_CAPS; ri++) {
+      tvm.cap_start[ri] = m->var_off[ri];
+      tvm.cap_end[ri] = m->var_off[ri] + m->var_len[ri];
+    }
 
 #ifdef SNOBOL_DYNAMIC_PATTERN
     /* Register tables in the same sequential order as the bind step */
     if (tbl_count > 0) {
-      vm_init_tables(&vm);
+      vm_init_tables(&tvm);
       for (size_t k = 0; k < tbl_count; k++) {
         uint16_t assigned_id;
-        vm_register_table(&vm, php_tables[k], &assigned_id);
+        vm_register_table(&tvm, php_tables[k], &assigned_id);
         (void)assigned_id;
       }
     }
+    dynamic_pattern_cache_t dyn_cache;
+    if (dynamic_pattern_cache_init(&dyn_cache, 64)) {
+      tvm.dyn_cache = &dyn_cache;
+    } else {
+      tvm.dyn_cache = NULL;
+    }
+    tvm.dyn_pending_source = NULL;
+    tvm.dyn_pending_source_len = 0;
+    tvm.dyn_pending_bc = NULL;
+    tvm.dyn_pending_bc_len = 0;
 #endif
 
-    vm_run(&vm);
+    vm_run(&tvm);
 
 #ifdef SNOBOL_DYNAMIC_PATTERN
     if (tbl_count > 0)
-      vm_free_tables(&vm);
-    if (vm.array_count > 0)
-      vm_free_arrays(&vm);
+      vm_free_tables(&tvm);
+    if (tvm.array_count > 0)
+      vm_free_arrays(&tvm);
+    if (tvm.dyn_cache)
+      dynamic_pattern_cache_destroy(tvm.dyn_cache);
+    if (tvm.dyn_pending_source)
+      efree(tvm.dyn_pending_source);
+    if (tvm.dyn_pending_bc)
+      efree(tvm.dyn_pending_bc);
 #endif
 
     /* Advance past the match */
-    size_t match_len = match_result.match_end - match_result.match_start;
+    size_t match_len = match_end - match_start;
     if (match_len == 0)
       match_len = 1;
-    search_offset = match_result.match_start + match_len;
+    search_offset = match_start + match_len;
     last_match_end = search_offset;
 
     if (search_offset > subject_len)
@@ -908,13 +940,15 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
     array_init_size(&captures_arr, match_count);
     array_init_size(&outputs_buf, match_count);
 
+    /* out_pos: running cursor into the NUL-separated outputs blob, advanced
+     * by the core-provided per-match lengths (O(1) per match). */
+    size_t out_pos = 0;
     for (size_t mi = 0; mi < match_count; mi++) {
       size_t match_start = batch.positions[mi];
       size_t match_len = batch.lengths[mi];
 
       add_next_index_long(&match_starts, (zend_long)match_start);
       add_next_index_long(&match_lengths, (zend_long)match_len);
-
       /* Captures: flat per-register arrays */
       for (size_t ri = 0; ri < batch.var_count && ri < MAX_VARS; ri++) {
         char key[32];
@@ -941,19 +975,12 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
                                 key_len, opts->captures);
       }
 
-      /* Output */
+      /* Output: byte-exact via the core's per-match lengths (NUL-safe,
+         O(1) per match — no strlen re-walk). */
       if (batch.outputs) {
-        const char *op = batch.outputs;
-        /* Advance to the mi-th output string */
-        for (size_t oi = 0; oi < mi; oi++) {
-          op += strlen(op) + 1;
-        }
-        size_t olen = strlen(op);
-        if (olen > 0) {
-          add_next_index_stringl(&outputs_buf, op, olen);
-        } else {
-          add_next_index_string(&outputs_buf, "");
-        }
+        size_t olen = batch.output_lens[mi];
+        add_next_index_stringl(&outputs_buf, batch.outputs + out_pos, olen);
+        out_pos += olen + 1;
       } else {
         add_next_index_string(&outputs_buf, "");
       }
@@ -976,6 +1003,8 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
   /* Default array-of-arrays result mode: one sub-array per match. */
   array_init_size(result, match_count);
 
+  /* out_pos: running cursor into the NUL-separated outputs blob. */
+  size_t out_pos = 0;
   for (size_t mi = 0; mi < match_count; mi++) {
     size_t match_start = batch.positions[mi];
     size_t match_len = batch.lengths[mi];
@@ -999,17 +1028,12 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
     add_assoc_long(&match_arr, "_match_len", (zend_long)match_len);
     add_assoc_long(&match_arr, "_match_start", (zend_long)match_start);
 
+    /* Output: byte-exact via the core's per-match lengths (NUL-safe,
+       O(1) per match — no strlen re-walk). */
     if (batch.outputs) {
-      const char *op = batch.outputs;
-      for (size_t oi = 0; oi < mi; oi++) {
-        op += strlen(op) + 1;
-      }
-      size_t olen = strlen(op);
-      if (olen > 0) {
-        add_assoc_stringl(&match_arr, "_output", op, olen);
-      } else {
-        add_assoc_string(&match_arr, "_output", "");
-      }
+      size_t olen = batch.output_lens[mi];
+      add_assoc_stringl(&match_arr, "_output", batch.outputs + out_pos, olen);
+      out_pos += olen + 1;
     } else {
       add_assoc_string(&match_arr, "_output", "");
     }
@@ -1305,7 +1329,8 @@ PHP_METHOD(Snobol_Pattern, matchLiteral) {
     size_t ip = 0;
     while (ip < bc_len) {
       uint8_t op = bc[ip];
-      if (op == OP_NOP || op == OP_FENCE || op == OP_ANCHOR) {
+      if (op == OP_NOP || op == OP_FENCE || op == OP_ANCHOR ||
+          op == OP_ACCEPT || op == OP_ABORT) {
         ip++;
         continue;
       }
@@ -1322,11 +1347,15 @@ PHP_METHOD(Snobol_Pattern, matchLiteral) {
       uint32_t lit_len = ((uint32_t)bc[ip + 5] << 24) |
                          ((uint32_t)bc[ip + 6] << 16) |
                          ((uint32_t)bc[ip + 7] << 8) | (uint32_t)bc[ip + 8];
-      const char *lit = (const char *)(bc + lit_off);
-      if (ZSTR_LEN(input) >= lit_len &&
-          memcmp(ZSTR_VAL(input), lit, lit_len) == 0) {
-        matched = true;
-        len = (zend_long)lit_len;
+      /* Bounds-validate the literal operand before reading it; on a
+         malformed layout fail cleanly (no out-of-bounds read). */
+      if (lit_off + lit_len <= bc_len) {
+        const char *lit = (const char *)(bc + lit_off);
+        if (ZSTR_LEN(input) >= lit_len &&
+            memcmp(ZSTR_VAL(input), lit, lit_len) == 0) {
+          matched = true;
+          len = (zend_long)lit_len;
+        }
       }
     }
   }
@@ -1737,14 +1766,27 @@ PHP_METHOD(Snobol_Pattern, searchReplace) {
   snobol_buf out;
   snobol_buf_init(&out);
 
-  /* Try batch API first: single-pass for eligible patterns.
-     * Gets all match positions at once, then runs a single replacement pass. */
+  /* Lazy-create the persistent search state; both the batch fast path and
+     the per-call fallback reuse it (cached VM, DFA, range_meta). */
+  if (!intern->search_state) {
+    intern->search_state =
+        snobol_pattern_search_state_create(intern->bc, intern->bc_len);
+    if (!intern->search_state) {
+      zend_throw_exception(zend_ce_exception, "Out of memory", 0);
+      snobol_buf_free(&out);
+      RETURN_FALSE;
+    }
+  }
+  snobol_pattern_search_state_t *state = intern->search_state;
+
+  /* Try batch API first via the persistent state: single-pass for eligible
+     patterns.  Gets all match positions at once, then runs a single
+     replacement pass. */
   {
     snobol_batch_result_t batch;
     memset(&batch, 0, sizeof(batch));
-    const snobol_search_meta_t *meta = &intern->meta;
-    bool batch_ok = snobol_pattern_search_batch(
-        intern->bc, intern->bc_len, subject_val, subject_len, meta, &batch);
+    bool batch_ok = snobol_pattern_search_batch_ex(state, subject_val,
+                                                    subject_len, &batch);
 
     if (batch_ok) {
       /* Single replacement pass from batch positions */
@@ -1784,61 +1826,9 @@ PHP_METHOD(Snobol_Pattern, searchReplace) {
     /* Fall through to per-call loop (ineligible pattern) */
   }
 
-  /* P9: For subjects > 1 KB, run a first-pass match count to
-     * estimate output size and pre-allocate the buffer, avoiding
-     * repeated capacity-doubling reallocs during the replacement loop.
-     * For literal-only patterns use a heuristic based on literal length. */
-  size_t count_pass_matches = 0;
-#define PHP_SNOBOL_PRESIZE_THRESHOLD 1024
-  bool do_count_pass = (subject_len > PHP_SNOBOL_PRESIZE_THRESHOLD) &&
-                       !intern->meta.is_literal_only;
-
-  /* Lazy-create persistent search state (reused for counting pass and main loop). */
-  if (!intern->search_state) {
-    intern->search_state =
-        snobol_pattern_search_state_create(intern->bc, intern->bc_len);
-    if (!intern->search_state) {
-      zend_throw_exception(zend_ce_exception, "Out of memory", 0);
-      snobol_buf_free(&out);
-      RETURN_FALSE;
-    }
-  }
-  snobol_pattern_search_state_t *state = intern->search_state;
-
-  if (do_count_pass) {
-    /* Counting pass (reuses persistent state — no extra alloc). */
-    size_t so = 0;
-    while (so <= subject_len) {
-      snobol_match_t *cm =
-          snobol_pattern_search_ex(state, subject_val, subject_len, so);
-      if (!cm || !snobol_match_success(cm))
-        break;
-      size_t cs = snobol_match_get_position(cm);
-      size_t clen = snobol_match_get_length(cm);
-      count_pass_matches++;
-      if (clen == 0)
-        clen = 1;
-      so = cs + clen;
-    }
-    if (count_pass_matches > 0) {
-      size_t avg_match = (subject_len / count_pass_matches) / 2;
-      if (avg_match < 1)
-        avg_match = 1;
-      size_t est =
-          subject_len + count_pass_matches *
-                            (repl_len > avg_match ? repl_len - avg_match : 0);
-      if (est > 0) {
-        size_t chunk = est < 4096 ? est : 4096;
-        char *zeros = calloc(1, chunk);
-        if (zeros) {
-          snobol_buf_append(&out, zeros, chunk);
-          out.len = 0;
-          free(zeros);
-        }
-      }
-    }
-  } else if (intern->meta.is_literal_only &&
-             intern->meta.required_lit_len > 0) {
+  /* Literal-only heuristic pre-size: a bounded estimate of the output size
+     that does NOT re-search the subject (no counting pass). */
+  if (intern->meta.is_literal_only && intern->meta.required_lit_len > 0) {
     size_t lit_len = intern->meta.required_lit_len;
     size_t est_match_count = subject_len / lit_len + 1;
     size_t est =
@@ -1888,7 +1878,6 @@ PHP_METHOD(Snobol_Pattern, searchReplace) {
 
   RETVAL_STRINGL(out.data, out.len);
   snobol_buf_free(&out);
-#undef PHP_SNOBOL_PRESIZE_THRESHOLD
 }
 
 void php_snobol_create_search_iterator(zval *return_value,

@@ -633,6 +633,35 @@ void test_cov_vm_emit(void) {
     snobol_buf_free(&cb_buf);
   }
 
+  /* AST_EMIT literal with an embedded NUL byte must compile and run
+   * byte-exact (regression: emit_emit_c used strlen() on the text, which
+   * truncated at the NUL — the AST now carries the exact byte length). */
+  {
+    static const char nul_payload[] = "\x61\x00\x62"; /* 'a', NUL, 'b' */
+    ast_node_t *emit = snobol_ast_create_emit(nul_payload, 3, -1);
+    uint8_t *bc = NULL;
+    size_t bc_len = 0;
+    test_assert(compile_ast_to_bytecode_c(emit, false, &bc, &bc_len) == 0,
+                "NUL emit compiles");
+    snobol_ast_free(emit);
+
+    VM vm;
+    memset(&vm, 0, sizeof(vm));
+    vm.bc = bc;
+    vm.bc_len = bc_len;
+    vm.s = "";
+    vm.len = 0;
+    snobol_buf out;
+    snobol_buf_init(&out);
+    vm.out = &out;
+    bool ok = vm_exec(&vm);
+    test_assert(ok && out.len == 3 && memcmp(out.data, nul_payload, 3) == 0,
+                "NUL emit output is byte-exact");
+    vm_free_labels(&vm);
+    snobol_buf_free(&out);
+    free(bc);
+  }
+
   /* EMIT_CAPTURE with populated capture. */
   {
     uint8_t bc[64];

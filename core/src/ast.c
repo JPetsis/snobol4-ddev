@@ -231,8 +231,8 @@ ast_node_t *snobol_ast_clone(const ast_node_t *node) {
 
     case AST_EMIT:
       clone->data.emit.text =
-          str_dup(node->data.emit.text,
-                  node->data.emit.text ? strlen(node->data.emit.text) : 0);
+          str_dup(node->data.emit.text, node->data.emit.len);
+      clone->data.emit.len = node->data.emit.len;
       clone->data.emit.reg = node->data.emit.reg;
       break;
 
@@ -618,6 +618,7 @@ ast_node_t *snobol_ast_create_emit(const char *text, size_t len, int reg) {
     return nullptr;
   node->type = AST_EMIT;
   node->data.emit.text = str_dup(text, len);
+  node->data.emit.len = len;
   node->data.emit.reg = reg;
   return node;
 }
