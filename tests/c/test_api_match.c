@@ -108,7 +108,7 @@ void test_cov_api_null_contracts(void) {
               "get_trie_cache(NULL)");
   test_assert((!snobol_pattern_automaton_available(nullptr)) != 0,
               "automaton_available(NULL)");
-  test_assert(!snobol_pattern_match_literal(NULL, "x", 1).success,
+  test_assert(snobol_pattern_match_literal(nullptr, "x", 1).success == false,
               "match_literal(NULL)");
   test_assert(snobol_pattern_match(nullptr, "x", 1) == NULL, "match(NULL)");
   test_assert(snobol_pattern_match(nullptr, nullptr, 0) == NULL,

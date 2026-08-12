@@ -165,7 +165,7 @@ static const size_t oracle_subject_count =
  * bound, while 30 branches of 20 bytes stay below it.
  * ---------------------------------------------------------------------------
  */
-#define ORACLE_ALT_BUF_CAP 16384
+enum { ORACLE_ALT_BUF_CAP = 16384 };
 
 /* Build "v1.0.0 | v1.0.1 | ... | v1.8.1": 82 changelog-style version
  * markers — the alternation shape that originally broke the prefilter.

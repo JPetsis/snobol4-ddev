@@ -370,7 +370,7 @@ snobol_match_t *snobol_pattern_match(snobol_pattern_t *pattern,
   memset(m, 0, sizeof(snobol_match_t));
 
   /* Set up output buffer */
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {};
   snobol_buf_init(&out_buf);
 
   /* ---- Literal-only fast path: bypass VM entirely ---- */
@@ -508,7 +508,7 @@ snobol_match_t *snobol_pattern_search(snobol_pattern_t *pattern,
   }
   memset(m, 0, sizeof(snobol_match_t));
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {};
   snobol_buf_init(&out_buf);
 
   VM vm;
@@ -628,7 +628,7 @@ bool snobol_pattern_search_reuse(snobol_pattern_t *pattern, const char *subject,
   /* Reset the match object for reuse */
   snobol_match_reset(match_out);
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {};
   snobol_buf_init(&out_buf);
 
   VM vm;
@@ -1273,7 +1273,7 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
             continue;
           }
           captures[ri] = new_row;
-          memset(captures[ri] + row_caps[ri] * 2, 0,
+          memset(captures[ri] + (row_caps[ri] * 2), 0,
                  (new_row_cap - row_caps[ri]) * 2 * sizeof(size_t));
           row_caps[ri] = new_row_cap;
         }
@@ -1547,7 +1547,7 @@ static void match_store_capture(snobol_match_t *m, const char *subject, int i,
   m->var_lens[i] = 0;
 }
 
-#define MATCH_MAX_CAPTURES 64
+enum { MATCH_MAX_CAPTURES = 64 };
 
 snobol_match_result_t *snobol_match(const char *pattern, size_t pat_len,
                                     const char *subject, size_t sub_len,
@@ -1580,7 +1580,7 @@ snobol_match_result_t *snobol_match(const char *pattern, size_t pat_len,
   }
 
   /* Set up output buffer */
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {};
   snobol_buf_init(&out_buf);
 
   /* Initialise VM */

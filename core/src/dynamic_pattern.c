@@ -12,8 +12,8 @@
 #include <string.h>
 
 /* Default cache size */
-#define CACHE_DEFAULT_MAX_SIZE 64
-#define CACHE_INITIAL_BUCKETS 32
+enum { CACHE_DEFAULT_MAX_SIZE = 64 };
+enum { CACHE_INITIAL_BUCKETS = 32 };
 
 /**
  * FNV-1a hash for pattern sources

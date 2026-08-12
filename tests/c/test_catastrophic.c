@@ -110,7 +110,8 @@ static void test_catastrophic_nested_arbno(void) {
   // Run
   bool result = vm_exec(&vm);
 
-  test_assert(!result, "Catastrophic case should fail (no 'b' in subject)");
+  test_assert(result == false,
+              "Catastrophic case should fail (no 'b' in subject)");
 
 #ifdef SNOBOL_PROFILE
   printf("  > Profile: dispatch=%llu push=%llu pop=%llu max_depth=%zu\n",
@@ -215,7 +216,8 @@ static void test_zero_width_loop_bounding(void) {
   vm.len = 2000;
 
   bool result = vm_exec(&vm);
-  test_assert(!result, "Nullable arbno should fail (no 'X' in subject)");
+  test_assert(result == false,
+              "Nullable arbno should fail (no 'X' in subject)");
 
 #ifdef SNOBOL_PROFILE
   printf("  > Profile: dispatch=%llu push=%llu max_depth=%zu\n",

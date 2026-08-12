@@ -97,7 +97,7 @@ static void test_table_delete(void) {
 
   /* Delete non-existent key */
   deleted = table_delete(table, "nonexistent");
-  test_assert(!deleted, "table_delete returns false for missing key");
+  test_assert(deleted == false, "table_delete returns false for missing key");
 
   table_release(table);
 }
@@ -111,7 +111,8 @@ static void test_table_set_null_deletes(void) {
   test_assert(table_has(table, "key"), "key exists");
 
   (void)table_set(table, "key", nullptr);
-  test_assert(!table_has(table, "key"), "key is deleted after set NULL");
+  test_assert(table_has(table, "key") == false,
+              "key is deleted after set NULL");
   test_assert(table_size(table) == 0, "size is 0");
 
   table_release(table);
@@ -122,13 +123,15 @@ static void test_table_has(void) {
 
   snobol_table_t *table = table_create("test");
 
-  test_assert(!table_has(table, "key"), "has returns false for missing key");
+  test_assert(table_has(table, "key") == false,
+              "has returns false for missing key");
 
   (void)table_set(table, "key", "value");
   test_assert(table_has(table, "key"), "has returns true for existing key");
 
   (void)table_delete(table, "key");
-  test_assert(!table_has(table, "key"), "has returns false after delete");
+  test_assert(table_has(table, "key") == false,
+              "has returns false after delete");
 
   table_release(table);
 }
@@ -145,9 +148,9 @@ static void test_table_clear(void) {
 
   table_clear(table);
   test_assert(table_size(table) == 0, "size is 0 after clear");
-  test_assert(!table_has(table, "key1"), "key1 is gone");
-  test_assert(!table_has(table, "key2"), "key2 is gone");
-  test_assert(!table_has(table, "key3"), "key3 is gone");
+  test_assert(table_has(table, "key1") == false, "key1 is gone");
+  test_assert(table_has(table, "key2") == false, "key2 is gone");
+  test_assert(table_has(table, "key3") == false, "key3 is gone");
 
   /* Can re-use cleared table */
   (void)table_set(table, "newkey", "newvalue");

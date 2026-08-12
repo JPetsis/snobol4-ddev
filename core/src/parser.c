@@ -221,10 +221,9 @@ static ast_node_t *parse_statement(snobol_parser_t *parser,
       ast_node_t *label = snobol_ast_create_label(label_name, target);
       free(label_name);
       return label;
-    } else {
-      /* Not a label, restore position */
-      snobol_lexer_restore(lexer, saved_state);
     }
+    /* Not a label, restore position */
+    snobol_lexer_restore(lexer, saved_state);
   }
 
   /* Parse the pattern expression */

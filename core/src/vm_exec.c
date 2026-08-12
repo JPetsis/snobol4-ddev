@@ -929,7 +929,7 @@ bool vm_run(VM *vm) {
 
     if (fn > SNOBOL_FN_NONE && fn < SNOBOL_FN_MAX) {
       /* Direct C dispatch (no host callback) */
-      snobol_buf tmp_out = {0};
+      snobol_buf tmp_out = {};
       snobol_buf_init(&tmp_out);
 
       switch ((snobol_builtin_fn_t)fn) {

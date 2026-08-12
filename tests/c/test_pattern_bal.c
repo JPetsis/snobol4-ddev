@@ -42,13 +42,13 @@ static bool run_bal_match(const char *subject, size_t subj_len,
   /* OP_ACCEPT */
   bc_buf[bc_off++] = OP_ACCEPT;
 
-  VM vm = {0};
+  VM vm = {};
   vm.bc = bc_buf;
   vm.bc_len = bc_off;
   vm.s = subject;
   vm.len = subj_len;
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {};
   snobol_buf_init(&out_buf);
   vm.out = &out_buf;
 

@@ -115,7 +115,7 @@ static void test_short_circuit_empty_copies(void) {
   vm.s = "xc";
   vm.len = 2;
   ok = vm_exec(&vm);
-  test_assert(!ok, "('a'|'b')'c' rejects 'xc'");
+  test_assert(ok == false, "('a'|'b')'c' rejects 'xc'");
   free(vm.trail);
   vm_arena_destroy(vm.choices_arena);
 }

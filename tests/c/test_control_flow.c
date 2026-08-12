@@ -66,7 +66,7 @@ static uint8_t *build_bytecode(size_t *out_len) {
 static void test_label_registration(void) {
   test_suite("Control Flow: label registration");
 
-  VM vm = {0};
+  VM vm = {};
   vm_init_labels(&vm);
 
   bool result = vm_register_label(&vm, 1, 100);
@@ -95,7 +95,7 @@ static void test_label_registration(void) {
 static void test_label_capacity_growth(void) {
   test_suite("Control Flow: label capacity growth");
 
-  VM vm = {0};
+  VM vm = {};
   vm_init_labels(&vm);
 
   /* Register many labels to trigger capacity growth */
@@ -122,7 +122,7 @@ static void test_goto_execution(void) {
   size_t bc_len;
   uint8_t *bc = build_bytecode(&bc_len);
 
-  VM vm = {0};
+  VM vm = {};
   vm.bc = bc;
   vm.bc_len = bc_len;
   vm.s = "A";
@@ -159,7 +159,7 @@ static void test_goto_execution(void) {
 static void test_invalid_label_fails(void) {
   test_suite("Control Flow: invalid label fails");
 
-  VM vm = {0};
+  VM vm = {};
   vm_init_labels(&vm);
 
   /* Don't register any labels */
@@ -177,7 +177,7 @@ static void test_invalid_label_fails(void) {
 static void test_label_free_with_offsets(void) {
   test_suite("Control Flow: free with offsets");
 
-  VM vm = {0};
+  VM vm = {};
   vm_init_labels(&vm);
 
   vm_register_label(&vm, 1, 100);
@@ -205,11 +205,11 @@ static void test_goto_does_not_restore_backtracking(void) {
    * This is verified by code inspection of the OP_GOTO handler in snobol_vm.c
    */
 
-  VM vm = {0};
+  VM vm = {};
   vm_init_labels(&vm);
 
   /* Verify VM initializes with correct goto state */
-  test_assert(!vm.in_goto_fail, "initial in_goto_fail is false");
+  test_assert(vm.in_goto_fail == false, "initial in_goto_fail is false");
   test_assert(vm.label_offsets == NULL, "initial label_offsets is NULL");
 
   /* Register a label */
@@ -233,11 +233,11 @@ static void test_goto_does_not_restore_backtracking(void) {
 static void test_goto_fail_flag(void) {
   test_suite("Control Flow: GOTO_F flag handling");
 
-  VM vm = {0};
+  VM vm = {};
   vm_init_labels(&vm);
 
   /* Initially not in goto fail state */
-  test_assert(!vm.in_goto_fail, "initial in_goto_fail is false");
+  test_assert(vm.in_goto_fail == false, "initial in_goto_fail is false");
 
   /* Simulate setting the flag */
   vm.in_goto_fail = true;
@@ -249,7 +249,7 @@ static void test_goto_fail_flag(void) {
 static void test_label_zero_is_valid(void) {
   test_suite("Control Flow: label 0 is valid");
 
-  VM vm = {0};
+  VM vm = {};
   vm_init_labels(&vm);
 
   /* Register label 0 */

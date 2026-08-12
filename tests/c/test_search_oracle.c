@@ -38,8 +38,8 @@ static void test_trie_pool_fallback(void);
  * Reference runner: per-offset vm_exec on the compiled bytecode.
  * =========================================================================== */
 
-#define ORACLE_MAX_SUBJECT 256
-#define ORACLE_MAX_VARS 64
+enum { ORACLE_MAX_SUBJECT = 256 };
+enum { ORACLE_MAX_VARS = 64 };
 
 typedef struct {
   bool success;
@@ -317,7 +317,7 @@ static void oracle_check_pair(const char *name, const char *src, size_t src_len,
  * result is a sound under-approximation, bounded by the bytecode size.
  * =========================================================================== */
 
-#define MUST_MAX_LITS 256
+enum { MUST_MAX_LITS = 256 };
 #define MUST_TOP (~(uint64_t)0)
 
 typedef struct {
@@ -709,7 +709,7 @@ static size_t gen_bounded(size_t n) {
   return gen_byte() % n;
 }
 
-#define GEN_BUF_CAP 4096
+enum { GEN_BUF_CAP = 4096 };
 
 static size_t gen_literal(char *buf, size_t cap, size_t max_len) {
   size_t len = gen_bounded(max_len + 1);

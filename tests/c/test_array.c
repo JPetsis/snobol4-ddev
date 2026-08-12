@@ -100,7 +100,7 @@ static void test_array_delete_nonexistent(void) {
   snobol_array_t *array = snobol_array_create(0);
 
   bool deleted = snobol_array_delete(array, 99);
-  test_assert(!deleted, "delete non-existent returns false");
+  test_assert(deleted == false, "delete non-existent returns false");
 
   snobol_array_release(array);
 }
@@ -150,7 +150,8 @@ static void test_array_has(void) {
   test_suite("Array: has");
 
   snobol_array_t *array = snobol_array_create(0);
-  test_assert(!snobol_array_has(array, 1), "unset key has returns false");
+  test_assert(snobol_array_has(array, 1) == false,
+              "unset key has returns false");
 
   (void)snobol_array_set(array, 1, "hello");
   test_assert(snobol_array_has(array, 1), "set key has returns true");

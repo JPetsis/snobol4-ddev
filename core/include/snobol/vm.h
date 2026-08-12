@@ -36,9 +36,9 @@ typedef struct snobol_array snobol_array_t;
 #endif
 
 /** @brief Maximum number of capture registers per VM execution. */
-#define MAX_CAPS 64
+enum { MAX_CAPS = 64 };
 /** @brief Maximum number of named variable registers per VM execution. */
-#define MAX_VARS 64
+enum { MAX_VARS = 64 };
 
 /**
  * @brief Unicode codepoint range [start, end] (both inclusive).
@@ -224,16 +224,22 @@ typedef enum {
  * SNBL_FMT_LPAD and SNBL_FMT_RPAD have two extra operands:
  *   width:u16 (big-endian, capped at 1024) and fill_char:u8.
  * -------------------------------------------------------------------------- */
-#define SNBL_FMT_UPPER 1  /**< ASCII uppercase                              */
-#define SNBL_FMT_LOWER 2  /**< ASCII lowercase                              */
-#define SNBL_FMT_LENGTH 3 /**< length as decimal string                     */
-#define SNBL_FMT_LPAD 4   /**< left-pad to width with fill_char             */
-#define SNBL_FMT_RPAD 5   /**< right-pad to width with fill_char            */
+enum {
+  SNBL_FMT_UPPER = 1
+}; /**< ASCII uppercase                              */
+enum {
+  SNBL_FMT_LOWER = 2
+}; /**< ASCII lowercase                              */
+enum {
+  SNBL_FMT_LENGTH = 3
+}; /**< length as decimal string                     */
+enum { SNBL_FMT_LPAD = 4 }; /**< left-pad to width with fill_char */
+enum { SNBL_FMT_RPAD = 5 }; /**< right-pad to width with fill_char */
 
 /** Sentinel table_id written by compile_template_to_bytecode() for any
  *  table reference that has not yet been bound to a runtime ID.
  *  Call snobol_template_bind_tables() to resolve these to real IDs. */
-#define SNBL_TABLE_ID_UNBOUND 0xFFFFu
+enum { SNBL_TABLE_ID_UNBOUND = 0xFFFFU };
 
 /* --------------------------------------------------------------------------
  * Built-in function dispatch enumeration
@@ -285,7 +291,7 @@ typedef enum {
 } snobol_builtin_fn_t;
 
 /** @brief Maximum number of bounded-repetition loop counters per VM. */
-#define MAX_LOOPS 16
+enum { MAX_LOOPS = 16 };
 
 /**
  * @brief Generic growable byte buffer used for VM output accumulation.
@@ -386,7 +392,7 @@ struct choice {
  * trailing size word), freeing empty pages past the head. This bounds peak
  * allocation to the live working set and avoids large contiguous reallocs. */
 
-#define CHOICE_ARENA_PAGE_SIZE 4096
+enum { CHOICE_ARENA_PAGE_SIZE = 4096 };
 
 typedef struct ChoiceArenaPage {
   uint8_t *data; /**< Page payload (allocated, may exceed page size) */

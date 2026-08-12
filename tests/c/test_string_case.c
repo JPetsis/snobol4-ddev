@@ -21,7 +21,7 @@ extern void test_assert(bool condition, const char *message);
 void test_string_case_suite(void) {
   test_suite("String: UPPER / LOWER");
 
-  snobol_buf b = {0};
+  snobol_buf b = {};
   snobol_buf_init(&b);
 
   /* --- UPPER (ASCII fast path) --- */

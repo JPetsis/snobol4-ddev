@@ -73,7 +73,7 @@ struct snobol_pattern; /* forward decl — only used as an opaque pointer */
 #define SNOBOL_SEARCH_MAX_PREFIX 16
 
 /** Maximum single-char alternation bytes tracked. */
-#define SNOBOL_SEARCH_MAX_ALT 32
+enum { SNOBOL_SEARCH_MAX_ALT = 32 };
 
 /* ---------------------------------------------------------------------------
  * Tier constants for single-dispatch routing
@@ -137,7 +137,7 @@ typedef enum {
 #define SNOBOL_DFA_DEAD UINT16_MAX
 
 /** Maximum DFA states before we give up and fall back to the search-VM. */
-#define SNOBOL_DFA_MAX_STATES 4096
+enum { SNOBOL_DFA_MAX_STATES = 4096 };
 
 /**
  * Compiled DFA for a single pattern.
@@ -175,13 +175,13 @@ void snobol_auto_trie_free(snobol_auto_trie_t *trie);
  * ---------------------------------------------------------------------------
  */
 
-#define FUSION_LIT 0
-#define FUSION_RUN 1
-#define FUSION_CHAR 2
-#define FUSION_ALT 3
+enum { FUSION_LIT = 0 };
+enum { FUSION_RUN = 1 };
+enum { FUSION_CHAR = 2 };
+enum { FUSION_ALT = 3 };
 
-#define MAX_FUSION_SEGMENTS 32
-#define MAX_FUSION_ALT 8
+enum { MAX_FUSION_SEGMENTS = 32 };
+enum { MAX_FUSION_ALT = 8 };
 
 typedef struct snobol_fusion_segment_t {
   uint8_t type;

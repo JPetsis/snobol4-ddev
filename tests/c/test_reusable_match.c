@@ -26,10 +26,10 @@ void test_reusable_match_suite(void) {
     snobol_match_t *m = snobol_match_create();
     assert(m != NULL);
     snobol_match_reset(m);
-    test_assert(!m->success, "reset on fresh: success == false");
+    test_assert(m->success == false, "reset on fresh: success == false");
     test_assert(m->output == NULL, "reset on fresh: output == NULL");
     snobol_match_reset(m);
-    test_assert(!m->success, "double-reset: success == false");
+    test_assert(m->success == false, "double-reset: success == false");
     snobol_match_free(m);
   }
 

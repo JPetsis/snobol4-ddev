@@ -77,13 +77,13 @@ static bool run_eval_builtin(const char *subject, size_t subject_len,
   bc[bc_total - 2] = 0;
   bc[bc_total - 1] = 0;
 
-  VM vm = {0};
+  VM vm = {};
   vm.bc = bc;
   vm.bc_len = bc_total;
   vm.s = subject;
   vm.len = subject_len;
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {};
   snobol_buf_init(&out_buf);
   vm.out = &out_buf;
 

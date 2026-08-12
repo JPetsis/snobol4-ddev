@@ -846,7 +846,10 @@ static bool SNOBOL_PURE check_alt_literals(const uint8_t *bc, size_t bc_len,
       }
       cur = (size_t)search_read_u32(bc, cur + 1);
     }
-    return (cur >= bc_len || bc[cur] != OP_ACCEPT) == false;
+    if (cur >= bc_len || bc[cur] != OP_ACCEPT) {
+      return false;
+    }
+    return true;
   }
 
   if (op == OP_SPLIT) {

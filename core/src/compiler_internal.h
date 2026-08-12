@@ -91,5 +91,5 @@ int emit_lit_bytes(CodeBuf *c, const char *s, size_t len);
 /* Magic sentinel marking the label-table bytecode extension (shared). */
 #ifndef SNOBOL_LABEL_TABLE_MAGIC_DEFINED
 #define SNOBOL_LABEL_TABLE_MAGIC_DEFINED
-#define SNOBOL_LABEL_TABLE_MAGIC 0x534E424Cu
+enum { SNOBOL_LABEL_TABLE_MAGIC = 0x534E424CU };
 #endif

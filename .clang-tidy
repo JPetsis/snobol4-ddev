@@ -25,6 +25,7 @@ Checks: 'bugprone-*,
          -bugprone-easily-swappable-parameters,
          -readability-function-cognitive-complexity,
          -bugprone-branch-clone,
-         -misc-use-internal-linkage'
+         -misc-use-internal-linkage,
+         -readability-simplify-boolean-expr'
 HeaderFilterRegex: '.*'
 FormatStyle: none

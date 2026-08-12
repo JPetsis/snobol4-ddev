@@ -55,10 +55,10 @@ typedef struct {
   int case_count; /* number of test_suite() calls (test cases) */
 } TestContext;
 
-#define MAX_SUITES 64
-#define NAME_WIDTH 36 /* fixed width for suite name column          */
-#define COL_SEP "  "  /* two-space column separator                  */
-#define RULE_WIDTH 80 /* total width of separator lines              */
+enum { MAX_SUITES = 64 };
+enum { NAME_WIDTH = 36 /* fixed width for suite name column          */ };
+#define COL_SEP "  "      /* two-space column separator                  */
+enum { RULE_WIDTH = 80 }; /* total width of separator lines */
 
 typedef struct {
   const char *name;
@@ -91,10 +91,15 @@ static void print_rule(char ch) {
 }
 
 static void signal_handler(int sig) {
-  printf("\n  [CRASH] signal %d (%s) in suite: %s\n", sig,
-         (sig == SIGILL    ? "SIGILL"
-          : sig == SIGSEGV ? "SIGSEGV"
-                           : "UNKNOWN"),
+  const char *sig_name;
+  if (sig == SIGILL) {
+    sig_name = "SIGILL";
+  } else if (sig == SIGSEGV) {
+    sig_name = "SIGSEGV";
+  } else {
+    sig_name = "UNKNOWN";
+  }
+  printf("\n  [CRASH] signal %d (%s) in suite: %s\n", sig, sig_name,
          test_ctx.current_suite);
   test_ctx.failed++;
   longjmp(test_jump, 1);
@@ -245,8 +250,10 @@ void test_assert(bool condition, const char *message) {
  */
 #define RUN_SUITE(display_name, fn)                                            \
   do {                                                                         \
-    int _p0 = test_ctx.passed, _f0 = test_ctx.failed;                          \
-    struct timespec _t0, _t1;                                                  \
+    int _p0 = test_ctx.passed;                                                 \
+    int _f0 = test_ctx.failed;                                                 \
+    struct timespec _t0;                                                       \
+    struct timespec _t1;                                                       \
     printf("\n▸ %s\n", (display_name));                                        \
     fflush(stdout);                                                            \
     watchdog_start();                                                          \

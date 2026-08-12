@@ -1189,9 +1189,10 @@ void test_cov_pike_overflow_restart(void) {
 
 /* Runner: force TIER_SEARCH_VM with crafted meta; pike overflows on the
  * REPEAT_INIT prefix so the restart loop executes the crafted bytecode. */
-static bool covt_search_vm_run(uint8_t *bc, size_t bc_len, const char *subject,
-                               size_t subj_len, const snobol_range_meta_t *rm,
-                               size_t rm_count, snobol_search_result_t *res) {
+static bool covt_search_vm_run(const uint8_t *bc, size_t bc_len,
+                               const char *subject, size_t subj_len,
+                               const snobol_range_meta_t *rm, size_t rm_count,
+                               snobol_search_result_t *res) {
   snobol_search_meta_t meta;
   memset(&meta, 0, sizeof(meta));
   meta.search_vm_eligible = true;

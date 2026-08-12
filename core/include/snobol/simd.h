@@ -55,11 +55,11 @@ extern "C" {
  *   - 16 for NEON (128-bit registers)
  *   -  1 for scalar fallback */
 #if SNOBOL_HAS_AVX2
-#define SNOBOL_SIMD_WIDTH 32
+enum { SNOBOL_SIMD_WIDTH = 32 };
 #elif SNOBOL_HAS_NEON
-#define SNOBOL_SIMD_WIDTH 16
+enum { SNOBOL_SIMD_WIDTH = 16 };
 #else
-#define SNOBOL_SIMD_WIDTH 1
+enum { SNOBOL_SIMD_WIDTH = 1 };
 #endif
 
 /* ---------------------------------------------------------------------------
@@ -74,17 +74,17 @@ extern "C" {
 #if SNOBOL_HAS_AVX2
 #include <immintrin.h>
 typedef __m256i simd_reg_t;
-#define SNOBOL_SIMD_NFA_MAX_STATES 256
+enum { SNOBOL_SIMD_NFA_MAX_STATES = 256 };
 
 #elif SNOBOL_HAS_NEON
 #include <arm_neon.h>
 typedef uint8x16_t simd_reg_t;
-#define SNOBOL_SIMD_NFA_MAX_STATES 128
+enum { SNOBOL_SIMD_NFA_MAX_STATES = 128 };
 
 #else
 /* Scalar fallback: use uint64_t[4] (256 bits) */
 typedef uint64_t simd_reg_t[4];
-#define SNOBOL_SIMD_NFA_MAX_STATES 256
+enum { SNOBOL_SIMD_NFA_MAX_STATES = 256 };
 #endif
 
 #ifdef __cplusplus

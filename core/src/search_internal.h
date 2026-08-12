@@ -76,10 +76,6 @@ extern snobol_dfa_t *snobol_pattern_get_automaton(
     const snobol_pattern_t *pattern);
 extern void snobol_pattern_set_automaton(snobol_pattern_t *pattern,
                                          snobol_dfa_t *dfa);
-extern const snobol_search_meta_t *snobol_pattern_get_meta(
-    const snobol_pattern_t *pattern);
-extern snobol_auto_trie_t *snobol_pattern_get_trie_cache(
-    const snobol_pattern_t *pattern);
 extern void snobol_pattern_set_trie_cache(snobol_pattern_t *pattern,
                                           snobol_auto_trie_t *trie);
 
@@ -111,16 +107,16 @@ static inline uint16_t search_read_u16(const uint8_t *bc, size_t ip) {
 #define SNOBOL_AUTO_NULL UINT16_MAX
 
 /** Maximum nodes in the automaton trie (stack-allocated pool). */
-#define SNOBOL_AUTO_MAX_NODES 256
+enum { SNOBOL_AUTO_MAX_NODES = 256 };
 
 /** Maximum edges in the automaton trie (stack-allocated pool). */
-#define SNOBOL_AUTO_MAX_EDGES 1024
+enum { SNOBOL_AUTO_MAX_EDGES = 1024 };
 
 /** Total literal-byte budget for classifying a pattern as alt-literals.
  * The trie needs at most 1 + sum(len_i) nodes (disjoint literals), so this
  * keeps every build inside the fixed pool.  Alternations beyond the budget
  * fall back to the (correct) search-VM / general tiers. */
-#define SNOBOL_AUTO_MAX_LIT_BYTES 250
+enum { SNOBOL_AUTO_MAX_LIT_BYTES = 250 };
 
 /** A single outgoing edge from a trie node. */
 typedef struct {

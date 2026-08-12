@@ -94,7 +94,7 @@ static void test_table_delete_via_set_null(void) {
   test_assert(table_has(table, "key"), "key exists");
 
   (void)table_set(table, "key", nullptr);
-  test_assert(!table_has(table, "key"), "key deleted");
+  test_assert(table_has(table, "key") == false, "key deleted");
   test_assert(table_size(table) == 0, "size is 0");
 
   table_release(table);

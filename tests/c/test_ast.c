@@ -50,11 +50,11 @@ static void test_ast_version_check_incompatible(void) {
   test_suite("AST: version check (incompatible)");
 
   /* Different major - incompatible */
-  test_assert(!snobol_ast_version_check(2, 0),
+  test_assert(snobol_ast_version_check(2, 0) == false,
               "v2.0 is NOT compatible with v1.0");
 
   /* Different major - incompatible */
-  test_assert(!snobol_ast_version_check(0, 9),
+  test_assert(snobol_ast_version_check(0, 9) == false,
               "v0.9 is NOT compatible with v1.0");
 }
 

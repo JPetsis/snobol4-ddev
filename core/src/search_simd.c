@@ -47,7 +47,7 @@ bool tier_general_fallback(VM *vm, const char *subject, size_t subject_len,
  */
 
 /** Maximum NFA states tracked by the SIMD engine. */
-#define SIMD_NFA_MAX_STATES 64
+enum { SIMD_NFA_MAX_STATES = 64 };
 
 /** Bitmask type for NFA state sets. */
 typedef uint64_t simd_nfa_state_t;
@@ -320,7 +320,7 @@ static bool simd_nfa_exec_scalar(const simd_nfa_t *nfa, const char *subject,
       /* Check character class membership (256-bit bitmap) */
       unsigned idx = byte >> 6;
       bool in_class =
-          ((nfa->states[s].char_mask[idx] >> (byte & 63)) & 1ULL) != 0u;
+          ((nfa->states[s].char_mask[idx] >> (byte & 63)) & 1ULL) != 0U;
 
       if (in_class) {
         uint16_t ns = nfa->states[s].next_state;
@@ -593,7 +593,7 @@ static bool simd_nfa_exec_neon(const simd_nfa_t *nfa, const char *subject,
       /* Classify each byte: lookup table[byte] */
       uint8x16_t result = vdupq_n_u8(0);
       for (int g = 0; g < 16; g++) {
-        uint8x16_t sub_tbl = vld1q_u8(table + (size_t)g * 16);
+        uint8x16_t sub_tbl = vld1q_u8(table + ((size_t)g * 16));
         uint8x16_t tbl_res = vqtbl1q_u8(sub_tbl, lo);
         uint8x16_t mask = vceqq_u8(hi, vdupq_n_u8((uint8_t)g));
         result = vbslq_u8(mask, tbl_res, result);
@@ -621,7 +621,7 @@ static bool simd_nfa_exec_neon(const simd_nfa_t *nfa, const char *subject,
       uint8x16_t hi = vshrq_n_u8(data, 4);
       uint8x16_t result = vdupq_n_u8(0);
       for (int g = 0; g < 16; g++) {
-        uint8x16_t sub_tbl = vld1q_u8(table + (size_t)g * 16);
+        uint8x16_t sub_tbl = vld1q_u8(table + ((size_t)g * 16));
         uint8x16_t tbl_res = vqtbl1q_u8(sub_tbl, lo);
         uint8x16_t mask = vceqq_u8(hi, vdupq_n_u8((uint8_t)g));
         result = vbslq_u8(mask, tbl_res, result);

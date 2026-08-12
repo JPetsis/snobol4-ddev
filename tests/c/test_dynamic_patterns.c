@@ -83,7 +83,7 @@ static void test_dynamic_pattern_create_invalid(void) {
 
   dynamic_pattern_t *pattern = dynamic_pattern_create("test", nullptr, 0);
   test_assert(pattern != NULL, "create with NULL bytecode succeeds");
-  test_assert(!pattern->is_valid, "pattern is marked invalid");
+  test_assert(pattern->is_valid == false, "pattern is marked invalid");
 
   dynamic_pattern_release(pattern);
 }
@@ -239,7 +239,7 @@ static void test_dynamic_pattern_cache_remove_missing(void) {
   dynamic_pattern_cache_init(&cache, 10);
 
   bool result = dynamic_pattern_cache_remove(&cache, "nonexistent", -1);
-  test_assert(!result, "remove returns false for missing key");
+  test_assert(result == false, "remove returns false for missing key");
 
   dynamic_pattern_cache_destroy(&cache);
 }

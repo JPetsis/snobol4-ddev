@@ -1752,7 +1752,7 @@ return false;
 /* ---- NFA modelling helpers ---- */
 
 /** Maximum NFA states (VM bytecode offsets) we track. */
-#define DFA_NFA_MAX 512
+enum { DFA_NFA_MAX = 512 };
 
 /** A set of NFA states (VM offsets), stored as a sorted u16 array. */
 typedef struct {
@@ -1791,6 +1791,20 @@ static inline bool nfa_set_contains(const nfa_set_t *s, uint16_t v) {
     }
   }
   return false;
+}
+
+/** @brief Test bit b of a 256-bit byte class (uint64_t[4] view). */
+static inline bool dfa_class_bit(const uint64_t bs[4], unsigned b) {
+  if (b < 64) {
+    return (bs[0] & (1ULL << b)) != 0;
+  }
+  if (b < 128) {
+    return (bs[1] & (1ULL << (b - 64))) != 0;
+  }
+  if (b < 192) {
+    return (bs[2] & (1ULL << (b - 128))) != 0;
+  }
+  return (bs[3] & (1ULL << (b - 192))) != 0;
 }
 
 /** Copy a set. */
@@ -2155,7 +2169,7 @@ static uint32_t dfa_state_hash(const nfa_set_t *s) {
 }
 
 /* A map from nfa_set_t -> DFA state index, using open addressing. */
-#define DFA_HASH_CAP 8192
+enum { DFA_HASH_CAP = 8192 };
 
 typedef struct {
   nfa_set_t key;
@@ -2369,7 +2383,7 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
           dfa->trans, (size_t)new_cap * 256 * sizeof(uint16_t));           \
       if (!nt)                                                             \
         goto fail;                                                         \
-      memset(nt + (size_t)dfa->state_cap * 256, 0,                         \
+      memset(nt + ((size_t)dfa->state_cap * 256), 0,                       \
              (size_t)(new_cap - dfa->state_cap) * 256 * sizeof(uint16_t)); \
       dfa->trans = nt;                                                     \
       uint8_t *na =                                                        \
@@ -2474,11 +2488,7 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
             if (!get_op_bytes(bc, bc_len, off, dfa_vm, bs)) {
               break;
             }
-            bool in_class =
-                ((b < 64)    ? (bs[0] & (1ULL << b)) != 0
-                 : (b < 128) ? (bs[1] & (1ULL << (b - 64))) != 0
-                 : (b < 192) ? (bs[2] & (1ULL << (b - 128))) != 0
-                             : (bs[3] & (1ULL << (b - 192))) != 0) != 0;
+            bool in_class = dfa_class_bit(bs, b);
             if (!in_class) {
               break;
             }
@@ -2495,11 +2505,7 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
             if (!get_op_bytes(bc, bc_len, off, dfa_vm, bs)) {
               break;
             }
-            bool in_class =
-                ((b < 64)    ? (bs[0] & (1ULL << b)) != 0
-                 : (b < 128) ? (bs[1] & (1ULL << (b - 64))) != 0
-                 : (b < 192) ? (bs[2] & (1ULL << (b - 128))) != 0
-                             : (bs[3] & (1ULL << (b - 192))) != 0) != 0;
+            bool in_class = dfa_class_bit(bs, b);
             if (!in_class) {
               break;
             }
@@ -2515,11 +2521,7 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
             }
             /* get_op_bytes for NOTANY already returns the class complement,
              * so a byte transitions when its bit IS set in bs[]. */
-            bool in_class =
-                ((b < 64)    ? (bs[0] & (1ULL << b)) != 0
-                 : (b < 128) ? (bs[1] & (1ULL << (b - 64))) != 0
-                 : (b < 192) ? (bs[2] & (1ULL << (b - 128))) != 0
-                             : (bs[3] & (1ULL << (b - 192))) != 0) != 0;
+            bool in_class = dfa_class_bit(bs, b);
             if (!in_class) {
               break;
             }
@@ -2534,11 +2536,7 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
               break;
             }
             /* get_op_bytes for BREAK returns bytes NOT in delimiter set */
-            bool is_delim =
-                ((b < 64)    ? (bs[0] & (1ULL << b)) == 0
-                 : (b < 128) ? (bs[1] & (1ULL << (b - 64))) == 0
-                 : (b < 192) ? (bs[2] & (1ULL << (b - 128))) == 0
-                             : (bs[3] & (1ULL << (b - 192))) == 0) != 0;
+            bool is_delim = dfa_class_bit(bs, b) == false;
             if (is_delim) {
               /* Delimiter: BREAK doesn't consume it. The epsilon exit to off+3
              * (set in epsilon_closure) and the next instruction handle it. */

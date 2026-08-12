@@ -79,8 +79,8 @@ void test_cov_misc_string_fn(void) {
 
   /* CHAR / ORD incl. multibyte. */
   test_assert((snobol_char_fn(0x20AC, &out) && out.len == 3) != 0, "char euro");
-  test_assert(!snobol_char_fn(0x110000, &out), "char out of range");
-  test_assert(!snobol_char_fn(0xD800, &out), "char surrogate");
+  test_assert(snobol_char_fn(0x110000, &out) == false, "char out of range");
+  test_assert(snobol_char_fn(0xD800, &out) == false, "char surrogate");
   uint32_t cp = 0;
   test_assert((snobol_ord("\xE2\x82\xAC", 3, &cp) && cp == 0x20AC) != 0,
               "ord euro codepoint");
@@ -230,7 +230,7 @@ void test_cov_misc_round4_string(void) {
 void test_string_ops_suite(void) {
   test_suite("String: SUBSTR / REPLACE / REPLACE_CHAR / LPAD / RPAD");
 
-  snobol_buf b = {0};
+  snobol_buf b = {};
   snobol_buf_init(&b);
 
   /* --- SUBSTR --- */
