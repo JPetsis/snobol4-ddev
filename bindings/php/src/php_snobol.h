@@ -162,32 +162,36 @@ void php_snobol_parse_match_options(zval *options_zv,
                                     php_snobol_match_options_t *opts);
 
 /**
- * @brief Create a Snobol\SearchIterator for lazy match iteration.
+ * @brief Create a Snobol\\SearchIterator for lazy match iteration.
  *
  * Used by Pattern::searchAllGenerator().
  *
+ * The iterator takes ownership of a reference to @p pattern_zv and
+ * @p subject, so the pattern object and subject string stay alive for the
+ * iterator's lifetime (caller keeps its own references).
+ *
  * @param return_value zval to populate with the iterator object.
- * @param pattern      Compiled pattern to search with.
- * @param subject      Subject string (borrowed; must outlive the iterator).
- * @param subject_len  Subject length in bytes.
+ * @param pattern_zv   Pattern object zval to search with.
+ * @param subject      Subject string (referenced, not borrowed).
  */
-void php_snobol_create_search_iterator(zval *return_value,
-                                       snobol_pattern_t *pattern,
-                                       const char *subject, size_t subject_len);
+void php_snobol_create_search_iterator(zval *return_value, zval *pattern_zv,
+                                       zend_string *subject);
 
 /**
- * @brief Create a Snobol\SplitIterator for lazy split iteration.
+ * @brief Create a Snobol\\SplitIterator for lazy split iteration.
  *
  * Used by Pattern::searchSplitGenerator().
  *
+ * The iterator takes ownership of a reference to @p pattern_zv and
+ * @p subject, so the pattern object and subject string stay alive for the
+ * iterator's lifetime (caller keeps its own references).
+ *
  * @param return_value zval to populate with the iterator object.
- * @param pattern      Compiled pattern to split with.
- * @param subject      Subject string (borrowed; must outlive the iterator).
- * @param subject_len  Subject length in bytes.
+ * @param pattern_zv   Pattern object zval to split with.
+ * @param subject      Subject string (referenced, not borrowed).
  */
-void php_snobol_create_split_iterator(zval *return_value,
-                                      snobol_pattern_t *pattern,
-                                      const char *subject, size_t subject_len);
+void php_snobol_create_split_iterator(zval *return_value, zval *pattern_zv,
+                                      zend_string *subject);
 
 /** @brief Register the Snobol\SplitIterator class (MINIT). */
 void snobol_split_iterator_minit(void);

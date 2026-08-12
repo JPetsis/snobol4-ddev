@@ -1880,9 +1880,8 @@ PHP_METHOD(Snobol_Pattern, searchReplace) {
   snobol_buf_free(&out);
 }
 
-void php_snobol_create_search_iterator(zval *return_value,
-                                       snobol_pattern_t *pattern,
-                                       const char *subject, size_t subject_len);
+void php_snobol_create_search_iterator(zval *return_value, zval *pattern_zv,
+                                       zend_string *subject);
 
 /**
  * Pattern::searchSplitGenerator(string $subject): Iterator
@@ -1904,8 +1903,7 @@ PHP_METHOD(Snobol_Pattern, searchSplitGenerator) {
     RETURN_FALSE;
   }
 
-  php_snobol_create_split_iterator(return_value, intern, ZSTR_VAL(subject),
-                                   ZSTR_LEN(subject));
+  php_snobol_create_split_iterator(return_value, ZEND_THIS, subject);
 }
 
 /**
@@ -1927,8 +1925,7 @@ PHP_METHOD(Snobol_Pattern, searchAllGenerator) {
     RETURN_FALSE;
   }
 
-  php_snobol_create_search_iterator(return_value, intern, ZSTR_VAL(subject),
-                                    ZSTR_LEN(subject));
+  php_snobol_create_search_iterator(return_value, ZEND_THIS, subject);
 }
 
 ZEND_BEGIN_ARG_INFO_EX(ai_searchSplitCuts, 0, 0, 1)

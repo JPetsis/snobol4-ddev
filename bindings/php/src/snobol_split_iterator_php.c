@@ -23,10 +23,13 @@ extern zend_class_entry *snobol_pattern_ce;
 static zend_object_handlers snobol_split_iterator_handlers;
 
 typedef struct {
+  zval pattern_ref; /* Owns a reference to the Pattern object (lifetime) */
+  zval subject_ref; /* Owns a reference to the subject string (lifetime) */
   snobol_pattern_t *pattern;
   snobol_pattern_search_state_t *state;
   const char *subject;
   size_t subject_len;
+  bool is_literal_only; /* lean snobol_pattern_search_next usable */
   zend_long key;
   bool started;
   bool valid;
@@ -41,7 +44,7 @@ snobol_split_iterator_t *php_si_split_fetch(zend_object *obj) {
       snobol_split_iterator_t, std));
 }
 
-/** @brief Object dtor: releases the current segment and the search state. */
+/** @brief Object dtor: releases the referenced pattern/subject and state. */
 static void si_dtor(zend_object *object) {
   snobol_split_iterator_t *iter = php_si_split_fetch(object);
   zval_ptr_dtor(&iter->current_segment);
@@ -49,6 +52,8 @@ static void si_dtor(zend_object *object) {
     snobol_pattern_search_state_destroy(iter->state);
     iter->state = NULL;
   }
+  zval_ptr_dtor(&iter->pattern_ref);
+  zval_ptr_dtor(&iter->subject_ref);
   zend_object_std_dtor(object);
 }
 
@@ -60,6 +65,8 @@ static zend_object *si_create(zend_class_entry *ce) {
   object_properties_init(&iter->std, ce);
   iter->std.handlers = &snobol_split_iterator_handlers;
   ZVAL_UNDEF(&iter->current_segment);
+  ZVAL_UNDEF(&iter->pattern_ref);
+  ZVAL_UNDEF(&iter->subject_ref);
   return &iter->std;
 }
 
@@ -71,9 +78,24 @@ static bool si_fetch_next(snobol_split_iterator_t *iter) {
     return false;
 
   size_t match_pos, match_len;
-  bool found =
-      snobol_pattern_search_next(iter->state, iter->subject, iter->subject_len,
-                                 iter->last_end, &match_pos, &match_len);
+  bool found;
+  if (iter->is_literal_only) {
+    found = snobol_pattern_search_next(iter->state, iter->subject,
+                                       iter->subject_len, iter->last_end,
+                                       &match_pos, &match_len);
+  } else {
+    /* Non-literal delimiter (SPAN/alternation/…): the lean tokenize API is
+       literal-only, so fall back to the general per-call search. */
+    snobol_match_t *m = snobol_pattern_search_ex(
+        iter->state, iter->subject, iter->subject_len, iter->last_end);
+    if (m && snobol_match_success(m)) {
+      match_pos = snobol_match_get_position(m);
+      match_len = snobol_match_get_length(m);
+      found = true;
+    } else {
+      found = false;
+    }
+  }
 
   zval_ptr_dtor(&iter->current_segment);
 
@@ -207,24 +229,7 @@ PHP_METHOD(Snobol_SplitIterator, fromPattern) {
     RETURN_NULL();
   }
 
-  if (object_init_ex(return_value, snobol_split_iterator_ce) != SUCCESS) {
-    zend_throw_exception(zend_ce_exception, "Failed to create SplitIterator",
-                         0);
-    return;
-  }
-  snobol_split_iterator_t *iter = php_si_split_fetch(Z_OBJ_P(return_value));
-  iter->pattern = pat;
-  iter->subject = ZSTR_VAL(subject);
-  iter->subject_len = ZSTR_LEN(subject);
-  iter->state = snobol_pattern_search_state_create(pat->bc, pat->bc_len);
-  iter->key = 0;
-  iter->started = false;
-  iter->valid = false;
-  iter->last_end = 0;
-  ZVAL_UNDEF(&iter->current_segment);
-  if (!iter->state) {
-    zend_throw_exception(zend_ce_exception, "Failed to create search state", 0);
-  }
+  php_snobol_create_split_iterator(return_value, pattern_zv, subject);
 }
 
 ZEND_BEGIN_ARG_WITH_RETURN_TYPE_INFO_EX(ai_si_current, 0, 0, IS_MIXED, 0)
@@ -254,9 +259,8 @@ static const zend_function_entry snobol_split_iterator_methods[] = {
                                ZEND_ACC_PUBLIC) PHP_FE_END};
 
 /** @brief Implementation of php_snobol_create_split_iterator() (see php_snobol.h). */
-void php_snobol_create_split_iterator(zval *return_value,
-                                      snobol_pattern_t *pattern,
-                                      const char *subject, size_t subject_len) {
+void php_snobol_create_split_iterator(zval *return_value, zval *pattern_zv,
+                                      zend_string *subject) {
   if (!snobol_split_iterator_ce) {
     zend_throw_exception(zend_ce_exception,
                          "SplitIterator class not registered", 0);
@@ -268,11 +272,17 @@ void php_snobol_create_split_iterator(zval *return_value,
     return;
   }
   snobol_split_iterator_t *iter = php_si_split_fetch(Z_OBJ_P(return_value));
-  iter->pattern = pattern;
-  iter->subject = subject;
-  iter->subject_len = subject_len;
+  /* Own references: the pattern object and subject string stay alive for
+     the iterator's lifetime even if the caller drops its own. */
+  ZVAL_COPY(&iter->pattern_ref, pattern_zv);
+  ZVAL_STR_COPY(&iter->subject_ref, subject);
+  iter->pattern = php_snobol_fetch(Z_OBJ_P(pattern_zv));
+  iter->subject = ZSTR_VAL(subject);
+  iter->subject_len = ZSTR_LEN(subject);
+  iter->is_literal_only = iter->pattern->meta.is_literal_only;
   iter->state =
-      snobol_pattern_search_state_create(pattern->bc, pattern->bc_len);
+      snobol_pattern_search_state_create(iter->pattern->bc,
+                                         iter->pattern->bc_len);
   iter->key = 0;
   iter->started = false;
   iter->valid = false;

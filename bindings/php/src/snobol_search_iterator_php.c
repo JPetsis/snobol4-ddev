@@ -24,6 +24,8 @@ static zend_object_handlers snobol_search_iterator_handlers;
 
 /* Internal struct: stores state for the "lazy iterator" semantics */
 typedef struct {
+  zval pattern_ref; /* Owns a reference to the Pattern object (lifetime) */
+  zval subject_ref; /* Owns a reference to the subject string (lifetime) */
   snobol_pattern_t *pattern;
   snobol_pattern_search_state_t *state;
   const char *subject;
@@ -42,7 +44,7 @@ static inline snobol_search_iterator_t *php_si_fetch(zend_object *obj) {
       snobol_search_iterator_t, std));
 }
 
-/** @brief Object dtor: releases the current match and the search state. */
+/** @brief Object dtor: releases the referenced pattern/subject and state. */
 static void si_dtor(zend_object *object) {
   snobol_search_iterator_t *iter = php_si_fetch(object);
   zval_ptr_dtor(&iter->current_match);
@@ -50,6 +52,8 @@ static void si_dtor(zend_object *object) {
     snobol_pattern_search_state_destroy(iter->state);
     iter->state = NULL;
   }
+  zval_ptr_dtor(&iter->pattern_ref);
+  zval_ptr_dtor(&iter->subject_ref);
   zend_object_std_dtor(object);
 }
 
@@ -61,6 +65,8 @@ static zend_object *si_create(zend_class_entry *ce) {
   object_properties_init(&iter->std, ce);
   iter->std.handlers = &snobol_search_iterator_handlers;
   ZVAL_UNDEF(&iter->current_match);
+  ZVAL_UNDEF(&iter->pattern_ref);
+  ZVAL_UNDEF(&iter->subject_ref);
   return &iter->std;
 }
 
@@ -180,7 +186,7 @@ PHP_METHOD(Snobol_SearchIterator, rewind) {
   iter->key = 0;
   iter->started = true;
 
-  if (!iter->state || iter->subject_len == 0) {
+  if (!iter->state) {
     iter->valid = false;
     return;
   }
@@ -195,15 +201,19 @@ PHP_METHOD(Snobol_SearchIterator, rewind) {
   }
 
   iter->valid = si_fetch_next(iter, 0);
+  if (!iter->valid) {
+    /* No match: drop the stale previous match so current() cannot return
+     * a leftover from an earlier iteration. */
+    zval_ptr_dtor(&iter->current_match);
+    ZVAL_UNDEF(&iter->current_match);
+  }
 }
 
 /* ---- Public API: create SearchIterator ---- */
 
 /** @brief Implementation of php_snobol_create_search_iterator() (see php_snobol.h). */
-void php_snobol_create_search_iterator(zval *return_value,
-                                       snobol_pattern_t *pattern,
-                                       const char *subject,
-                                       size_t subject_len) {
+void php_snobol_create_search_iterator(zval *return_value, zval *pattern_zv,
+                                       zend_string *subject) {
   if (!snobol_search_iterator_ce) {
     zend_throw_exception(zend_ce_exception,
                          "SearchIterator class not registered", 0);
@@ -215,11 +225,16 @@ void php_snobol_create_search_iterator(zval *return_value,
     return;
   }
   snobol_search_iterator_t *iter = php_si_fetch(Z_OBJ_P(return_value));
-  iter->pattern = pattern;
-  iter->subject = subject;
-  iter->subject_len = subject_len;
+  /* Own references: the pattern object and subject string stay alive for
+     the iterator's lifetime even if the caller drops its own. */
+  ZVAL_COPY(&iter->pattern_ref, pattern_zv);
+  ZVAL_STR_COPY(&iter->subject_ref, subject);
+  iter->pattern = php_snobol_fetch(Z_OBJ_P(pattern_zv));
+  iter->subject = ZSTR_VAL(subject);
+  iter->subject_len = ZSTR_LEN(subject);
   iter->state =
-      snobol_pattern_search_state_create(pattern->bc, pattern->bc_len);
+      snobol_pattern_search_state_create(iter->pattern->bc,
+                                         iter->pattern->bc_len);
   iter->key = 0;
   iter->started = false;
   iter->valid = false;
@@ -248,8 +263,7 @@ PHP_METHOD(Snobol_SearchIterator, fromPattern) {
     zend_throw_exception(zend_ce_exception, "Pattern not compiled", 0);
     RETURN_NULL();
   }
-  php_snobol_create_search_iterator(return_value, pat, ZSTR_VAL(subject),
-                                    ZSTR_LEN(subject));
+  php_snobol_create_search_iterator(return_value, pattern_zv, subject);
 }
 
 ZEND_BEGIN_ARG_INFO_EX(ai_si_fromPattern, 0, 0, 2)
