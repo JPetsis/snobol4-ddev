@@ -17,6 +17,7 @@ extern "C" {
 
 
 #include <stdbool.h>
+#include "snobol/c23_compat.h"
 #include <stddef.h>
 
 /* --------------------------------------------------------------------------

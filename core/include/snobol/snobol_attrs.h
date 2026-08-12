@@ -1,5 +1,7 @@
 #pragma once
 
+#include "snobol/c23_compat.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

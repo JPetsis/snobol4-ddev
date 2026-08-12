@@ -9,16 +9,7 @@ extern "C" {
  * __STDC_VERSION__ == 202311L for C23; anything lower (or undefined) means the
  * compiler does not recognise 'nullptr' or 'constexpr' as keywords in C mode.
  */
-#ifndef __cplusplus
-#if !defined(__STDC_VERSION__) || (__STDC_VERSION__ < 202311L)
-#ifndef nullptr
-#define nullptr NULL
-#endif
-#ifndef constexpr
-#define constexpr static const
-#endif
-#endif
-#endif
+#include "snobol/c23_compat.h"
 
 /* C11 _Alignof: MSVC in default mode (without /std:c11+) does not recognise
  * _Alignof; use the MSVC-specific __alignof extension instead. */

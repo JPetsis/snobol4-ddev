@@ -1,20 +1,6 @@
 #pragma once
 
-/* C23 keyword compatibility for pre-C23 compilers (MSVC, GCC/Clang < C23).
- * __STDC_VERSION__ == 202311L for C23; anything lower (or undefined) means the
- * compiler does not recognise 'nullptr' or 'constexpr' as keywords in C mode.
- * (Same block as in snobol_internal.h, so standalone consumers of the public
- * header get it too.) */
-#ifndef __cplusplus
-#if !defined(__STDC_VERSION__) || (__STDC_VERSION__ < 202311L)
-#ifndef nullptr
-#define nullptr NULL
-#endif
-#ifndef constexpr
-#define constexpr static const
-#endif
-#endif
-#endif
+#include "snobol/c23_compat.h"
 
 #ifdef __cplusplus
 extern "C" {

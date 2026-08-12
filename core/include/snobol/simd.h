@@ -18,6 +18,7 @@ extern "C" {
  */
 
 #include <stdint.h>
+#include "snobol/c23_compat.h"
 
 /* ---------------------------------------------------------------------------
  * SIMD capability detection

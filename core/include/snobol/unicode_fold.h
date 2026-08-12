@@ -24,6 +24,7 @@ extern "C" {
  */
 
 #include <stdint.h>
+#include "snobol/c23_compat.h"
 
 /**
  * Convert a Unicode codepoint to its uppercase equivalent(s).
