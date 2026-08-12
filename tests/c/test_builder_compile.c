@@ -42,8 +42,10 @@ static void compare_with_source(snobol_pattern_t *src, snobol_pattern_t *bld,
     test_assert(snobol_match_get_length(ms) == snobol_match_get_length(mb),
                 msg);
     size_t ls = 0, lb = 0;
-    const char *cs = snobol_match_get_variable(ms, "1", &ls);
-    const char *cb = snobol_match_get_variable(mb, "1", &lb);
+    /* Both construction paths use register 0: the parser allocates the first
+     * @name capture to register 0 and the builder mirrors it explicitly. */
+    const char *cs = snobol_match_get_variable(ms, "0", &ls);
+    const char *cb = snobol_match_get_variable(mb, "0", &lb);
     snprintf(msg, sizeof(msg), "%s: capture parity", label);
     test_assert((cs == NULL) == (cb == NULL) && ls == lb &&
                     (cs == NULL || memcmp(cs, cb, ls) == 0),
@@ -140,7 +142,7 @@ static void test_builder_composed(void) {
   parts[0] = snobol_ast_create_anchor(ANCHOR_START);
   parts[1] = snobol_pattern_build_lit(b, "ab", 2);
   parts[2] = snobol_pattern_build_cap(
-      b, 1, snobol_pattern_build_span(b, "0-9", 3));
+      b, 0, snobol_pattern_build_span(b, "0-9", 3));
   /* ('x'|'y')+ = concat(alt, arbno(alt)) — one alt node per child. */
   ast_node_t *alt_a = snobol_pattern_build_alt(
       b, snobol_pattern_build_lit(b, "x", 1),

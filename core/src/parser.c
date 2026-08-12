@@ -8,6 +8,7 @@
 
 #include "snobol/parser.h"
 #include "snobol/snobol_internal.h"
+#include "snobol/vm.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,6 +22,10 @@ struct snobol_parser {
   char **seen_labels;
   size_t seen_label_count;
   size_t seen_label_capacity;
+  /* Sequential capture-register allocator: each @name capture receives the
+   * next register (0-based), in order of appearance, matching the PHP
+   * Builder::cap(reg, ...) convention. */
+  int capture_reg_counter;
 };
 
 /* Forward declarations for recursive descent */
@@ -471,23 +476,24 @@ static ast_node_t *parse_primary(snobol_parser_t *parser,
     case TOKEN_AT:
       advance(lexer);
       {
-        /* Capture: @IDENT or @integer */
+        /* Capture: @IDENT (register allocated sequentially from 0) */
         tok = peek(lexer);
-        int reg = 0;
 
         if (tok.type == TOKEN_IDENT) {
-          /* For now, use a fixed register for named captures */
-          /* A real implementation would manage a symbol table */
-          reg = 1; /* Simplified */
+          /* Named captures are positional: each gets the next register */
           advance(lexer);
-        } else if (tok.type == TOKEN_STAR) {
-          /* This shouldn't happen, handle gracefully */
-          reg = 1;
         } else {
           set_error(parser, "Expected capture target",
                     snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
           return nullptr;
         }
+
+        if (parser->capture_reg_counter >= MAX_VARS) {
+          set_error(parser, "Too many captures (max 64)",
+                    snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+          return nullptr;
+        }
+        int reg = parser->capture_reg_counter++;
 
         ast_node_t *sub = parse_primary(parser, lexer);
         if (!sub)

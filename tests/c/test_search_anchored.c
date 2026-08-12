@@ -50,9 +50,11 @@ static bool cap_equals(const VM *vm, uint8_t reg, const char *subject,
 }
 
 /* Compile @p pattern_str and run it both anchored (snobol_search_exec_anchored)
- * and via the full VM (vm_run).  Assert agreement and anchored invariants. */
+ * and via the full VM (vm_run).  Assert agreement and anchored invariants.
+ * expected_cap0 checks capture register 0 (the parser allocates the first
+ * @name capture to register 0). */
 static void assert_anchored(const char *pattern_str, const char *subject,
-                            bool expect_success, const char *expected_cap1) {
+                            bool expect_success, const char *expected_cap0) {
   snobol_context_t *ctx = snobol_context_create();
   test_assert(ctx != NULL, "context created");
 
@@ -91,15 +93,15 @@ static void assert_anchored(const char *pattern_str, const char *subject,
                 "anchored match has positive length");
     test_assert((result.match_end - result.match_start) == fvm.pos,
                 "anchored match length equals full-VM consumed length");
-    if (expected_cap1) {
-      test_assert(cap_equals(&avm, 1, subject, expected_cap1),
-                  "anchored cap1 matches expected");
-      test_assert(cap_equals(&fvm, 1, subject, expected_cap1),
-                  "full-VM cap1 matches expected");
-      test_assert(avm.cap_start[1] == fvm.cap_start[1],
-                  "cap1 start consistent across tiers");
-      test_assert(avm.cap_end[1] == fvm.cap_end[1],
-                  "cap1 end consistent across tiers");
+    if (expected_cap0) {
+      test_assert(cap_equals(&avm, 0, subject, expected_cap0),
+                  "anchored cap0 matches expected");
+      test_assert(cap_equals(&fvm, 0, subject, expected_cap0),
+                  "full-VM cap0 matches expected");
+      test_assert(avm.cap_start[0] == fvm.cap_start[0],
+                  "cap0 start consistent across tiers");
+      test_assert(avm.cap_end[0] == fvm.cap_end[0],
+                  "cap0 end consistent across tiers");
     }
   }
 

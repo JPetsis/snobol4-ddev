@@ -57,8 +57,9 @@ static bool cap_equals(const VM *vm, uint8_t reg, const char *subject,
  * (Tier 6 for eligible patterns) and vm_run (Tier 8), and asserts that
  * the capture registers are identical.
  *
- * Note: The parser hardcodes @r(...) to register 1 (not 0).
- * So expected_cap1 checks register 1, expected_cap0 checks register 0.
+ * Note: The parser allocates capture registers sequentially from 0 in
+ * order of @name appearance, so expected_cap0 checks register 0 and
+ * expected_cap1 checks register 1.
  */
 static void assert_captures_match(const char *pattern_str, const char *subject,
                                   const char *expected_cap0,
@@ -140,38 +141,38 @@ static void assert_captures_match(const char *pattern_str, const char *subject,
  * Tests
  * ═══════════════════════════════════════════════════════════════════════════ */
 
-/* Test 1: Simple capture — @r1 puts capture on register 1 */
+/* Test 1: Simple capture — @r1 gets the first allocated register (0) */
 static void test_simple_capture(void) {
-  assert_captures_match("@r1('hello')", "hello", NULL, "hello");
+  assert_captures_match("@r1('hello')", "hello", "hello", NULL);
 }
 
 /* Test 2: Capture at start with literal prefix */
 static void test_capture_with_prefix(void) {
-  assert_captures_match("'id:' @r1('12345')", "id:12345", NULL, "12345");
+  assert_captures_match("'id:' @r1('12345')", "id:12345", "12345", NULL);
 }
 
-/* Test 3: Two captures — both @r1 and @r2 go to register 1 (parser hardcodes),
- * so the second capture overwrites the first. Verify register 1 = "cd". */
+/* Test 3: Two captures — registers are allocated sequentially from 0,
+ * so @r1 -> register 0 and @r2 -> register 1. Both are captured. */
 static void test_multiple_captures(void) {
-  assert_captures_match("@r1('ab') @r2('cd')", "abcd", NULL, "cd");
+  assert_captures_match("@r1('ab') @r2('cd')", "abcd", "ab", "cd");
 }
 
-/* Test 4: Capture in alternation */
+/* Test 4: Capture in alternation — each @name occurrence allocates a
+ * register, so the second branch's capture lands in register 1. */
 static void test_capture_in_alternation(void) {
   assert_captures_match("(@r1('a') | @r1('b'))", "b", NULL, "b");
 }
 
 /* Test 5: Capture after failed alternation (backtrack scenario) */
 static void test_capture_after_failed_alt(void) {
-  assert_captures_match("('aaa' | @r1('bbb'))", "bbb", NULL, "bbb");
+  assert_captures_match("('aaa' | @r1('bbb'))", "bbb", "bbb", NULL);
 }
 
-/* Test 7: Two sequential captures on the same register
- * Pattern: @r1('abc') @r1('def') — second overwrites first
- * Subject: 'abcdef'
- * Expected: register 1 = "def" (second capture wins) */
+/* Test 7: Two sequential captures — each @name occurrence allocates the next
+ * register, so @r1('abc') @r1('def') captures "abc" in register 0 and
+ * "def" in register 1 (no overwrite). */
 static void test_sequential_captures(void) {
-  assert_captures_match("@r1('abc') @r1('def')", "abcdef", NULL, "def");
+  assert_captures_match("@r1('abc') @r1('def')", "abcdef", "abc", "def");
 }
 
 /* Test 8: Capture of a SPAN in search mode.
@@ -180,7 +181,7 @@ static void test_sequential_captures(void) {
  * silently dropped the capture. The dispatcher must route it to the
  * capture-aware Tier 6 (search-VM) and record the capture. */
 static void test_capture_span_search_mode(void) {
-  assert_captures_match("@r1(SPAN('0-9'))", "1234567890", NULL, "1234567890");
+  assert_captures_match("@r1(SPAN('0-9'))", "1234567890", "1234567890", NULL);
 }
 
 /* ── Suite entry point ────────────────────────────────────────────────── */

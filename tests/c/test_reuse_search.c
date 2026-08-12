@@ -41,12 +41,14 @@ static void assert_same_match(snobol_match_t *got, snobol_match_t *ref,
   for (int i = 0; i < got->var_count; i++) {
     size_t gl = 0, rl = 0;
     char name[8];
-    snprintf(name, sizeof(name), "%d", i + 1);
+    /* Capture registers are 0-based; the accessor maps the bare number to
+     * the register index directly. */
+    snprintf(name, sizeof(name), "%d", i);
     const char *gv = snobol_match_get_variable(got, name, &gl);
     const char *rv = snobol_match_get_variable(ref, name, &rl);
-    snprintf(msg, sizeof(msg), "%s: var %d length matches", label, i + 1);
+    snprintf(msg, sizeof(msg), "%s: var %d length matches", label, i);
     test_assert(gl == rl, msg);
-    snprintf(msg, sizeof(msg), "%s: var %d bytes match", label, i + 1);
+    snprintf(msg, sizeof(msg), "%s: var %d bytes match", label, i);
     if (gl == rl && gl > 0 && gv && rv)
       test_assert(memcmp(gv, rv, gl) == 0, msg);
   }

@@ -154,7 +154,8 @@ static void test_parser_capture(void) {
   test_assert(ast != NULL, "parser returns AST");
   test_assert(!snobol_parser_has_error(parser), "no parse error");
   test_assert(ast->type == AST_CAP, "AST node is CAP");
-  test_assert(ast->data.cap.reg == 1, "capture register is 1");
+  test_assert(ast->data.cap.reg == 0,
+              "first named capture gets register 0");
   test_assert(ast->data.cap.sub != NULL, "capture has sub-pattern");
 
   snobol_ast_free(ast);
@@ -615,9 +616,8 @@ void test_cov_parser_round3(void) {
   {
     snobol_parser_t *parser = snobol_parser_create();
     bool err = false;
-    /* The '@*' star-capture branch does not advance past the star, so the
-     * parse fails on the leftover token.  Assert the current (defensive)
-     * behavior. */
+    /* '@*' has no valid capture target: the parser must reject it with a
+     * parse error (no star fallback branch). */
     ast_node_t *ast = covp_parse(parser, "@* 'a'", &err);
     test_assert(ast == NULL && err, "star capture target rejected");
     snobol_parser_destroy(parser);

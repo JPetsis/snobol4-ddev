@@ -379,6 +379,47 @@ static bool php_snobol_eval_cb(int fn_id, const char *s, size_t start,
 }
 
 /* ---------------------------------------------------------------------------
+ * Shared capture emission.
+ *
+ * One code path for emitting a capture register into a PHP result array, used
+ * by match(), searchAll (flat + array modes) and the batch builders, so the
+ * v<reg> key convention, the bounds checks, and the empty-capture rendering
+ * (null) cannot drift between the search methods.
+ *
+ * @p target  assoc mode: array receiving add_assoc_* entries under @p key;
+ *            flat mode: per-register array receiving add_next_index_* entries.
+ * @p coff    subject-absolute capture start (caller adds the window base).
+ * @p clen    capture length.  A zero-length or out-of-bounds capture renders
+ *            as null (string mode) or a [coff, 0] pair (offsets mode).
+ * ------------------------------------------------------------------------- */
+static void php_snobol_emit_capture(zval *target, bool assoc,
+                                    const char *subject, size_t subject_len,
+                                    size_t coff, size_t clen, const char *key,
+                                    size_t key_len, int captures_mode) {
+  if (captures_mode == PHP_SNOBOL_CAPTURES_OFFSETS) {
+    zval pair;
+    array_init(&pair);
+    add_next_index_long(&pair, (zend_long)coff);
+    add_next_index_long(&pair, (zend_long)clen);
+    if (assoc) {
+      snobol_assoc_zval(target, key, key_len, &pair);
+      zval_ptr_dtor(&pair);
+    } else {
+      zend_hash_next_index_insert(Z_ARRVAL_P(target), &pair);
+    }
+  } else if (clen > 0 && coff + clen <= subject_len) {
+    if (assoc)
+      add_assoc_stringl(target, key, subject + coff, clen);
+    else
+      add_next_index_stringl(target, subject + coff, clen);
+  } else {
+    if (assoc)
+      add_assoc_null(target, key);
+    else
+      add_next_index_null(target);
+  }
+}
+/* ---------------------------------------------------------------------------
  * Anchored first-match via persistent search state.
  *
  * Routes Pattern::match() through the tier dispatch + prefilter path,
@@ -432,36 +473,17 @@ bool php_snobol_do_match(snobol_pattern_t *intern, const char *subject_val,
   /* Match length */
   size_t match_len = snobol_match_get_length(m);
   add_assoc_long(result, "_match_len", (zend_long)match_len);
+  add_assoc_long(result, "_match_start",
+                 (zend_long)snobol_match_get_position(m));
 
   /* Captures: register-indexed keys "v0", "v1", …
      * var_off[i]/var_len[i] are subject-absolute offsets for anchored match. */
-  for (int i = 0; i < m->var_count; ++i) {
+  for (size_t i = 0; i < (size_t)m->var_count; ++i) {
     char key[32];
-    snprintf(key, sizeof(key), "v%u", (unsigned)i);
-
-    if (m->var_len[i] > 0) {
-      if (opts->captures == PHP_SNOBOL_CAPTURES_OFFSETS) {
-        zval pair;
-        array_init(&pair);
-        add_next_index_long(&pair, (zend_long)m->var_off[i]);
-        add_next_index_long(&pair, (zend_long)m->var_len[i]);
-        snobol_assoc_zval(result, key, strlen(key), &pair);
-        zval_ptr_dtor(&pair);
-      } else {
-        size_t vlen = 0;
-        const char *vval = snobol_match_get_variable(m, key, &vlen);
-        if (vval && vlen > 0) {
-          add_assoc_stringl(result, key, vval, vlen);
-        } else if (m->var_off[i] < subject_len) {
-          add_assoc_stringl(result, key, subject_val + m->var_off[i],
-                            m->var_len[i]);
-        } else {
-          add_assoc_null(result, key);
-        }
-      }
-    } else {
-      add_assoc_null(result, key);
-    }
+    size_t key_len = snprintf(key, sizeof(key), "v%u", (unsigned)i);
+    php_snobol_emit_capture(result, true, subject_val, subject_len,
+                            m->var_off[i], m->var_len[i], key, key_len,
+                            opts->captures);
   }
 
   /* Output buffer (from OP_EMIT_* instructions) */
@@ -487,6 +509,7 @@ bool php_snobol_do_match(snobol_pattern_t *intern, const char *subject_val,
 
   return true;
 }
+
 
 /** @brief Pattern::match(string $subject, ?array $options = null): array|false
  *  Anchored first match. Literal-only patterns take a direct memcmp fast
@@ -545,6 +568,7 @@ PHP_METHOD(Snobol_Pattern, match) {
           memcmp(ZSTR_VAL(input), lit, lit_len) == 0) {
         array_init(return_value);
         add_assoc_long(return_value, "_match_len", (zend_long)lit_len);
+        add_assoc_long(return_value, "_match_start", 0);
         add_assoc_string(return_value, "_output", "");
         if (opts.metrics) {
           zval metrics;
@@ -912,21 +936,9 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
               zend_hash_str_find(Z_ARRVAL_P(&captures_arr), key, key_len);
         }
 
-        if (opts->captures == PHP_SNOBOL_CAPTURES_OFFSETS) {
-          zval pair;
-          array_init(&pair);
-          add_next_index_long(&pair, (zend_long)cap_row[mi * 2]);
-          add_next_index_long(&pair, (zend_long)cap_row[mi * 2 + 1]);
-          zend_hash_next_index_insert(Z_ARRVAL_P(reg_arr_zv), &pair);
-        } else {
-          size_t coff = cap_row[mi * 2];
-          size_t clen = cap_row[mi * 2 + 1];
-          if (clen > 0 && coff + clen <= subject_len) {
-            add_next_index_stringl(reg_arr_zv, subject_val + coff, clen);
-          } else {
-            add_next_index_null(reg_arr_zv);
-          }
-        }
+        php_snobol_emit_capture(reg_arr_zv, false, subject_val, subject_len,
+                                cap_row[mi * 2], cap_row[mi * 2 + 1], key,
+                                key_len, opts->captures);
       }
 
       /* Output */
@@ -979,22 +991,9 @@ static bool php_snobol_try_batch(snobol_pattern_t *intern,
       if (!cap_row)
         continue;
 
-      if (opts->captures == PHP_SNOBOL_CAPTURES_OFFSETS) {
-        zval pair;
-        array_init(&pair);
-        add_next_index_long(&pair, (zend_long)cap_row[mi * 2]);
-        add_next_index_long(&pair, (zend_long)cap_row[mi * 2 + 1]);
-        snobol_assoc_zval(&match_arr, key, key_len, &pair);
-        zval_ptr_dtor(&pair);
-      } else {
-        size_t coff = cap_row[mi * 2];
-        size_t clen = cap_row[mi * 2 + 1];
-        if (clen > 0 && coff + clen <= subject_len) {
-          add_assoc_stringl(&match_arr, key, subject_val + coff, clen);
-        } else {
-          add_assoc_null(&match_arr, key);
-        }
-      }
+      php_snobol_emit_capture(&match_arr, true, subject_val, subject_len,
+                              cap_row[mi * 2], cap_row[mi * 2 + 1], key,
+                              key_len, opts->captures);
     }
 
     add_assoc_long(&match_arr, "_match_len", (zend_long)match_len);
@@ -1106,11 +1105,10 @@ void php_snobol_do_search_all(snobol_pattern_t *intern, const char *subject_val,
              * position, so use (match_start) as the window base for
              * capture offset correction: the capture starts at
              * window_base + var_off[i] = match_start + var_off[i]. */
-      size_t cap_off_base = search_offset;
+      size_t cap_off_base = match_start;
       for (size_t i = 0; i < m->var_count; ++i) {
         char key[32];
-        snprintf(key, sizeof(key), "v%u", (unsigned)i);
-        size_t key_len = strlen(key);
+        size_t key_len = snprintf(key, sizeof(key), "v%u", (unsigned)i);
 
         zval *reg_arr_zv =
             zend_hash_str_find(Z_ARRVAL_P(&captures_arr), key, key_len);
@@ -1123,21 +1121,9 @@ void php_snobol_do_search_all(snobol_pattern_t *intern, const char *subject_val,
               zend_hash_str_find(Z_ARRVAL_P(&captures_arr), key, key_len);
         }
 
-        if (opts->captures == PHP_SNOBOL_CAPTURES_OFFSETS) {
-          zval pair;
-          array_init(&pair);
-          add_next_index_long(&pair, (zend_long)(cap_off_base + m->var_off[i]));
-          add_next_index_long(&pair, (zend_long)m->var_len[i]);
-          zend_hash_next_index_insert(Z_ARRVAL_P(reg_arr_zv), &pair);
-        } else {
-          size_t vlen = 0;
-          const char *vval = snobol_match_get_variable(m, key, &vlen);
-          if (vval && vlen > 0) {
-            add_next_index_stringl(reg_arr_zv, vval, vlen);
-          } else {
-            add_next_index_null(reg_arr_zv);
-          }
-        }
+        php_snobol_emit_capture(reg_arr_zv, false, subject_val, subject_len,
+                                cap_off_base + m->var_off[i], m->var_len[i],
+                                key, key_len, opts->captures);
       }
 
       /* Output */
@@ -1189,24 +1175,10 @@ void php_snobol_do_search_all(snobol_pattern_t *intern, const char *subject_val,
     size_t cap_off_base = match_start;
     for (size_t i = 0; i < m->var_count; ++i) {
       char key[32];
-      snprintf(key, sizeof(key), "v%u", (unsigned)i);
-
-      if (opts->captures == PHP_SNOBOL_CAPTURES_OFFSETS) {
-        zval pair;
-        array_init(&pair);
-        add_next_index_long(&pair, (zend_long)(cap_off_base + m->var_off[i]));
-        add_next_index_long(&pair, (zend_long)m->var_len[i]);
-        snobol_assoc_zval(&match_arr, key, strlen(key), &pair);
-        zval_ptr_dtor(&pair);
-      } else {
-        size_t vlen = 0;
-        const char *vval = snobol_match_get_variable(m, key, &vlen);
-        if (vval && vlen > 0) {
-          add_assoc_stringl(&match_arr, key, vval, vlen);
-        } else {
-          add_assoc_null(&match_arr, key);
-        }
-      }
+      size_t key_len = snprintf(key, sizeof(key), "v%u", (unsigned)i);
+      php_snobol_emit_capture(&match_arr, true, subject_val, subject_len,
+                              cap_off_base + m->var_off[i], m->var_len[i], key,
+                              key_len, opts->captures);
     }
     add_assoc_long(&match_arr, "_match_len",
                    (zend_long)(match_end - match_start));

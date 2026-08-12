@@ -166,9 +166,10 @@ static void test_engine_capture(void) {
   }
 
   size_t len = 0;
-  const char *v = snobol_match_get_variable(m, "1", &len);
+  /* @r1 allocates the first register (0) under sequential allocation. */
+  const char *v = snobol_match_get_variable(m, "0", &len);
   test_assert(v != NULL && len == 5 && memcmp(v, "world", 5) == 0,
-              "variable '1' reads engine capture 'world'");
+              "variable '0' reads engine capture 'world'");
 
   snobol_match_free(m);
   snobol_pattern_free(pat);

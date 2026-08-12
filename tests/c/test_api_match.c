@@ -358,7 +358,7 @@ void test_cov_api_search_capture_pike(void) {
     test_assert(m && snobol_match_success(m), "pike capture search succeeds");
     if (m) {
       size_t clen = 0;
-      const char *cap = snobol_match_get_variable(m, "1", &clen);
+      const char *cap = snobol_match_get_variable(m, "0", &clen);
       test_assert(cap && clen == 2 && memcmp(cap, "ab", 2) == 0,
                   "pike search materializes capture");
       snobol_match_free(m);
@@ -763,11 +763,11 @@ void test_cov_api_one_shot(void) {
   if (r) {
     test_assert(r->success, "one-shot match succeeds");
     test_assert(r->error == NULL, "no error on success");
-    test_assert(r->capture_count == 2, "capture count follows reg 1");
-    test_assert(r->captures && r->captures[1] &&
-                    strcmp(r->captures[1], "ab") == 0,
+    test_assert(r->capture_count == 1, "capture count follows reg 0");
+    test_assert(r->captures && r->captures[0] &&
+                    strcmp(r->captures[0], "ab") == 0,
                 "capture copied");
-    test_assert(r->capture_lens && r->capture_lens[1] == 2, "capture length");
+    test_assert(r->capture_lens && r->capture_lens[0] == 2, "capture length");
     snobol_match_result_free(r);
   }
 
@@ -911,7 +911,7 @@ void test_cov_api_capture_absolute_equivalence(void) {
     test_assert(m && snobol_match_success(m), "search succeeds off-anchor");
     if (m) {
       test_assert(snobol_match_get_position(m) == 3, "search position is 3");
-      cap = snobol_match_get_variable(m, "1", &clen);
+      cap = snobol_match_get_variable(m, "0", &clen);
       test_assert(cap && clen == 5 && memcmp(cap, "12345", 5) == 0,
                   "search capture is subject-absolute");
       snobol_match_free(m);
@@ -923,7 +923,7 @@ void test_cov_api_capture_absolute_equivalence(void) {
     snobol_match_t *mr = snobol_match_create();
     bool ok = snobol_pattern_search_reuse(pat, subject, slen, mr);
     test_assert(ok && mr->success, "reuse succeeds off-anchor");
-    cap = snobol_match_get_variable(mr, "1", &clen);
+    cap = snobol_match_get_variable(mr, "0", &clen);
     test_assert(cap && clen == 5 && memcmp(cap, "12345", 5) == 0,
                 "reuse capture is subject-absolute");
     snobol_match_free(mr);
@@ -937,7 +937,7 @@ void test_cov_api_capture_absolute_equivalence(void) {
     if (st) {
       snobol_match_t *m = snobol_pattern_search_ex(st, subject, slen, 0);
       test_assert(m && m->success, "_ex succeeds off-anchor");
-      cap = snobol_match_get_variable(m, "1", &clen);
+      cap = snobol_match_get_variable(m, "0", &clen);
       test_assert(cap && clen == 5 && memcmp(cap, "12345", 5) == 0,
                   "_ex capture is subject-absolute");
       snobol_pattern_search_state_destroy(st);
@@ -952,11 +952,11 @@ void test_cov_api_capture_absolute_equivalence(void) {
         snobol_pattern_get_bc(pat), snobol_pattern_get_bc_len(pat), subject,
         slen, snobol_pattern_get_meta(pat), &out);
     test_assert(ok && out.match_count > 0, "batch succeeds off-anchor");
-    test_assert(out.captures && out.captures[1], "batch capture rows exist");
-    if (out.captures && out.captures[1] && out.match_count > 0) {
-      test_assert(out.captures[1][0] == 3,
+    test_assert(out.captures && out.captures[0], "batch capture rows exist");
+    if (out.captures && out.captures[0] && out.match_count > 0) {
+      test_assert(out.captures[0][0] == 3,
                   "batch capture start is subject-absolute (3)");
-      test_assert(out.captures[1][1] == 5, "batch capture length is 5");
+      test_assert(out.captures[0][1] == 5, "batch capture length is 5");
     }
     snobol_batch_result_free(&out);
   }
