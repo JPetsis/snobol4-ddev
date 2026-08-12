@@ -130,16 +130,25 @@ ZEND_END_ARG_INFO()
  * @param capacity
  */
 PHP_METHOD(Snobol_PatternCache, __construct) {
-  zend_long capacity = PCACHE_DEFAULT_CAPACITY;
+  zval *capacity_zv = NULL;
   ZEND_PARSE_PARAMETERS_START(0, 1)
   Z_PARAM_OPTIONAL
-  Z_PARAM_LONG(capacity)
+  Z_PARAM_ZVAL(capacity_zv)
   ZEND_PARSE_PARAMETERS_END();
 
-  if (capacity < 1) {
-    zend_throw_exception(zend_ce_value_error,
-                         "Cache capacity must be at least 1", 0);
-    RETURN_NULL();
+  zend_long capacity = PCACHE_DEFAULT_CAPACITY;
+  if (capacity_zv && Z_TYPE_P(capacity_zv) != IS_NULL) {
+    if (Z_TYPE_P(capacity_zv) != IS_LONG) {
+      zend_argument_type_error(1, "must be of type ?int, %s given",
+                               zend_zval_type_name(capacity_zv));
+      RETURN_NULL();
+    }
+    capacity = Z_LVAL_P(capacity_zv);
+    if (capacity < 1) {
+      zend_throw_exception(zend_ce_value_error,
+                           "Cache capacity must be at least 1", 0);
+      RETURN_NULL();
+    }
   }
 
   snobol_pattern_cache_php_t *intern = php_pcache_fetch(Z_OBJ_P(getThis()));

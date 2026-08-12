@@ -131,7 +131,7 @@ PHP_METHOD(Snobol_Table, __construct) {
 
   ZEND_PARSE_PARAMETERS_START(0, 1)
   Z_PARAM_OPTIONAL
-  Z_PARAM_STRING(name, name_len)
+  Z_PARAM_STRING_OR_NULL(name, name_len)
   ZEND_PARSE_PARAMETERS_END();
 
   snobol_table_php_t *intern = php_snobol_table_fetch(Z_OBJ_P(getThis()));

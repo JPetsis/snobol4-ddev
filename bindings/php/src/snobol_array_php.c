@@ -130,6 +130,12 @@ PHP_METHOD(Snobol_Array_, __construct) {
   Z_PARAM_LONG(size)
   ZEND_PARSE_PARAMETERS_END();
 
+  if (size < 0 || size > 0x7FFFFFFF) {
+    zend_throw_exception(zend_ce_value_error,
+                         "Array size must be between 0 and 2147483647", 0);
+    RETURN_NULL();
+  }
+
   snobol_array_php_t *intern = php_snobol_array_fetch(Z_OBJ_P(getThis()));
 
   intern->array = snobol_array_create((int32_t)size);
@@ -147,12 +153,23 @@ PHP_METHOD(Snobol_Array_, __construct) {
  * @param key
  * @return Value at the key, or null when unset.
  */
+static bool php_snobol_array_check_key(zend_long key) {
+  if (key >= -2147483647 - 1 && key <= 0x7FFFFFFF)
+    return true;
+  zend_throw_exception(zend_ce_value_error,
+                       "Array key must be within the int32 range", 0);
+  return false;
+}
+
 PHP_METHOD(Snobol_Array_, get) {
   zend_long key;
 
   ZEND_PARSE_PARAMETERS_START(1, 1)
   Z_PARAM_LONG(key)
   ZEND_PARSE_PARAMETERS_END();
+
+  if (!php_snobol_array_check_key(key))
+    RETURN_NULL();
 
   snobol_array_php_t *intern = php_snobol_array_fetch(Z_OBJ_P(getThis()));
 
@@ -184,6 +201,9 @@ PHP_METHOD(Snobol_Array_, set) {
   Z_PARAM_LONG(key)
   Z_PARAM_STRING(value, value_len)
   ZEND_PARSE_PARAMETERS_END();
+
+  if (!php_snobol_array_check_key(key))
+    RETURN_FALSE;
 
   snobol_array_php_t *intern = php_snobol_array_fetch(Z_OBJ_P(getThis()));
 

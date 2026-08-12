@@ -2,8 +2,21 @@
 #include "php_snobol.h"
 #include "zend_exceptions.h"
 #include "snobol/snobol.h"
+#include "snobol/vm.h"
 
 #define SNOBOL_LOG(fmt, ...) ((void)0)
+
+/** @brief Validate a capture register; throws ValueError and returns false
+ *  when out of the engine's register range [0, MAX_VARS). */
+static bool php_builder_check_reg(zend_long reg) {
+  if (reg >= 0 && reg < MAX_VARS)
+    return true;
+  zend_throw_exception(zend_ce_value_error,
+                       "Capture register must be between 0 and " ZEND_TOSTR(
+                           MAX_VARS - 1),
+                       0);
+  return false;
+}
 
 /**
  * @file snobol_builder_php.c
@@ -271,6 +284,8 @@ PHP_METHOD(Snobol_Builder, cap) {
   Z_PARAM_LONG(reg)
   Z_PARAM_ARRAY(sub)
   ZEND_PARSE_PARAMETERS_END();
+  if (!php_builder_check_reg(reg))
+    RETURN_NULL();
   array_init(return_value);
   add_assoc_stringl(return_value, "type", "cap", 3);
   add_assoc_long(return_value, "reg", reg);
@@ -285,6 +300,8 @@ PHP_METHOD(Snobol_Builder, assign) {
   Z_PARAM_LONG(var)
   Z_PARAM_LONG(reg)
   ZEND_PARSE_PARAMETERS_END();
+  if (!php_builder_check_reg(var) || !php_builder_check_reg(reg))
+    RETURN_NULL();
   array_init(return_value);
   add_assoc_stringl(return_value, "type", "assign", 6);
   add_assoc_long(return_value, "var", var);
@@ -350,6 +367,8 @@ PHP_METHOD(Snobol_Builder, eval) {
   Z_PARAM_LONG(fn)
   Z_PARAM_LONG(reg)
   ZEND_PARSE_PARAMETERS_END();
+  if (!php_builder_check_reg(reg))
+    RETURN_NULL();
   array_init(return_value);
   add_assoc_stringl(return_value, "type", "eval", 4);
   add_assoc_long(return_value, "fn", fn);
@@ -374,13 +393,25 @@ PHP_METHOD(Snobol_Builder, anchor) {
 PHP_METHOD(Snobol_Builder, repeat) {
   zval *sub;
   zend_long min;
-  zend_long max = -1;
+  zval *max_zv = NULL;
   ZEND_PARSE_PARAMETERS_START(2, 3)
   Z_PARAM_ARRAY(sub)
   Z_PARAM_LONG(min)
   Z_PARAM_OPTIONAL
-  Z_PARAM_LONG(max)
+  Z_PARAM_ZVAL(max_zv)
   ZEND_PARSE_PARAMETERS_END();
+  zend_long max = -1; /* default: unbounded */
+  if (max_zv) {
+    if (Z_TYPE_P(max_zv) == IS_NULL) {
+      /* null = unbounded, same as the default */
+    } else if (Z_TYPE_P(max_zv) == IS_LONG) {
+      max = Z_LVAL_P(max_zv);
+    } else {
+      zend_argument_type_error(3, "must be of type ?int, %s given",
+                               zend_zval_type_name(max_zv));
+      RETURN_NULL();
+    }
+  }
   array_init(return_value);
   add_assoc_stringl(return_value, "type", "repeat", 6);
   snobol_assoc_zval(return_value, "sub", 3, sub);
@@ -408,6 +439,8 @@ PHP_METHOD(Snobol_Builder, emitRef) {
   ZEND_PARSE_PARAMETERS_START(1, 1)
   Z_PARAM_LONG(reg)
   ZEND_PARSE_PARAMETERS_END();
+  if (!php_builder_check_reg(reg))
+    RETURN_NULL();
   array_init(return_value);
   add_assoc_stringl(return_value, "type", "emit", 4);
   add_assoc_long(return_value, "reg", reg);
