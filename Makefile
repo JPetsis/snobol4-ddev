@@ -319,7 +319,11 @@ lint:
 	@echo "==> Running linter..."
 	@if command -v clang-tidy >/dev/null 2>&1; then \
 		if [ -d build ]; then \
-			find core/include core/src tests/c -name '*.c' -o -name '*.h' | xargs clang-tidy; \
+			LINT_EXTRA=""; \
+			if command -v xcrun >/dev/null 2>&1; then \
+				LINT_EXTRA="--extra-arg=-isysroot$$(xcrun --show-sdk-path)"; \
+			fi; \
+			find core/include core/src tests/c -name '*.c' | xargs clang-tidy -p build $$LINT_EXTRA; \
 		else \
 			echo "Build directory not found. Run 'make build' first."; \
 		fi; \

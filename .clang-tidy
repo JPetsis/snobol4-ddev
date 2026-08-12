@@ -1,0 +1,14 @@
+# clang-tidy configuration for libsnobol4.
+#
+# Check set follows the LLVM project defaults for the installed toolchain
+# (clang-tidy 22). Note: the clang-diagnostic-* family no longer exists in
+# LLVM >= 21 and is therefore not listed.
+Checks: 'bugprone-*,
+         clang-analyzer-*,
+         misc-*,
+         modernize-*,
+         performance-*,
+         portability-*,
+         readability-*'
+HeaderFilterRegex: '.*'
+FormatStyle: none
