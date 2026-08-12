@@ -4,7 +4,6 @@
  */
 
 #include "snobol/ast.h"
-#include "snobol/vm.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -201,6 +200,7 @@ static void test_ast_create_all_types(void) {
 #include <stdint.h>
 #include "../../core/include/snobol/ast.h"
 #include "../../core/include/snobol/arena.h"
+#include "../../core/include/snobol/snobol.h"
 
 
 /* ── clone coverage: every node type ──────────────────────────────────────── */

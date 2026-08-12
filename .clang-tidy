@@ -26,6 +26,8 @@ Checks: 'bugprone-*,
          -readability-function-cognitive-complexity,
          -bugprone-branch-clone,
          -misc-use-internal-linkage,
-         -readability-simplify-boolean-expr'
+         -readability-simplify-boolean-expr,
+         -misc-include-cleaner,
+         -readability-use-concise-preprocessor-directives'
 HeaderFilterRegex: '.*'
 FormatStyle: none

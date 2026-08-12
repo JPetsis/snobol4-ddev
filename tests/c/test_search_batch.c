@@ -4,7 +4,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "snobol/search.h"
 #include "snobol/snobol.h"
 
 extern void test_suite(const char *name);

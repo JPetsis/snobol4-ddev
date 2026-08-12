@@ -9,7 +9,6 @@
 #include <stdint.h>
 
 #include "snobol/snobol.h"
-#include "snobol/version.h"
 
 extern void test_suite(const char *name);
 extern void test_assert(bool condition, const char *message);

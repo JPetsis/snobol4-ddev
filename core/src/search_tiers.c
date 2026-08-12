@@ -17,6 +17,7 @@
 #include "snobol/snobol.h"
 #include "snobol/snobol_attrs.h"
 #include "snobol/snobol_internal.h"
+#include "snobol/simd.h"
 #include "snobol/vm.h"
 
 /* Tier 8 general-VM fallback, defined below; the alt-literals tier calls it

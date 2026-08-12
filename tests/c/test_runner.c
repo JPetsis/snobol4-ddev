@@ -1,6 +1,3 @@
-#include <_stdio.h>
-#include <_time.h>
-#include <_abort.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -8,19 +5,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/_pthread/_pthread_t.h>
-#include <sys/fcntl.h>
 #include <time.h>
 #ifndef _WIN32
 #include <fcntl.h>
+#include <unistd.h>
 #endif
 
+#include "../../core/include/snobol/snobol_internal.h"
 
 #ifdef _WIN32
 #include <io.h>
 #include <windows.h>
 #else
 #include <pthread.h>
+#include <sys/types.h>
 #endif
 
 /* ---------------------------------------------------------------------------

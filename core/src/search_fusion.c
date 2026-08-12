@@ -12,6 +12,9 @@
  */
 
 #include "snobol/search.h"
+#include "snobol/snobol.h"
+#include "snobol/snobol_attrs.h"
+#include "snobol/snobol_internal.h"
 #include "snobol/vm.h"
 
 #include <stdbool.h>
@@ -19,6 +22,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "search_internal.h"
 
 /* ---------------------------------------------------------------------------
  * Bitmap helpers for 256-bit fusion bitmaps (32 bytes).

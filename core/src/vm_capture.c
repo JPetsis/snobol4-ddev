@@ -9,9 +9,14 @@
  */
 
 #include "snobol/vm.h"
+#include "snobol/array.h"
+#include "snobol/dynamic_pattern.h"
+#include "snobol/snobol_attrs.h"
 #include "snobol/snobol_internal.h"
+#include "snobol/string_fn.h"
+#include "snobol/table.h"
+#include "snobol/type_fn.h"
 #include <stdarg.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "../../core/include/snobol/snobol_internal.h"
 #include "snobol/ast.h"
 #include "snobol/compiler.h"
 #include "snobol/lexer.h"

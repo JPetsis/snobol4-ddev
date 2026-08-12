@@ -3,11 +3,11 @@
  */
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
+#include "snobol/snobol_internal.h"
 #include "snobol/vm.h"
 
 extern void test_suite(const char *name);

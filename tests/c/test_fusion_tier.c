@@ -378,9 +378,13 @@ static void test_fusion_alternation(void) {
 
 /* ===== test_coverage_misc (part): coverage-driven tests merged into test_fusion_tier.c ===== */
 #include <stdint.h>
+#include "../../core/include/snobol/array.h"
+#include "../../core/include/snobol/lexer.h"
 #include "../../core/include/snobol/search.h"
+#include "../../core/include/snobol/string_fn.h"
 #include "../../core/include/snobol/vm.h"
 #include "../../core/include/snobol/snobol.h"
+#include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_misc_fusion(void) {
   test_suite("Coverage: fusion executor paths");
@@ -470,6 +474,8 @@ void test_cov_misc_fusion(void) {
 
 
 /* ===== test_coverage_engine2 (part): coverage-driven tests merged into test_fusion_tier.c ===== */
+#include "../../core/include/snobol/ast.h"
+#include "../../core/include/snobol/compiler.h"
 
 void test_cov_engine2_fusion_entry(void) {
   test_suite("Coverage: fusion tier entry guards");

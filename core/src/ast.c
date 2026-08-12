@@ -4,9 +4,7 @@
  */
 
 #include "snobol/ast.h"
-#include "snobol/snobol_attrs.h"
-#include "snobol/arena.h"
-#include <stdint.h>
+#include "snobol/snobol_internal.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

@@ -4,7 +4,6 @@
  * Tests the Pike scan function directly (not through tier dispatch).
  * Gated behind SNOBOL_PIKE_SCAN; compiled only when enabled.
  */
-#include <stdint.h>
 #ifdef SNOBOL_PIKE_SCAN
 
 #include <stdbool.h>

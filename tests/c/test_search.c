@@ -15,8 +15,6 @@
 #include "../../core/include/snobol/search.h"
 #include "../../core/include/snobol/vm.h"
 #include "../../core/include/snobol/snobol.h"
-#include "snobol/ast.h"
-#include "snobol/compiler.h"
 
 extern void test_suite(const char *name);
 extern void test_assert(bool condition, const char *message);

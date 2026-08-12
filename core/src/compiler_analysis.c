@@ -1,13 +1,4 @@
 #include "compiler_internal.h"
-#include "snobol/snobol_internal.h"
-#include <stddef.h>
-#include <stdint.h>
-#include "snobol/ast.h"
-#include <stdlib.h>
-#include <stdio.h>
-#include "snobol/vm.h"
-#include "snobol/unicode_fold.h"
-#include <string.h>
 
 /**
  * Initialize a bytecode output buffer.

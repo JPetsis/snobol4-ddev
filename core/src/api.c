@@ -12,7 +12,6 @@
  * Pattern matching is done via vm_run().
  */
 
-#include "snobol/arena.h"
 #include "snobol/ast.h"
 #include "snobol/compiler.h"
 #include "snobol/lexer.h"

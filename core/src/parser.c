@@ -7,10 +7,8 @@
  */
 
 #include "snobol/parser.h"
-#include "snobol/ast.h"
-#include "snobol/lexer.h"
+#include "snobol/snobol_internal.h"
 #include "snobol/vm.h"
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

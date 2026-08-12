@@ -958,6 +958,9 @@ void cove_emit_u16_be(uint8_t *bc, size_t *ip, uint16_t v);
 void cove_emit_u32_be(uint8_t *bc, size_t *ip, uint32_t v);
 
 /* ===== test_coverage_engine2 (part): coverage-driven tests merged into test_search_meta_cache.c ===== */
+#include "../../core/include/snobol/ast.h"
+#include "../../core/include/snobol/compiler.h"
+#include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_engine2_derive(void) {
   test_suite("Coverage: derive_meta malformed shapes (round 2)");

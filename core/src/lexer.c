@@ -7,6 +7,7 @@
  */
 
 #include "snobol/lexer.h"
+#include "snobol/snobol_internal.h"
 #include <ctype.h>
 #include <stdbool.h>
 #include <stdio.h>

@@ -206,6 +206,9 @@ static void test_array_keys_values(void) {
 
 /* ===== test_coverage_misc (part): coverage-driven tests merged into test_array.c ===== */
 #include "../../core/include/snobol/array.h"
+#include "../../core/include/snobol/lexer.h"
+#include "../../core/include/snobol/search.h"
+#include "../../core/include/snobol/string_fn.h"
 #include "../../core/include/snobol/vm.h"
 #include "../../core/include/snobol/snobol.h"
 

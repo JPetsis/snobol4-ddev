@@ -189,7 +189,12 @@ static void test_arena_deep_vm_backtrack(void) {
 
 /* ===== test_coverage_misc (part): coverage-driven tests merged into test_choice_arena.c ===== */
 #include <stdint.h>
+#include "../../core/include/snobol/array.h"
+#include "../../core/include/snobol/lexer.h"
+#include "../../core/include/snobol/search.h"
+#include "../../core/include/snobol/string_fn.h"
 #include "../../core/include/snobol/vm.h"
+#include "../../core/include/snobol/snobol.h"
 #include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_misc_choice_arena(void) {

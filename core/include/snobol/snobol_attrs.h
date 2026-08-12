@@ -52,7 +52,7 @@ extern "C" {
 #ifndef SNOBOL_ALWAYS_INLINE
 #if defined(__GNUC__) || defined(__clang__)
 #define SNOBOL_ALWAYS_INLINE __attribute__((always_inline))
-#elifdef _MSC_VER
+#elif defined(_MSC_VER)
 #define SNOBOL_ALWAYS_INLINE __forceinline
 #else
 #define SNOBOL_ALWAYS_INLINE inline
@@ -139,7 +139,7 @@ extern "C" {
 #ifndef SNOBOL_ALIGNED
 #if defined(__GNUC__) || defined(__clang__)
 #define SNOBOL_ALIGNED(n) __attribute__((aligned(n)))
-#elifdef _MSC_VER
+#elif defined(_MSC_VER)
 #define SNOBOL_ALIGNED(n)
 #else
 #define SNOBOL_ALIGNED(n)

@@ -20,7 +20,7 @@
 
 #ifdef _WIN32
 #include <windows.h>
-#elifdef __APPLE__
+#elif defined(__APPLE__)
 #include <mach/mach_time.h>
 #else
 #include <time.h>
@@ -37,7 +37,7 @@ static int64_t now_ns(void) {
   QueryPerformanceFrequency(&freq);
   QueryPerformanceCounter(&cnt);
   return (int64_t)(cnt.QuadPart * 1000000000LL / freq.QuadPart);
-#elifdef __APPLE__
+#elif defined(__APPLE__)
   static mach_timebase_info_data_t info = {0};
   if (info.denom == 0) {
     mach_timebase_info(&info);

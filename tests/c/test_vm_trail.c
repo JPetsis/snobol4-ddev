@@ -7,7 +7,6 @@
  * in BOTH modes and assert the results are identical.
  */
 
-#include <_stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +21,7 @@ static int unsetenv(const char *name) {
   return _putenv_s(name, "");
 }
 #else
+#include <unistd.h> /* setenv/unsetenv */
 #endif
 
 #include "snobol/vm.h"
@@ -368,7 +368,12 @@ static void test_multi_loop_matches_legacy(void) {
 
 /* ===== test_coverage_misc (part): coverage-driven tests merged into test_vm_trail.c ===== */
 #include <stdint.h>
+#include "../../core/include/snobol/array.h"
+#include "../../core/include/snobol/lexer.h"
+#include "../../core/include/snobol/search.h"
+#include "../../core/include/snobol/string_fn.h"
 #include "../../core/include/snobol/vm.h"
+#include "../../core/include/snobol/snobol.h"
 #include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_misc_write_log_trail(void) {
