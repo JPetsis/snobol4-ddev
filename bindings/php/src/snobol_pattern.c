@@ -788,10 +788,8 @@ PHP_METHOD(Snobol_Pattern, subst) {
       vm_free_arrays(&tvm);
     if (tvm.dyn_cache)
       dynamic_pattern_cache_destroy(tvm.dyn_cache);
-    if (tvm.dyn_pending_source)
-      efree(tvm.dyn_pending_source);
-    if (tvm.dyn_pending_bc)
-      efree(tvm.dyn_pending_bc);
+    /* dyn_pending_source / dyn_pending_bc are owned and freed by the core
+     * (snobol_free, and nulled once consumed) — never freed from here. */
 #endif
 
     /* Advance past the match */

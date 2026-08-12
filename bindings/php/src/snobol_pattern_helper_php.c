@@ -434,7 +434,12 @@ PHP_METHOD(Snobol_PatternHelper, matchAll) {
       php_phelper_strip_meta(&clean_entry);
       zend_hash_next_index_insert(Z_ARRVAL_P(return_value), &clean_entry);
     } else {
-      zend_hash_next_index_insert(Z_ARRVAL_P(return_value), entry);
+      /* Copy before moving: the source array still owns its bucket, so a
+       * borrowed insert would leave return_value dangling after search_ret
+       * is destroyed. */
+      zval copy;
+      ZVAL_COPY(&copy, entry);
+      zend_hash_next_index_insert(Z_ARRVAL_P(return_value), &copy);
     }
   }
   ZEND_HASH_FOREACH_END();
@@ -580,7 +585,7 @@ PHP_METHOD(Snobol_PatternHelper, evalPattern) {
   if (Z_TYPE(match_ret) != IS_FALSE && Z_TYPE(match_ret) != IS_NULL) {
     ZVAL_COPY(return_value, &match_ret);
   } else {
-    RETURN_FALSE;
+    ZVAL_FALSE(return_value);
   }
   zval_ptr_dtor(&match_ret);
 

@@ -17,9 +17,9 @@ zend_class_entry *snobol_pattern_cache_ce;
 static zend_object_handlers snobol_pattern_cache_object_handlers;
 
 typedef struct {
-  zval cache; /* PHP array: key => Pattern */
-  zval
-      access_order; /* PHP indexed array: keys in access order, most recent at end */
+  zval cache; /* PHP array: key => value */
+  zval access_order; /* PHP indexed array: keys in access order, newest at end
+                        (always densely reindexed 0..n-1 after deletions) */
   zend_long capacity;
   zend_object std;
 } snobol_pattern_cache_php_t;
@@ -48,6 +48,25 @@ static zend_object *php_pcache_create(zend_class_entry *ce) {
   return &intern->std;
 }
 
+/** @brief Rebuild the access-order array densely (keys 0..n-1). Deletions
+ *  tombstone buckets and re-inserts can reuse the hole, so index-based LRU
+ *  scans need a dense array; rebuilding after each mutation is O(capacity)
+ *  and obviously correct. */
+static void php_pcache_reindex_order(zval *order) {
+  HashTable *src = Z_ARRVAL_P(order);
+  zval fresh;
+  array_init(&fresh);
+  zval *entry;
+  ZEND_HASH_FOREACH_VAL(src, entry) {
+    zval copy;
+    ZVAL_COPY(&copy, entry);
+    zend_hash_next_index_insert(Z_ARRVAL_P(&fresh), &copy);
+  }
+  ZEND_HASH_FOREACH_END();
+  zval_ptr_dtor(order);
+  *order = fresh; /* move the struct */
+}
+
 /** @brief Evict the least-recently-used entry (oldest in access_order). */
 static void php_pcache_evict_lru(snobol_pattern_cache_php_t *intern) {
   HashTable *ao = Z_ARRVAL_P(&intern->access_order);
@@ -61,19 +80,7 @@ static void php_pcache_evict_lru(snobol_pattern_cache_php_t *intern) {
   zend_hash_str_del(Z_ARRVAL_P(&intern->cache), Z_STRVAL_P(lru_key_zv),
                     Z_STRLEN_P(lru_key_zv));
   zend_hash_index_del(ao, 0);
-
-  uint32_t count = zend_hash_num_elements(ao);
-  for (uint32_t i = 0; i < count; i++) {
-    zval *zv = zend_hash_index_find(ao, i + 1);
-    if (zv) {
-      zval copy;
-      ZVAL_COPY(&copy, zv);
-      zend_hash_index_update(ao, i, &copy);
-    }
-  }
-  if (count > 0) {
-    zend_hash_index_del(ao, count);
-  }
+  php_pcache_reindex_order(&intern->access_order);
 }
 
 /** @brief Move a key to the back of the LRU access order (no-op if absent). */
@@ -81,37 +88,20 @@ static void php_pcache_touch(snobol_pattern_cache_php_t *intern,
                              const char *key, size_t key_len) {
   HashTable *ao = Z_ARRVAL_P(&intern->access_order);
   uint32_t count = zend_hash_num_elements(ao);
-  zend_ulong found_idx = (zend_ulong)-1;
 
   for (uint32_t i = 0; i < count; i++) {
     zval *zv = zend_hash_index_find(ao, i);
     if (zv && Z_STRLEN_P(zv) == key_len &&
         memcmp(Z_STRVAL_P(zv), key, key_len) == 0) {
-      found_idx = i;
-      break;
+      zval kv;
+      ZVAL_STRINGL(&kv, key, key_len);
+      zend_hash_index_del(ao, i);
+      php_pcache_reindex_order(&intern->access_order);
+      /* The insert moves kv's reference into the array (no dtor). */
+      zend_hash_next_index_insert(Z_ARRVAL_P(&intern->access_order), &kv);
+      return;
     }
   }
-
-  if (found_idx == (zend_ulong)-1)
-    return;
-
-  zval zv;
-  ZVAL_STRINGL(&zv, key, key_len);
-  Z_TRY_ADDREF_P(&zv);
-  zend_hash_index_del(ao, found_idx);
-
-  count = zend_hash_num_elements(ao);
-  for (zend_ulong j = found_idx; j < count; j++) {
-    zval *next = zend_hash_index_find(ao, j + 1);
-    if (next) {
-      zval copy;
-      ZVAL_COPY(&copy, next);
-      zend_hash_index_update(ao, j, &copy);
-    }
-  }
-  zend_hash_index_del(ao, count);
-  zend_hash_next_index_insert(ao, &zv);
-  zval_ptr_dtor(&zv);
 }
 
 /* Argument info */

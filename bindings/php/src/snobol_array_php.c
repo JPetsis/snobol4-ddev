@@ -1,6 +1,7 @@
 #include "php.h"
 #include "php_snobol.h"
 #include "snobol/array.h"
+#include "snobol/snobol_internal.h"
 #include "zend_exceptions.h"
 
 #include <stdio.h>
@@ -303,8 +304,10 @@ PHP_METHOD(Snobol_Array_, keys) {
     add_next_index_long(return_value, (zend_long)keys[i]);
   }
 
+  /* The core allocates with snobol_malloc (malloc in STANDALONE builds,
+   * emalloc in PHP_BUILD builds); snobol_free matches either. */
   if (keys) {
-    free(keys);
+    snobol_free(keys);
   }
 }
 
@@ -329,12 +332,14 @@ PHP_METHOD(Snobol_Array_, values) {
   for (size_t i = 0; i < count; i++) {
     if (values[i]) {
       add_next_index_string(return_value, values[i]);
-      free(values[i]);
+      /* The core allocates with snobol_malloc (malloc in STANDALONE builds,
+       * emalloc in PHP_BUILD builds); snobol_free matches either. */
+      snobol_free(values[i]);
     }
   }
 
   if (values) {
-    free(values);
+    snobol_free(values);
   }
 }
 
