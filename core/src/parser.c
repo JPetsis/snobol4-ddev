@@ -7,8 +7,10 @@
  */
 
 #include "snobol/parser.h"
-#include "snobol/snobol_internal.h"
+#include "snobol/ast.h"
+#include "snobol/lexer.h"
 #include "snobol/vm.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -194,8 +196,8 @@ static ast_node_t *parse_statement(snobol_parser_t *parser,
       if (parser->seen_label_count >= parser->seen_label_capacity) {
         size_t new_cap =
             parser->seen_label_capacity ? parser->seen_label_capacity * 2 : 4;
-        char **new_labels =
-            (char **)realloc(parser->seen_labels, new_cap * sizeof(char *));
+        char **new_labels = (char **)realloc((void *)parser->seen_labels,
+                                             new_cap * sizeof(char *));
         if (new_labels) {
           parser->seen_labels = new_labels;
           parser->seen_label_capacity = new_cap;
@@ -347,21 +349,21 @@ static ast_node_t *parse_concatenation(snobol_parser_t *parser,
       for (size_t i = 0; i < count; i++) {
         snobol_ast_free(parts[i]);
       }
-      free(parts);
+      free((void *)parts);
       return nullptr;
     }
 
     /* Add to parts array */
     if (count >= capacity) {
       capacity = (capacity == 0) ? 4 : capacity * 2;
-      ast_node_t **new_parts =
-          (ast_node_t **)realloc(parts, capacity * sizeof(ast_node_t *));
+      ast_node_t **new_parts = (ast_node_t **)realloc(
+          (void *)parts, capacity * sizeof(ast_node_t *));
       if (!new_parts) {
         snobol_ast_free(part);
         for (size_t i = 0; i < count; i++) {
           snobol_ast_free(parts[i]);
         }
-        free(parts);
+        free((void *)parts);
         return nullptr;
       }
       parts = new_parts;
@@ -371,7 +373,7 @@ static ast_node_t *parse_concatenation(snobol_parser_t *parser,
   }
 
   if (count == 0) {
-    free(parts);
+    free((void *)parts);
     set_error(parser, "Expected pattern element", snobol_lexer_get_line(lexer),
               snobol_lexer_get_pos(lexer));
     return nullptr;
@@ -379,7 +381,7 @@ static ast_node_t *parse_concatenation(snobol_parser_t *parser,
 
   if (count == 1) {
     ast_node_t *result = parts[0];
-    free(parts);
+    free((void *)parts);
     return result;
   }
 
@@ -412,7 +414,7 @@ static ast_node_t *parse_repetition(snobol_parser_t *parser,
         }
         if (!clone) {
           snobol_ast_free(arbno);
-          free(parts);
+          free((void *)parts);
           return nullptr;
         }
         parts[0] = clone;
@@ -787,7 +789,7 @@ void snobol_parser_destroy(snobol_parser_t *parser) {
     for (size_t i = 0; i < parser->seen_label_count; i++) {
       free(parser->seen_labels[i]);
     }
-    free(parser->seen_labels);
+    free((void *)parser->seen_labels);
     free(parser);
   }
 }

@@ -22,7 +22,6 @@
 #include <windows.h>
 #elifdef __APPLE__
 #include <mach/mach_time.h>
-#include <mach/mach_time.h>
 #else
 #include <time.h>
 #endif

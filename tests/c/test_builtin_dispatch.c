@@ -6,6 +6,7 @@
  */
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -52,11 +53,11 @@ static bool run_eval_builtin(const char *subject, size_t subject_len,
   bc[off++] = (uint8_t)(lit_offset >> 24);
   bc[off++] = (uint8_t)(lit_offset >> 16);
   bc[off++] = (uint8_t)(lit_offset >> 8);
-  bc[off++] = (uint8_t)(lit_offset);
+  bc[off++] = (uint8_t)lit_offset;
   bc[off++] = (uint8_t)(subject_len >> 24);
   bc[off++] = (uint8_t)(subject_len >> 16);
   bc[off++] = (uint8_t)(subject_len >> 8);
-  bc[off++] = (uint8_t)(subject_len);
+  bc[off++] = (uint8_t)subject_len;
   /* CAP_END 0 */
   bc[off++] = OP_CAP_END;
   bc[off++] = 0;
@@ -76,13 +77,13 @@ static bool run_eval_builtin(const char *subject, size_t subject_len,
   bc[bc_total - 2] = 0;
   bc[bc_total - 1] = 0;
 
-  VM vm = {nullptr};
+  VM vm = {0};
   vm.bc = bc;
   vm.bc_len = bc_total;
   vm.s = subject;
   vm.len = subject_len;
 
-  snobol_buf out_buf = {nullptr};
+  snobol_buf out_buf = {0};
   snobol_buf_init(&out_buf);
   vm.out = &out_buf;
 

@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "snobol/search.h"
 #include "snobol/snobol.h"
 #include "snobol/vm.h"
 

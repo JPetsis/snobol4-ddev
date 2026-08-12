@@ -15,6 +15,8 @@
 #include "../../core/include/snobol/search.h"
 #include "../../core/include/snobol/vm.h"
 #include "../../core/include/snobol/snobol.h"
+#include "snobol/ast.h"
+#include "snobol/compiler.h"
 
 extern void test_suite(const char *name);
 extern void test_assert(bool condition, const char *message);
@@ -1152,7 +1154,7 @@ void test_cov_pike_overflow_restart(void) {
   for (int i = 0; i < levels; i++) {
     size_t base = ip;
     bc[ip++] = OP_SPLIT;
-    uint32_t a = (uint32_t)((i + 1 < levels) ? base + 20 : base + 20);
+    uint32_t a = (uint32_t)(base + 20);
     uint32_t b = (uint32_t)(base + 9);
     covt_emit_u32_be(bc, &ip, a);
     covt_emit_u32_be(bc, &ip, b);

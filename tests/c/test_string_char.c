@@ -3,6 +3,7 @@
  */
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -15,7 +16,7 @@ extern void test_assert(bool condition, const char *message);
 void test_string_char_suite(void) {
   test_suite("String: CHAR / ORD");
 
-  snobol_buf b = {nullptr};
+  snobol_buf b = {0};
   snobol_buf_init(&b);
 
   /* --- CHAR --- */

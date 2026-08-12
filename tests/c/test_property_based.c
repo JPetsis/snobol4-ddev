@@ -4,7 +4,6 @@
 #include <time.h>
 
 #include "../../core/include/snobol/snobol.h"
-#include "../../core/include/snobol/snobol_internal.h"
 
 extern void test_suite(const char *name);
 extern void test_assert(bool condition, const char *message);

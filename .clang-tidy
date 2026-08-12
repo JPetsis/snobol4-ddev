@@ -23,6 +23,8 @@ Checks: 'bugprone-*,
          -portability-avoid-pragma-once,
          -misc-no-recursion,
          -bugprone-easily-swappable-parameters,
-         -readability-function-cognitive-complexity'
+         -readability-function-cognitive-complexity,
+         -bugprone-branch-clone,
+         -misc-use-internal-linkage'
 HeaderFilterRegex: '.*'
 FormatStyle: none

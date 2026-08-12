@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "snobol/ast.h"
 #include "test_helpers.h"
 
 extern void test_suite(const char *name);

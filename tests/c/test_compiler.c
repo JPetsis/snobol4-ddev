@@ -214,9 +214,7 @@ void test_cov_codegen_labels(void) {
 
 
 /* ===== test_coverage_engine2 (part): coverage-driven tests merged into test_compiler.c ===== */
-#include "../../core/include/snobol/search.h"
 #include "../../core/include/snobol/snobol.h"
-#include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_engine2_fuse_shapes(void) {
   test_suite("Coverage: SPLIT->ANY fusion shape matrix");

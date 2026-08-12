@@ -6,12 +6,11 @@
  */
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-#include "snobol/compiler.h"
-#include "snobol/snobol_internal.h"
 #include "snobol/vm.h"
 
 extern void test_suite(const char *name);
@@ -106,13 +105,13 @@ static bool run_breakx_match(const char *subject, size_t subj_len,
   bc_buf[bc_off++] = 0;
   bc_buf[bc_off++] = 1;
 
-  VM vm = {nullptr};
+  VM vm = {0};
   vm.bc = bc_buf;
   vm.bc_len = bc_off;
   vm.s = subject;
   vm.len = subj_len;
 
-  snobol_buf out_buf = {nullptr};
+  snobol_buf out_buf = {0};
   snobol_buf_init(&out_buf);
   vm.out = &out_buf;
 

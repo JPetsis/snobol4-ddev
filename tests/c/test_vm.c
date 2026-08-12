@@ -19,7 +19,6 @@ extern void test_assert(bool condition, const char *message);
 #include "../../core/include/snobol/ast.h"
 #include "../../core/include/snobol/compiler.h"
 #include "../../core/include/snobol/dynamic_pattern.h"
-#include "../../core/include/snobol/search.h"
 #include "../../core/include/snobol/table.h"
 #include "../../core/include/snobol/vm.h"
 

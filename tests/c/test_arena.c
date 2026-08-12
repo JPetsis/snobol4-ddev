@@ -44,9 +44,9 @@ static ast_node_t *parse_with_arena(const char *src, snobol_arena_t *arena,
 void test_arena_allocation(void) {
   test_suite("Arena: AST nodes bump-allocated from bound arena");
 
-  void *buf = malloc(SNOBOL_ARENA_DEFAULT_CAPACITY);
+  void *buf = malloc((size_t)SNOBOL_ARENA_DEFAULT_CAPACITY);
   snobol_arena_t arena;
-  snobol_arena_init(&arena, buf, SNOBOL_ARENA_DEFAULT_CAPACITY);
+  snobol_arena_init(&arena, buf, (size_t)SNOBOL_ARENA_DEFAULT_CAPACITY);
 
   snobol_lexer_t *lexer = nullptr;
   snobol_parser_t *parser = nullptr;

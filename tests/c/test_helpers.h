@@ -24,13 +24,13 @@ static inline bool run_ast_pattern(ast_node_t *ast, const char *subject,
     return false;
   }
 
-  VM vm = {nullptr};
+  VM vm = {0};
   vm.bc = bc;
   vm.bc_len = bc_len;
   vm.s = subject;
   vm.len = sub_len;
 
-  snobol_buf out_buf = {nullptr};
+  snobol_buf out_buf = {0};
   snobol_buf_init(&out_buf);
   vm.out = &out_buf;
 

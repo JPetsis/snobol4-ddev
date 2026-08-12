@@ -17,7 +17,6 @@
 #include "snobol/snobol.h"
 #include "snobol/snobol_attrs.h"
 #include "snobol/snobol_internal.h"
-#include "snobol/simd.h"
 #include "snobol/vm.h"
 
 /* Tier 8 general-VM fallback, defined below; the alt-literals tier calls it
@@ -2175,7 +2174,7 @@ static uint16_t dfa_hash_find_or_insert(dfa_hash_entry_t *ht, size_t cap,
   }
   uint32_t h = dfa_state_hash(s);
   for (size_t i = 0; i < cap; i++) {
-    size_t idx = (size_t)((h + i) % cap);
+    size_t idx = (h + i) % cap;
     if (!ht[idx].occupied) {
       /* Insert */
       nfa_set_copy(&ht[idx].key, s);
@@ -2315,7 +2314,7 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
 
   dfa->state_cap = 64;
   dfa->trans =
-      (uint16_t *)snobol_calloc(dfa->state_cap * 256, sizeof(uint16_t));
+      (uint16_t *)snobol_calloc((size_t)dfa->state_cap * 256, sizeof(uint16_t));
   if (!dfa->trans) {
     goto fail;
   }
@@ -2358,30 +2357,30 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
   queue[q_tail++] = dfa->start_state;
   dfa->num_states = next_dfa_id;
 
-#define DFA_ENSURE(s)                                                   \
-  do {                                                                  \
-    if ((s) >= dfa->state_cap) {                                        \
-      uint32_t new_cap = dfa->state_cap * 2;                            \
-      if (new_cap > SNOBOL_DFA_MAX_STATES)                              \
-        new_cap = SNOBOL_DFA_MAX_STATES;                                \
-      if ((s) >= new_cap)                                               \
-        goto fail;                                                      \
-      uint16_t *nt = (uint16_t *)snobol_realloc(                        \
-          dfa->trans, new_cap * 256 * sizeof(uint16_t));                \
-      if (!nt)                                                          \
-        goto fail;                                                      \
-      memset(nt + dfa->state_cap * 256, 0,                              \
-             (new_cap - dfa->state_cap) * 256 * sizeof(uint16_t));      \
-      dfa->trans = nt;                                                  \
-      uint8_t *na =                                                     \
-          (uint8_t *)snobol_realloc(dfa->accepting, (new_cap + 7) / 8); \
-      if (!na)                                                          \
-        goto fail;                                                      \
-      memset(na + (dfa->state_cap + 7) / 8, 0,                          \
-             ((new_cap + 7) / 8) - ((dfa->state_cap + 7) / 8));         \
-      dfa->accepting = na;                                              \
-      dfa->state_cap = new_cap;                                         \
-    }                                                                   \
+#define DFA_ENSURE(s)                                                      \
+  do {                                                                     \
+    if ((s) >= dfa->state_cap) {                                           \
+      uint32_t new_cap = dfa->state_cap * 2;                               \
+      if (new_cap > SNOBOL_DFA_MAX_STATES)                                 \
+        new_cap = SNOBOL_DFA_MAX_STATES;                                   \
+      if ((s) >= new_cap)                                                  \
+        goto fail;                                                         \
+      uint16_t *nt = (uint16_t *)snobol_realloc(                           \
+          dfa->trans, (size_t)new_cap * 256 * sizeof(uint16_t));           \
+      if (!nt)                                                             \
+        goto fail;                                                         \
+      memset(nt + (size_t)dfa->state_cap * 256, 0,                         \
+             (size_t)(new_cap - dfa->state_cap) * 256 * sizeof(uint16_t)); \
+      dfa->trans = nt;                                                     \
+      uint8_t *na =                                                        \
+          (uint8_t *)snobol_realloc(dfa->accepting, (new_cap + 7) / 8);    \
+      if (!na)                                                             \
+        goto fail;                                                         \
+      memset(na + (dfa->state_cap + 7) / 8, 0,                             \
+             ((new_cap + 7) / 8) - ((dfa->state_cap + 7) / 8));            \
+      dfa->accepting = na;                                                 \
+      dfa->state_cap = new_cap;                                            \
+    }                                                                      \
   } while (0)
 
   while (q_head < q_tail && dfa->num_states < SNOBOL_DFA_MAX_STATES) {
@@ -2609,10 +2608,18 @@ snobol_dfa_t *build_dfa(const uint8_t *bc, size_t bc_len, const VM *dfa_vm) {
   snobol_free(queue);
   snobol_free(ht);
 
-  dfa->trans = (uint16_t *)snobol_realloc(dfa->trans, dfa->num_states * 256 *
-                                                          sizeof(uint16_t));
-  dfa->accepting =
+  uint16_t *nt = (uint16_t *)snobol_realloc(
+      dfa->trans, (size_t)dfa->num_states * 256 * sizeof(uint16_t));
+  if (!nt) {
+    goto fail;
+  }
+  dfa->trans = nt;
+  uint8_t *na =
       (uint8_t *)snobol_realloc(dfa->accepting, (dfa->num_states + 7) / 8);
+  if (!na) {
+    goto fail;
+  }
+  dfa->accepting = na;
   dfa->state_cap = dfa->num_states;
 
   return dfa;

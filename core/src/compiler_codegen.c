@@ -1,4 +1,11 @@
 #include "compiler_internal.h"
+#include <stdint.h>
+#include "snobol/snobol_internal.h"
+#include <string.h>
+#include "snobol/ast.h"
+#include <stddef.h>
+#include "snobol/vm.h"
+#include <stdio.h>
 
 /* ---------------------------------------------------------------------------
  * Label tracking for C-AST compilation

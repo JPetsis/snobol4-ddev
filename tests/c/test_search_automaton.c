@@ -8,6 +8,7 @@
  */
 
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,12 +34,12 @@ static void emit_u32_be(uint8_t *bc, size_t *ip, uint32_t v) {
   bc[(*ip)++] = (uint8_t)(v >> 24);
   bc[(*ip)++] = (uint8_t)(v >> 16);
   bc[(*ip)++] = (uint8_t)(v >> 8);
-  bc[(*ip)++] = (uint8_t)(v);
+  bc[(*ip)++] = (uint8_t)v;
 }
 
 static void emit_u16_be(uint8_t *bc, size_t *ip, uint16_t v) {
   bc[(*ip)++] = (uint8_t)(v >> 8);
-  bc[(*ip)++] = (uint8_t)(v);
+  bc[(*ip)++] = (uint8_t)v;
 }
 
 static size_t build_lit_accept(uint8_t *bc, const char *s, size_t slen) {

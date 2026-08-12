@@ -44,7 +44,11 @@ static void pb_ensure(PbCodeBuf *c, size_t need) {
   while (c->len + need > newcap) {
     newcap *= 2;
   }
-  c->buf = (uint8_t *)snobol_realloc(c->buf, newcap);
+  uint8_t *nb = (uint8_t *)snobol_realloc(c->buf, newcap);
+  if (!nb) {
+    return; /* OOM: keep the old buffer */
+  }
+  c->buf = nb;
   c->cap = newcap;
 }
 

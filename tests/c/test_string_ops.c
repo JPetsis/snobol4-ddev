@@ -16,13 +16,8 @@ extern void test_assert(bool condition, const char *message);
 /* ===== test_coverage_misc (part): coverage-driven tests merged into test_string_ops.c ===== */
 #include <stdint.h>
 #include <stdlib.h>
-#include "../../core/include/snobol/array.h"
-#include "../../core/include/snobol/lexer.h"
-#include "../../core/include/snobol/search.h"
 #include "../../core/include/snobol/string_fn.h"
 #include "../../core/include/snobol/vm.h"
-#include "../../core/include/snobol/snobol.h"
-#include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_misc_string_fn(void) {
   test_suite("Coverage: string function edge cases");
@@ -235,7 +230,7 @@ void test_cov_misc_round4_string(void) {
 void test_string_ops_suite(void) {
   test_suite("String: SUBSTR / REPLACE / REPLACE_CHAR / LPAD / RPAD");
 
-  snobol_buf b = {nullptr};
+  snobol_buf b = {0};
   snobol_buf_init(&b);
 
   /* --- SUBSTR --- */

@@ -5,6 +5,7 @@
  * success, failure, parse errors, captures, and output.
  */
 
+#include <_string.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>

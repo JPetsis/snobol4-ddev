@@ -1,4 +1,9 @@
 #include "compiler_internal.h"
+#include <stddef.h>
+#include "snobol/vm.h"
+#include <stdint.h>
+#include "snobol/snobol_internal.h"
+#include <string.h>
 
 #ifndef STANDALONE_BUILD
 /* Forward */

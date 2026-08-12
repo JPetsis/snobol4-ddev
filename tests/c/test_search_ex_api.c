@@ -24,10 +24,8 @@ extern void test_assert(bool condition, const char *message);
 #include <stdio.h>
 #include "../../core/include/snobol/ast.h"
 #include "../../core/include/snobol/compiler.h"
-#include "../../core/include/snobol/search.h"
 #include "../../core/include/snobol/vm.h"
 #include "../../core/include/snobol/snobol.h"
-#include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_engine2_state_api(void) {
   test_suite("Coverage: state API capture cleanup + anchored output");

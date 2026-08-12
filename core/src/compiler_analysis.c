@@ -1,4 +1,13 @@
 #include "compiler_internal.h"
+#include "snobol/snobol_internal.h"
+#include <stddef.h>
+#include <stdint.h>
+#include "snobol/ast.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include "snobol/vm.h"
+#include "snobol/unicode_fold.h"
+#include <string.h>
 
 /**
  * Initialize a bytecode output buffer.
@@ -36,7 +45,11 @@ void cb_ensure(CodeBuf *c, size_t need) {
   while (c->len + need > newcap) {
     newcap *= 2;
   }
-  c->buf = snobol_realloc(c->buf, newcap);
+  uint8_t *nb = snobol_realloc(c->buf, newcap);
+  if (!nb) {
+    return; /* OOM: keep the old buffer */
+  }
+  c->buf = nb;
   c->cap = newcap;
 }
 /**
@@ -193,7 +206,11 @@ void free_charclass_list(void) {
 void add_range(CCEntry *e, uint32_t start, uint32_t end) {
   if (e->range_count == e->range_cap) {
     e->range_cap = e->range_cap ? e->range_cap * 2 : 4;
-    e->ranges = snobol_realloc(e->ranges, e->range_cap * sizeof(CpRange));
+    CpRange *nr = snobol_realloc(e->ranges, e->range_cap * sizeof(CpRange));
+    if (!nr) {
+      return; /* OOM: keep the old ranges */
+    }
+    e->ranges = nr;
   }
   e->ranges[e->range_count].start = start;
   e->ranges[e->range_count].end = end;

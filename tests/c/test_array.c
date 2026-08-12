@@ -196,7 +196,7 @@ static void test_array_keys_values(void) {
         snobol_free(values[i]);
       }
     }
-    snobol_free(values);
+    snobol_free((void *)values);
   }
 
   snobol_array_release(array);
@@ -205,9 +205,6 @@ static void test_array_keys_values(void) {
 
 /* ===== test_coverage_misc (part): coverage-driven tests merged into test_array.c ===== */
 #include "../../core/include/snobol/array.h"
-#include "../../core/include/snobol/lexer.h"
-#include "../../core/include/snobol/search.h"
-#include "../../core/include/snobol/string_fn.h"
 #include "../../core/include/snobol/vm.h"
 #include "../../core/include/snobol/snobol.h"
 
@@ -254,7 +251,7 @@ void test_cov_misc_array(void) {
     for (size_t vi = 0; vi < count; vi++) {
       snobol_free(vals[vi]);
     }
-    snobol_free(vals);
+    snobol_free((void *)vals);
   }
 
   /* Retain/release lifecycle. */
@@ -305,13 +302,14 @@ void test_cov_misc_array_round2(void) {
 
   /* Probes walk past tombstones: delete a cluster, insert more, get works. */
   for (int i = 10; i < 40; i++) {
-    snobol_array_set(a, i, "fill");
+    test_assert(snobol_array_set(a, i, "fill"), "probe fill set");
   }
   for (int i = 10; i < 25; i++) {
-    snobol_array_set(a, i, nullptr); /* tombstones */
+    test_assert(snobol_array_set(a, i, nullptr),
+                "tombstone set"); /* tombstones */
   }
   for (int i = 25; i < 60; i++) {
-    snobol_array_set(a, i, "fill2");
+    test_assert(snobol_array_set(a, i, "fill2"), "probe fill2 set");
   }
   test_assert(strcmp(snobol_array_get(a, 30), "fill2") == 0,
               "get past tombstones");
@@ -324,7 +322,7 @@ void test_cov_misc_array_round2(void) {
     for (size_t vi = 0; vi < count; vi++) {
       snobol_free(vals[vi]);
     }
-    snobol_free(vals);
+    snobol_free((void *)vals);
   }
 
   /* Clear frees everything. */
@@ -332,7 +330,7 @@ void test_cov_misc_array_round2(void) {
   size_t c2 = 99;
   char **empty_vals = snobol_array_values(a, &c2);
   test_assert((empty_vals != NULL && c2 == 0) != 0, "values on empty array");
-  snobol_free(empty_vals);
+  snobol_free((void *)empty_vals);
   snobol_array_release(a);
 }
 
@@ -347,13 +345,13 @@ void test_cov_misc_round3_array(void) {
   test_assert(snobol_array_delete(a, -7), "negative key delete");
   test_assert((!snobol_array_has(a, -7)) != 0, "negative key gone");
   for (int i = 0; i < 100; i++) {
-    snobol_array_set(a, i, "v");
+    test_assert(snobol_array_set(a, i, "v"), "bulk set");
   }
   for (int i = 0; i < 100; i += 2) {
-    snobol_array_set(a, i, nullptr); /* tombstones */
+    test_assert(snobol_array_set(a, i, nullptr), "tombstone");
   }
   for (int i = 0; i < 100; i += 2) {
-    snobol_array_set(a, i, "v2"); /* reuse tombstones */
+    test_assert(snobol_array_set(a, i, "v2"), "reuse tombstone");
   }
   test_assert(strcmp(snobol_array_get(a, 98), "v2") == 0,
               "tombstone reuse works");
@@ -365,7 +363,7 @@ void test_cov_misc_round3_array(void) {
     for (size_t vi = 0; vi < cnt; vi++) {
       snobol_free(vals[vi]);
     }
-    snobol_free(vals);
+    snobol_free((void *)vals);
   }
   snobol_array_release(a);
 }
@@ -376,10 +374,10 @@ void test_cov_misc_round4_array(void) {
   test_assert(snobol_array_retain(nullptr) == NULL, "retain(NULL)");
   snobol_array_t *a = snobol_array_create(8);
   for (int i = 0; i < 50; i++) {
-    snobol_array_set(a, i, "v");
+    test_assert(snobol_array_set(a, i, "v"), "bulk set");
   }
   for (int i = 0; i < 50; i += 2) {
-    snobol_array_set(a, i, nullptr); /* tombstones beyond threshold */
+    test_assert(snobol_array_set(a, i, nullptr), "tombstone beyond threshold");
   }
   test_assert(snobol_array_has(a, 49), "resize preserves live entries");
   snobol_array_release(a);
@@ -407,7 +405,7 @@ static void test_array_nul_safe_values(void) {
     test_assert(memcmp(vals[0], bin_val, 4) == 0,
                 "values() copy is byte-exact");
     snobol_free(vals[0]);
-    snobol_free(vals);
+    snobol_free((void *)vals);
   }
   snobol_array_release(array);
 }

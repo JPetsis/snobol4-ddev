@@ -14,10 +14,9 @@
  */
 
 #include "snobol/search.h"
-#include "snobol/snobol.h"
+#include "snobol/snobol.h" /* snobol_pattern_t typedef for search_internal.h */
 #include "snobol/snobol_attrs.h"
 #include "snobol/snobol_internal.h"
-#include "snobol/simd.h"
 #include "snobol/vm.h"
 
 #include <stdbool.h>
@@ -1386,7 +1385,7 @@ static snobol_fusion_t *check_fusion_eligible(
 
         seg->type = FUSION_ALT;
         seg->alt.alt_count = 0;
-        memset(seg->alt.alts, 0, sizeof(seg->alt.alts));
+        memset((void *)seg->alt.alts, 0, sizeof(seg->alt.alts));
         memset(seg->alt.alt_lens, 0, sizeof(seg->alt.alt_lens));
         fusion->count++;
         uint32_t seg_idx = fusion->count - 1;

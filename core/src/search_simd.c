@@ -593,7 +593,7 @@ static bool simd_nfa_exec_neon(const simd_nfa_t *nfa, const char *subject,
       /* Classify each byte: lookup table[byte] */
       uint8x16_t result = vdupq_n_u8(0);
       for (int g = 0; g < 16; g++) {
-        uint8x16_t sub_tbl = vld1q_u8(table + g * 16);
+        uint8x16_t sub_tbl = vld1q_u8(table + (size_t)g * 16);
         uint8x16_t tbl_res = vqtbl1q_u8(sub_tbl, lo);
         uint8x16_t mask = vceqq_u8(hi, vdupq_n_u8((uint8_t)g));
         result = vbslq_u8(mask, tbl_res, result);
@@ -621,7 +621,7 @@ static bool simd_nfa_exec_neon(const simd_nfa_t *nfa, const char *subject,
       uint8x16_t hi = vshrq_n_u8(data, 4);
       uint8x16_t result = vdupq_n_u8(0);
       for (int g = 0; g < 16; g++) {
-        uint8x16_t sub_tbl = vld1q_u8(table + g * 16);
+        uint8x16_t sub_tbl = vld1q_u8(table + (size_t)g * 16);
         uint8x16_t tbl_res = vqtbl1q_u8(sub_tbl, lo);
         uint8x16_t mask = vceqq_u8(hi, vdupq_n_u8((uint8_t)g));
         result = vbslq_u8(mask, tbl_res, result);

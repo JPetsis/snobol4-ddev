@@ -3,7 +3,9 @@
  * @brief libsnobol4 version information
  */
 
+#include "snobol/version.h"
 #include "snobol/snobol.h"
+#include <stdint.h>
 
 void snobol_version(int *major, int *minor, int *patch) {
   if (major) {

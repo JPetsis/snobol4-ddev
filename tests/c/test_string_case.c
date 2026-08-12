@@ -21,7 +21,7 @@ extern void test_assert(bool condition, const char *message);
 void test_string_case_suite(void) {
   test_suite("String: UPPER / LOWER");
 
-  snobol_buf b = {nullptr};
+  snobol_buf b = {0};
   snobol_buf_init(&b);
 
   /* --- UPPER (ASCII fast path) --- */
@@ -54,7 +54,8 @@ void test_string_case_suite(void) {
   /* UPPER("Straße") == "STRASSE"
    * Straße: S t r a ß(U+00DF) e = 53 74 72 61 C3 9F 65 (7 bytes)
    * STRASSE: 7 ASCII bytes       = 53 54 52 41 53 53 45 (7 bytes) */
-  const char strasse_lower_buf[] = {'S', 't', 'r', 'a', 0xC3, 0x9F, 'e', 0};
+  const char strasse_lower_buf[] = {'S',        't',        'r', 'a',
+                                    (char)0xC3, (char)0x9F, 'e', 0};
   const char *strasse_lower = strasse_lower_buf; /* Straße — 7 bytes */
   const char *strasse_upper = "STRASSE";         /* STRASSE — 7 bytes */
   (void)snobol_upper(strasse_lower, 7, &b);

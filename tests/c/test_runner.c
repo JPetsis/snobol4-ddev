@@ -1,3 +1,6 @@
+#include <_stdio.h>
+#include <_time.h>
+#include <_abort.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -5,21 +8,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/_pthread/_pthread_t.h>
+#include <sys/fcntl.h>
 #include <time.h>
 #ifndef _WIN32
 #include <fcntl.h>
-#include <unistd.h>
 #endif
 
-#include "../../core/include/snobol/snobol_internal.h"
 
 #ifdef _WIN32
 #include <io.h>
 #include <windows.h>
 #else
 #include <pthread.h>
-#include <sys/types.h>
-#include <unistd.h>
 #endif
 
 /* ---------------------------------------------------------------------------
@@ -74,8 +75,8 @@ static int suite_count = 0;
 /* ── Internal helpers ────────────────────────────────────────────────────── */
 
 static double elapsed_ms(struct timespec t0, struct timespec t1) {
-  return ((t1.tv_sec - t0.tv_sec) * 1000.0) +
-         ((t1.tv_nsec - t0.tv_nsec) / 1.0e6);
+  return ((double)(t1.tv_sec - t0.tv_sec) * 1000.0) +
+         ((double)(t1.tv_nsec - t0.tv_nsec) / 1.0e6);
 }
 
 static void print_rule_w(char ch, int width) {
@@ -158,7 +159,7 @@ static void *watchdog_proc(void *arg) {
   int secs = g_timeout_secs;
   /* Sleep in small slices so the active flag is checked frequently. */
   for (int i = 0; i < secs * 10 && g_watchdog_active; i++) {
-    struct timespec ts = {0, 100 * 1000 * 1000}; /* 100 ms */
+    struct timespec ts = {0, 100L * 1000 * 1000}; /* 100 ms */
     nanosleep(&ts, nullptr);
   }
   if (g_watchdog_active) {
@@ -177,7 +178,7 @@ static void *watchdog_proc(void *arg) {
 static void watchdog_start(void) {
   const char *env = getenv("SNOBOL_TEST_TIMEOUT_SECS");
   if (env && env[0]) {
-    int v = atoi(env);
+    int v = (int)strtol(env, nullptr, 10);
     if (v > 0) {
       g_timeout_secs = v;
     }

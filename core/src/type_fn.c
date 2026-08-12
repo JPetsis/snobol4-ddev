@@ -9,7 +9,6 @@
 #include "snobol/type_fn.h"
 #include "snobol/snobol_internal.h"
 
-#include <math.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>

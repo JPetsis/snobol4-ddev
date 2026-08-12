@@ -12,6 +12,7 @@
  * Pattern matching is done via vm_run().
  */
 
+#include "snobol/arena.h"
 #include "snobol/ast.h"
 #include "snobol/compiler.h"
 #include "snobol/lexer.h"
@@ -151,9 +152,9 @@ static snobol_pattern_t *do_compile(const char *source, size_t len,
    * single arena reset; owned sub-allocations (strings, concat arrays) still
    * use the heap.  Falls back to calloc when the arena is exhausted. */
   snobol_arena_t arena;
-  void *arena_buf = snobol_malloc(SNOBOL_ARENA_DEFAULT_CAPACITY);
+  void *arena_buf = snobol_malloc((size_t)SNOBOL_ARENA_DEFAULT_CAPACITY);
   if (arena_buf) {
-    snobol_arena_init(&arena, arena_buf, SNOBOL_ARENA_DEFAULT_CAPACITY);
+    snobol_arena_init(&arena, arena_buf, (size_t)SNOBOL_ARENA_DEFAULT_CAPACITY);
   } else {
     snobol_arena_init(&arena, NULL, 0);
   }
@@ -369,7 +370,7 @@ snobol_match_t *snobol_pattern_match(snobol_pattern_t *pattern,
   memset(m, 0, sizeof(snobol_match_t));
 
   /* Set up output buffer */
-  snobol_buf out_buf = {nullptr};
+  snobol_buf out_buf = {0};
   snobol_buf_init(&out_buf);
 
   /* ---- Literal-only fast path: bypass VM entirely ---- */
@@ -507,7 +508,7 @@ snobol_match_t *snobol_pattern_search(snobol_pattern_t *pattern,
   }
   memset(m, 0, sizeof(snobol_match_t));
 
-  snobol_buf out_buf = {nullptr};
+  snobol_buf out_buf = {0};
   snobol_buf_init(&out_buf);
 
   VM vm;
@@ -627,7 +628,7 @@ bool snobol_pattern_search_reuse(snobol_pattern_t *pattern, const char *subject,
   /* Reset the match object for reuse */
   snobol_match_reset(match_out);
 
-  snobol_buf out_buf = {nullptr};
+  snobol_buf out_buf = {0};
   snobol_buf_init(&out_buf);
 
   VM vm;
@@ -1183,7 +1184,7 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
       snobol_free(output_lens);
       snobol_free(outbuf_data);
       if (captures) {
-        snobol_free(captures);
+        snobol_free((void *)captures);
       }
       if (row_caps) {
         snobol_free(row_caps);
@@ -1336,7 +1337,7 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
       for (int i = 0; i < MAX_VARS; i++) {
         snobol_free(captures[i]);
       }
-      snobol_free(captures);
+      snobol_free((void *)captures);
     }
     if (row_caps) {
       snobol_free(row_caps);
@@ -1425,7 +1426,7 @@ void snobol_batch_result_free(snobol_batch_result_t *out) {
     for (size_t i = 0; i < MAX_VARS; i++) {
       snobol_free(out->captures[i]);
     }
-    snobol_free(out->captures);
+    snobol_free((void *)out->captures);
   }
   memset(out, 0, sizeof(*out));
 }
@@ -1579,7 +1580,7 @@ snobol_match_result_t *snobol_match(const char *pattern, size_t pat_len,
   }
 
   /* Set up output buffer */
-  snobol_buf out_buf = {nullptr};
+  snobol_buf out_buf = {0};
   snobol_buf_init(&out_buf);
 
   /* Initialise VM */
@@ -1650,7 +1651,7 @@ void snobol_match_result_free(snobol_match_result_t *result) {
     for (int i = 0; i < result->capture_count; i++) {
       snobol_free(result->captures[i]);
     }
-    snobol_free(result->captures);
+    snobol_free((void *)result->captures);
   }
   snobol_free(result->capture_lens);
   snobol_free(result);

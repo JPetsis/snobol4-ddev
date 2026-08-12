@@ -133,7 +133,7 @@ static void test_fusion_exec_matches_vm(void) {
   size_t subject_len = strlen(subject);
 
   /* Test exec_fusion directly via tier_fusion */
-  snobol_search_result_t fused_result = {false};
+  snobol_search_result_t fused_result = {0};
   VM vm;
   memset(&vm, 0, sizeof(vm));
   vm.bc = bc;
@@ -173,7 +173,7 @@ static void test_fusion_exec_failure(void) {
   const char *subject = "no digits here";
   size_t subject_len = strlen(subject);
 
-  snobol_search_result_t result = {false};
+  snobol_search_result_t result = {0};
   VM vm;
   memset(&vm, 0, sizeof(vm));
   vm.bc = bc;
@@ -210,7 +210,7 @@ static void test_fusion_unanchored_search(void) {
   const char *subject = "foo 42-99 bar 7-8 baz";
   size_t subject_len = strlen(subject);
 
-  snobol_search_result_t result = {false};
+  snobol_search_result_t result = {0};
   VM vm;
   memset(&vm, 0, sizeof(vm));
   vm.bc = bc;
@@ -262,7 +262,7 @@ static void test_fusion_various_patterns(void) {
     snobol_search_derive_meta(bc, bc_len, &meta);
 
     if (meta.fusion_eligible && meta.fusion) {
-      snobol_search_result_t result = {false};
+      snobol_search_result_t result = {0};
       VM vm;
       memset(&vm, 0, sizeof(vm));
       vm.bc = bc;
@@ -311,7 +311,7 @@ static void test_fusion_alternation(void) {
 
     /* Test matching with '-' separator */
     const char *subject1 = "123-456";
-    snobol_search_result_t result1 = {false};
+    snobol_search_result_t result1 = {0};
     VM vm1;
     memset(&vm1, 0, sizeof(vm1));
     vm1.bc = bc;
@@ -326,7 +326,7 @@ static void test_fusion_alternation(void) {
 
     /* Test matching with '/' separator */
     const char *subject2 = "123/456";
-    snobol_search_result_t result2 = {false};
+    snobol_search_result_t result2 = {0};
     VM vm2;
     memset(&vm2, 0, sizeof(vm2));
     vm2.bc = bc;
@@ -341,7 +341,7 @@ static void test_fusion_alternation(void) {
 
     /* Test non-matching separator */
     const char *subject3 = "123.456";
-    snobol_search_result_t result3 = {false};
+    snobol_search_result_t result3 = {0};
     VM vm3;
     memset(&vm3, 0, sizeof(vm3));
     vm3.bc = bc;
@@ -378,13 +378,9 @@ static void test_fusion_alternation(void) {
 
 /* ===== test_coverage_misc (part): coverage-driven tests merged into test_fusion_tier.c ===== */
 #include <stdint.h>
-#include "../../core/include/snobol/array.h"
-#include "../../core/include/snobol/lexer.h"
 #include "../../core/include/snobol/search.h"
-#include "../../core/include/snobol/string_fn.h"
 #include "../../core/include/snobol/vm.h"
 #include "../../core/include/snobol/snobol.h"
-#include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_misc_fusion(void) {
   test_suite("Coverage: fusion executor paths");
@@ -474,8 +470,6 @@ void test_cov_misc_fusion(void) {
 
 
 /* ===== test_coverage_engine2 (part): coverage-driven tests merged into test_fusion_tier.c ===== */
-#include "../../core/include/snobol/ast.h"
-#include "../../core/include/snobol/compiler.h"
 
 void test_cov_engine2_fusion_entry(void) {
   test_suite("Coverage: fusion tier entry guards");

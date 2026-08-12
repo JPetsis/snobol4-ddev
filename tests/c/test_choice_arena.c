@@ -172,7 +172,7 @@ static void test_arena_deep_vm_backtrack(void) {
   bool result = vm_exec(&vm);
   test_assert(result, "deep nested-arbno matches subject");
   test_assert(vm.choices_arena != NULL, "arena was allocated");
-  test_assert(vm.choices_arena->peak_used >= (size_t)(N * 16),
+  test_assert(vm.choices_arena->peak_used >= (size_t)N * 16,
               "arena handled deep multi-page choice stack");
 
   vm_arena_destroy(vm.choices_arena);
@@ -189,12 +189,7 @@ static void test_arena_deep_vm_backtrack(void) {
 
 /* ===== test_coverage_misc (part): coverage-driven tests merged into test_choice_arena.c ===== */
 #include <stdint.h>
-#include "../../core/include/snobol/array.h"
-#include "../../core/include/snobol/lexer.h"
-#include "../../core/include/snobol/search.h"
-#include "../../core/include/snobol/string_fn.h"
 #include "../../core/include/snobol/vm.h"
-#include "../../core/include/snobol/snobol.h"
 #include "../../core/include/snobol/snobol_internal.h"
 
 void test_cov_misc_choice_arena(void) {

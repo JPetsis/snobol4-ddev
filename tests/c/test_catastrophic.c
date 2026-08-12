@@ -1,5 +1,6 @@
 #ifndef SNOBOL_PROFILE
 #define SNOBOL_PROFILE
+#include <stdint.h>
 #endif
 #include "snobol/vm.h"
 #include <stdbool.h>
@@ -224,7 +225,7 @@ static void test_zero_width_loop_bounding(void) {
   // each loop runs at most N+1 times. Assert well below any exponential
   // threshold — a generous linear/quadratic bound is enough to catch
   // regression.
-  test_assert(vm.profile.dispatch_count < 10 * 2000 * 2000,
+  test_assert(vm.profile.dispatch_count < 10ULL * 2000 * 2000,
               "Nullable arbno must stay bounded (linear-ish), not exponential");
   test_assert(vm.profile.max_depth <= (size_t)(2 * (2000 + 1)),
               "Choice-stack depth bounded by iteration cap");

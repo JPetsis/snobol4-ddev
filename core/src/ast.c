@@ -4,7 +4,9 @@
  */
 
 #include "snobol/ast.h"
-#include "snobol/snobol_internal.h"
+#include "snobol/snobol_attrs.h"
+#include "snobol/arena.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -372,7 +374,7 @@ void snobol_ast_free(ast_node_t *node) {
       for (size_t i = 0; i < node->data.concat.count; i++) {
         snobol_ast_free(node->data.concat.parts[i]);
       }
-      free(node->data.concat.parts);
+      free((void *)node->data.concat.parts);
       break;
 
     case AST_ALT:

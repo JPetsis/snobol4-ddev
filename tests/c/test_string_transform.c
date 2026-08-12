@@ -15,7 +15,7 @@ extern void test_assert(bool condition, const char *message);
 void test_string_transform_suite(void) {
   test_suite("String: TRIM / DUPL / REVERSE");
 
-  snobol_buf b = {nullptr};
+  snobol_buf b = {0};
   snobol_buf_init(&b);
 
   /* --- TRIM --- */

@@ -12,7 +12,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "../../core/include/snobol/snobol_internal.h"
 #include "snobol/table.h"
 
 /* External test framework functions */
@@ -258,9 +257,12 @@ static void test_table_collision_handling(void) {
   (void)table_set(table, "c", "3");
 
   test_assert(table_size(table) == 3, "size is 3");
-  test_assert(atoi(table_get(table, "a")) == 1, "value a is correct");
-  test_assert(atoi(table_get(table, "b")) == 2, "value b is correct");
-  test_assert(atoi(table_get(table, "c")) == 3, "value c is correct");
+  test_assert(strtol(table_get(table, "a"), nullptr, 10) == 1,
+              "value a is correct");
+  test_assert(strtol(table_get(table, "b"), nullptr, 10) == 2,
+              "value b is correct");
+  test_assert(strtol(table_get(table, "c"), nullptr, 10) == 3,
+              "value c is correct");
 
   table_release(table);
 }

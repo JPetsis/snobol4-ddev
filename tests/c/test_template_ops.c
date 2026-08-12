@@ -90,7 +90,8 @@ static void test_format_upper(void) {
 
   char *tmp = (char *)malloc(len + 1);
   for (size_t i = 0; i < len; ++i) {
-    tmp[i] = (data[i] >= 'a' && data[i] <= 'z') ? data[i] - 32 : data[i];
+    tmp[i] =
+        (char)((data[i] >= 'a' && data[i] <= 'z') ? data[i] - 32 : data[i]);
   }
   tmp[len] = '\0';
 
@@ -118,7 +119,8 @@ static void test_format_lower(void) {
 
   char *tmp = (char *)malloc(len + 1);
   for (size_t i = 0; i < len; ++i) {
-    tmp[i] = (data[i] >= 'A' && data[i] <= 'Z') ? data[i] + 32 : data[i];
+    tmp[i] =
+        (char)((data[i] >= 'A' && data[i] <= 'Z') ? data[i] + 32 : data[i]);
   }
   tmp[len] = '\0';
 

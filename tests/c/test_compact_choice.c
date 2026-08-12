@@ -8,7 +8,9 @@
  *   - Memory footprint reduction for patterns with many choice points
  */
 
+#include <_stdlib.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,7 +24,6 @@ static int unsetenv(const char *name) {
   return _putenv_s(name, "");
 }
 #else
-#include <unistd.h> /* setenv/unsetenv */
 #endif
 
 #include "snobol/vm.h"

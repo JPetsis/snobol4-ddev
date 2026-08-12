@@ -8,7 +8,6 @@
 
 #include "snobol/dynamic_pattern.h"
 #include "snobol/snobol_internal.h"
-#include "snobol/table.h"
 #include <stdint.h>
 #include <string.h>
 
@@ -120,7 +119,7 @@ const dynamic_pattern_cache_key_t *dynamic_pattern_compute_key(
     return nullptr;
   }
 
-  size_t len = (source_len < 0) ? strlen(source) : (size_t)source_len;
+  size_t len = (source_len < 0) ? strlen(source) : source_len;
   out_key->hash = dynamic_pattern_hash_source(source, len);
   out_key->source_len = len;
 
@@ -176,7 +175,7 @@ void dynamic_pattern_cache_destroy(dynamic_pattern_cache_t *cache) {
     }
   }
 
-  snobol_free(cache->buckets);
+  snobol_free((void *)cache->buckets);
   cache->buckets = nullptr;
   cache->size = 0;
   cache->bucket_count = 0;
@@ -207,7 +206,7 @@ dynamic_pattern_t *dynamic_pattern_cache_get(dynamic_pattern_cache_t *cache,
     return nullptr;
   }
 
-  size_t len = (source_len < 0) ? strlen(source) : (size_t)source_len;
+  size_t len = (source_len < 0) ? strlen(source) : source_len;
   uint32_t hash = dynamic_pattern_hash_source(source, len);
 
   dynamic_pattern_cache_entry_t *entry =
@@ -309,7 +308,7 @@ bool dynamic_pattern_cache_remove(dynamic_pattern_cache_t *cache,
     return false;
   }
 
-  size_t len = (source_len < 0) ? strlen(source) : (size_t)source_len;
+  size_t len = (source_len < 0) ? strlen(source) : source_len;
   uint32_t hash = dynamic_pattern_hash_source(source, len);
 
   size_t bucket = hash % cache->bucket_count;

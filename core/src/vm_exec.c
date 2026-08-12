@@ -18,6 +18,7 @@
 #include "snobol/table.h"
 #include "snobol/type_fn.h"
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -67,7 +68,11 @@ static void vm_cb_ensure(VmCodeBuf *c, size_t need) {
   while (c->len + need > newcap) {
     newcap *= 2;
   }
-  c->buf = snobol_realloc(c->buf, newcap);
+  uint8_t *nb = snobol_realloc(c->buf, newcap);
+  if (!nb) {
+    return; /* OOM: keep the old buffer */
+  }
+  c->buf = nb;
   c->cap = newcap;
 }
 static void vm_cb_emit_u8(VmCodeBuf *c, uint8_t v) {
@@ -348,7 +353,11 @@ void snobol_buf_append(snobol_buf *b, const char *data, size_t len) {
     while (b->len + len >= newcap) {
       newcap *= 2;
     }
-    b->data = snobol_realloc(b->data, newcap);
+    char *nd = snobol_realloc(b->data, newcap);
+    if (!nd) {
+      return; /* OOM: keep the old buffer */
+    }
+    b->data = nd;
     b->cap = newcap;
   }
   memcpy(b->data + b->len, data, len);
@@ -802,7 +811,7 @@ bool vm_run(VM *vm) {
            OP_ASSIGN.  Cap registers and var indices are 1:1. */
       if (r < MAX_VARS) {
         if (vm->use_compact_choice) {
-          vm_trail_var_write(vm, (uint8_t)r, vm->var_start[r], vm->var_end[r]);
+          vm_trail_var_write(vm, r, vm->var_start[r], vm->var_end[r]);
         }
         vm->var_start[r] = vm->cap_start[r];
         vm->var_end[r] = vm->cap_end[r];
@@ -920,7 +929,7 @@ bool vm_run(VM *vm) {
 
     if (fn > SNOBOL_FN_NONE && fn < SNOBOL_FN_MAX) {
       /* Direct C dispatch (no host callback) */
-      snobol_buf tmp_out = {nullptr};
+      snobol_buf tmp_out = {0};
       snobol_buf_init(&tmp_out);
 
       switch ((snobol_builtin_fn_t)fn) {
@@ -1099,7 +1108,7 @@ bool vm_run(VM *vm) {
         /* Build the 256-bit class bitmap once and find the run end. */
         uint64_t bmap[4];
         if (ranges_to_full_bitmap(rng, scnt, bmap)) {
-          size_t run_end = (size_t)vm->pos;
+          size_t run_end = vm->pos;
           while (run_end < vm->len) {
             uint8_t c = (uint8_t)vm->s[run_end];
             unsigned w = (unsigned)c >> 6;
@@ -1109,7 +1118,7 @@ bool vm_run(VM *vm) {
               break;
             }
           }
-          size_t extra = run_end - (size_t)vm->pos;
+          size_t extra = run_end - vm->pos;
           /* The body consumed 1 byte (advancing pos).  Increment the counter
              * by the full span length (1 body + extra) so the trail can undo
              * the entire greedy commit with a single UNDO_COUNTER_DEC. */
@@ -1123,7 +1132,7 @@ bool vm_run(VM *vm) {
 
       /* Push a single bound choice: ip points back to this step instruction so
          * popping retries the loop with one byte less from the span run. */
-      if ((size_t)vm->pos > vm->loop_last_pos[loop_id]) {
+      if (vm->pos > vm->loop_last_pos[loop_id]) {
         vm_push_choice(vm, step_ip - 6, vm->pos - 1);
       }
       vm->loop_last_pos[loop_id] = vm->pos;
@@ -1242,7 +1251,8 @@ bool vm_run(VM *vm) {
       if (mapped_type == SNBL_FMT_UPPER) {
         char *tmp = snobol_malloc(len + 1);
         for (size_t i = 0; i < len; ++i) {
-          tmp[i] = (data[i] >= 'a' && data[i] <= 'z') ? data[i] - 32 : data[i];
+          tmp[i] = (char)((data[i] >= 'a' && data[i] <= 'z') ? data[i] - 32
+                                                             : data[i]);
         }
         if (vm->out) {
           snobol_buf_append(vm->out, tmp, len);
@@ -1393,7 +1403,8 @@ bool vm_run(VM *vm) {
         /* Uppercase */
         char *tmp = (char *)snobol_malloc(len + 1);
         for (size_t i = 0; i < len; ++i) {
-          tmp[i] = (data[i] >= 'a' && data[i] <= 'z') ? data[i] - 32 : data[i];
+          tmp[i] = (char)((data[i] >= 'a' && data[i] <= 'z') ? data[i] - 32
+                                                             : data[i]);
         }
         tmp[len] = '\0';
         if (vm->out) {
@@ -1407,7 +1418,8 @@ bool vm_run(VM *vm) {
         /* Lowercase */
         char *tmp = (char *)snobol_malloc(len + 1);
         for (size_t i = 0; i < len; ++i) {
-          tmp[i] = (data[i] >= 'A' && data[i] <= 'Z') ? data[i] + 32 : data[i];
+          tmp[i] = (char)((data[i] >= 'A' && data[i] <= 'Z') ? data[i] + 32
+                                                             : data[i]);
         }
         tmp[len] = '\0';
         if (vm->out) {
@@ -2635,7 +2647,7 @@ void vm_free_labels(VM *vm) {
 bool vm_register_label(VM *vm, uint16_t label_id, uint32_t offset) {
   /* Ensure capacity */
   if (label_id >= vm->label_capacity) {
-    size_t new_cap = (label_id + 1) * 2;
+    size_t new_cap = ((size_t)label_id + 1) * 2;
     uint16_t *new_offsets = (uint16_t *)snobol_realloc(
         vm->label_offsets, new_cap * sizeof(uint16_t));
     if (!new_offsets) {
@@ -2675,7 +2687,7 @@ void vm_free_tables(VM *vm) {
         table_release(vm->tables[i]);
       }
     }
-    snobol_free(vm->tables);
+    snobol_free((void *)vm->tables);
     vm->tables = nullptr;
   }
   vm->table_count = 0;
@@ -2686,7 +2698,7 @@ bool vm_register_table(VM *vm, snobol_table_t *table, uint16_t *out_id) {
   if (vm->table_count >= vm->table_capacity) {
     size_t new_cap = (vm->table_capacity == 0) ? 16 : vm->table_capacity * 2;
     snobol_table_t **new_tables = (snobol_table_t **)snobol_realloc(
-        vm->tables, new_cap * sizeof(snobol_table_t *));
+        (void *)vm->tables, new_cap * sizeof(snobol_table_t *));
     if (!new_tables) {
       return false;
     }
@@ -2721,7 +2733,7 @@ void vm_free_arrays(VM *vm) {
         snobol_array_release(vm->arrays[i]);
       }
     }
-    snobol_free(vm->arrays);
+    snobol_free((void *)vm->arrays);
     vm->arrays = nullptr;
   }
   vm->array_count = 0;
@@ -2732,7 +2744,7 @@ bool vm_register_array(VM *vm, snobol_array_t *array, uint16_t *out_id) {
   if (vm->array_count >= vm->array_capacity) {
     size_t new_cap = (vm->array_capacity == 0) ? 16 : vm->array_capacity * 2;
     snobol_array_t **new_arrays = (snobol_array_t **)snobol_realloc(
-        vm->arrays, new_cap * sizeof(snobol_array_t *));
+        (void *)vm->arrays, new_cap * sizeof(snobol_array_t *));
     if (!new_arrays) {
       return false;
     }
