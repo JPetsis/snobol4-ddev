@@ -29,12 +29,12 @@ extern "C" {
 
 /* Hash table entry */
 typedef struct table_entry {
-  char *key;     /* Owned: must be freed (NUL-safe: key_len bytes) */
+  char *key;        /* Owned: must be freed (NUL-safe: key_len bytes) */
   size_t key_len;   /* Byte length of key */
-  char *value;   /* Owned: must be freed (NULL = tombstone) */
+  char *value;      /* Owned: must be freed (NULL = tombstone) */
   size_t value_len; /* Byte length of value (0 when value is NULL) */
-  uint32_t hash; /* Pre-computed hash of key */
-  bool active;   /* Entry is active (not deleted) */
+  uint32_t hash;    /* Pre-computed hash of key */
+  bool active;      /* Entry is active (not deleted) */
 } table_entry_t;
 
 /* Runtime table object */

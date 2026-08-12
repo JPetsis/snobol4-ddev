@@ -33,11 +33,11 @@ extern "C" {
  * @brief A single entry in the sparse array.
  */
 typedef struct array_entry {
-  int32_t key;   /**< Integer key (1-based by convention). */
-  char *value;   /**< Owned string value (NULL = tombstone). */
+  int32_t key;      /**< Integer key (1-based by convention). */
+  char *value;      /**< Owned string value (NULL = tombstone). */
   size_t value_len; /**< Byte length of value (0 when value is NULL). */
-  uint32_t hash; /**< Pre-computed hash of key. */
-  bool active;   /**< Entry is active (not deleted). */
+  uint32_t hash;    /**< Pre-computed hash of key. */
+  bool active;      /**< Entry is active (not deleted). */
 } array_entry_t;
 
 /**

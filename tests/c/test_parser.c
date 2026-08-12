@@ -154,8 +154,7 @@ static void test_parser_capture(void) {
   test_assert(ast != NULL, "parser returns AST");
   test_assert(!snobol_parser_has_error(parser), "no parse error");
   test_assert(ast->type == AST_CAP, "AST node is CAP");
-  test_assert(ast->data.cap.reg == 0,
-              "first named capture gets register 0");
+  test_assert(ast->data.cap.reg == 0, "first named capture gets register 0");
   test_assert(ast->data.cap.sub != NULL, "capture has sub-pattern");
 
   snobol_ast_free(ast);

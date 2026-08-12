@@ -232,9 +232,8 @@ void php_snobol_create_search_iterator(zval *return_value, zval *pattern_zv,
   iter->pattern = php_snobol_fetch(Z_OBJ_P(pattern_zv));
   iter->subject = ZSTR_VAL(subject);
   iter->subject_len = ZSTR_LEN(subject);
-  iter->state =
-      snobol_pattern_search_state_create(iter->pattern->bc,
-                                         iter->pattern->bc_len);
+  iter->state = snobol_pattern_search_state_create(iter->pattern->bc,
+                                                   iter->pattern->bc_len);
   iter->key = 0;
   iter->started = false;
   iter->valid = false;

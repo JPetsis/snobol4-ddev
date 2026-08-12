@@ -216,8 +216,7 @@ PHP_METHOD(Snobol_Table, set) {
     RETURN_FALSE;
   }
 
-  bool result = table_set_ex(intern->table, key, key_len, val_to_set,
-                             val_len);
+  bool result = table_set_ex(intern->table, key, key_len, val_to_set, val_len);
 
   if (!result) {
     zend_throw_exception(zend_ce_exception, "Failed to set table value", 0);

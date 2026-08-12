@@ -305,9 +305,9 @@ static void test_table_nul_safe_keys_and_values(void) {
   const char key_b[] = {'k', '\0', 'b'};
   const char bin_val[] = {'v', '\0', 'x'};
 
-  test_assert(table_set_ex(table, key_a, sizeof(key_a), bin_val,
-                           sizeof(bin_val)),
-              "set_ex with NUL-containing key and value");
+  test_assert(
+      table_set_ex(table, key_a, sizeof(key_a), bin_val, sizeof(bin_val)),
+      "set_ex with NUL-containing key and value");
   test_assert(table_set_ex(table, key_b, sizeof(key_b), "plain", 5),
               "set_ex with the sibling key");
   test_assert(table_size(table) == 2, "keys differing only after the NUL "
@@ -323,8 +323,7 @@ static void test_table_nul_safe_keys_and_values(void) {
   test_assert(vlen == 3 && memcmp(got, bin_val, 3) == 0,
               "get_ex value is byte-exact (embedded NUL preserved)");
 
-  test_assert(table_delete_ex(table, key_a, sizeof(key_a)),
-              "delete_ex key A");
+  test_assert(table_delete_ex(table, key_a, sizeof(key_a)), "delete_ex key A");
   test_assert(table_size(table) == 1, "size after delete");
   test_assert(table_has_ex(table, key_b, sizeof(key_b)),
               "sibling key survives");

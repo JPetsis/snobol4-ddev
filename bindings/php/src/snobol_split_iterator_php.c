@@ -280,9 +280,8 @@ void php_snobol_create_split_iterator(zval *return_value, zval *pattern_zv,
   iter->subject = ZSTR_VAL(subject);
   iter->subject_len = ZSTR_LEN(subject);
   iter->is_literal_only = iter->pattern->meta.is_literal_only;
-  iter->state =
-      snobol_pattern_search_state_create(iter->pattern->bc,
-                                         iter->pattern->bc_len);
+  iter->state = snobol_pattern_search_state_create(iter->pattern->bc,
+                                                   iter->pattern->bc_len);
   iter->key = 0;
   iter->started = false;
   iter->valid = false;

@@ -21,14 +21,12 @@ extern void test_assert(bool condition, const char *message);
 /* Search or match both patterns over the same subject and compare success,
  * position, match length, and capture register "1". */
 static void compare_with_source(snobol_pattern_t *src, snobol_pattern_t *bld,
-                                const char *subject, size_t slen,
-                                bool anchored, const char *label) {
-  snobol_match_t *ms =
-      anchored ? snobol_pattern_match(src, subject, slen)
-               : snobol_pattern_search(src, subject, slen);
-  snobol_match_t *mb =
-      anchored ? snobol_pattern_match(bld, subject, slen)
-               : snobol_pattern_search(bld, subject, slen);
+                                const char *subject, size_t slen, bool anchored,
+                                const char *label) {
+  snobol_match_t *ms = anchored ? snobol_pattern_match(src, subject, slen)
+                                : snobol_pattern_search(src, subject, slen);
+  snobol_match_t *mb = anchored ? snobol_pattern_match(bld, subject, slen)
+                                : snobol_pattern_search(bld, subject, slen);
   bool sa = ms != NULL && snobol_match_success(ms);
   bool sb = mb != NULL && snobol_match_success(mb);
   char msg[160];
@@ -97,8 +95,7 @@ static void test_builder_literal(void) {
   root = snobol_pattern_build_emit(b, lit);
   pat = snobol_pattern_build_compile(ctx, root, SNOBOL_FLAG_CASE_INSENSITIVE,
                                      &err);
-  test_assert(pat != NULL && err == NULL,
-              "case-insensitive literal compiles");
+  test_assert(pat != NULL && err == NULL, "case-insensitive literal compiles");
   free(err);
   err = NULL;
   snobol_pattern_build_destroy(b);
@@ -141,26 +138,26 @@ static void test_builder_composed(void) {
   ast_node_t **parts = (ast_node_t **)malloc(7 * sizeof(ast_node_t *));
   parts[0] = snobol_ast_create_anchor(ANCHOR_START);
   parts[1] = snobol_pattern_build_lit(b, "ab", 2);
-  parts[2] = snobol_pattern_build_cap(
-      b, 0, snobol_pattern_build_span(b, "0-9", 3));
+  parts[2] =
+      snobol_pattern_build_cap(b, 0, snobol_pattern_build_span(b, "0-9", 3));
   /* ('x'|'y')+ = concat(alt, arbno(alt)) — one alt node per child. */
-  ast_node_t *alt_a = snobol_pattern_build_alt(
-      b, snobol_pattern_build_lit(b, "x", 1),
-      snobol_pattern_build_lit(b, "y", 1));
-  ast_node_t *alt_b = snobol_pattern_build_alt(
-      b, snobol_pattern_build_lit(b, "x", 1),
-      snobol_pattern_build_lit(b, "y", 1));
+  ast_node_t *alt_a =
+      snobol_pattern_build_alt(b, snobol_pattern_build_lit(b, "x", 1),
+                               snobol_pattern_build_lit(b, "y", 1));
+  ast_node_t *alt_b =
+      snobol_pattern_build_alt(b, snobol_pattern_build_lit(b, "x", 1),
+                               snobol_pattern_build_lit(b, "y", 1));
   ast_node_t **plus_parts = (ast_node_t **)malloc(2 * sizeof(ast_node_t *));
   plus_parts[0] = alt_a;
   plus_parts[1] = snobol_ast_create_arbno(alt_b);
   parts[3] = snobol_ast_create_concat(plus_parts, 2);
   /* 'q'? = repeat(sub, 0, 1). */
-  parts[4] = snobol_ast_create_repeat(snobol_pattern_build_lit(b, "q", 1), 0,
-                                      1);
+  parts[4] =
+      snobol_ast_create_repeat(snobol_pattern_build_lit(b, "q", 1), 0, 1);
   parts[5] = snobol_pattern_build_lit(b, "!", 1);
   parts[6] = snobol_ast_create_anchor(ANCHOR_END);
-  ast_node_t *root = snobol_pattern_build_emit(
-      b, snobol_pattern_build_concat(b, parts, 7));
+  ast_node_t *root =
+      snobol_pattern_build_emit(b, snobol_pattern_build_concat(b, parts, 7));
   snobol_pattern_t *from_builder =
       snobol_pattern_build_compile(ctx, root, 0, &err);
   test_assert(from_builder != NULL && err == NULL, "builder pattern compiles");
@@ -275,8 +272,7 @@ static void test_builder_ast_consumed(void) {
   }
   if (pat2) {
     snobol_match_t *m = snobol_pattern_search(pat2, "z42", 3);
-    test_assert(m != NULL && snobol_match_success(m),
-                "second pattern matches");
+    test_assert(m != NULL && snobol_match_success(m), "second pattern matches");
     if (m)
       snobol_match_free(m);
     snobol_pattern_free(pat2);

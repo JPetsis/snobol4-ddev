@@ -332,8 +332,7 @@ char **snobol_array_values(const snobol_array_t *array, size_t *out_count) {
   size_t count = 0;
   for (size_t i = 0; i < array->capacity; i++) {
     if (array->entries[i].active && array->entries[i].value) {
-      values[count] =
-          (char *)snobol_malloc(array->entries[i].value_len + 1);
+      values[count] = (char *)snobol_malloc(array->entries[i].value_len + 1);
       if (values[count]) {
         memcpy(values[count], array->entries[i].value,
                array->entries[i].value_len);

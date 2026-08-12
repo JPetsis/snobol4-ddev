@@ -11,10 +11,9 @@
 static bool php_builder_check_reg(zend_long reg) {
   if (reg >= 0 && reg < MAX_VARS)
     return true;
-  zend_throw_exception(zend_ce_value_error,
-                       "Capture register must be between 0 and " ZEND_TOSTR(
-                           MAX_VARS - 1),
-                       0);
+  zend_throw_exception(
+      zend_ce_value_error,
+      "Capture register must be between 0 and " ZEND_TOSTR(MAX_VARS - 1), 0);
   return false;
 }
 

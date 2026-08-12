@@ -1404,8 +1404,8 @@ static snobol_match_record_t *php_snobol_searchsplit_record_offsets(
   if (bc && meta && bc_len > 0) {
     snobol_batch_result_t batch;
     memset(&batch, 0, sizeof(batch));
-    bool batch_ok = snobol_pattern_search_batch_ex(state, subject_val,
-                                                    subject_len, &batch);
+    bool batch_ok =
+        snobol_pattern_search_batch_ex(state, subject_val, subject_len, &batch);
 
     if (batch_ok && batch.match_count > 0) {
       size_t n = batch.match_count;
@@ -1784,8 +1784,8 @@ PHP_METHOD(Snobol_Pattern, searchReplace) {
   {
     snobol_batch_result_t batch;
     memset(&batch, 0, sizeof(batch));
-    bool batch_ok = snobol_pattern_search_batch_ex(state, subject_val,
-                                                    subject_len, &batch);
+    bool batch_ok =
+        snobol_pattern_search_batch_ex(state, subject_val, subject_len, &batch);
 
     if (batch_ok) {
       /* Single replacement pass from batch positions */

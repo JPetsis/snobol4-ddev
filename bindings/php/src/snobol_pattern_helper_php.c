@@ -115,7 +115,8 @@ static uint32_t php_phelper_cache_hash(zval *pattern, zval *options) {
   for (size_t i = 0; i < plen; i++) {
     h = ((h << 5) + h) + (unsigned char)p[i];
   }
-  h = ((h << 5) + h) + (unsigned char)(php_phelper_options_hash(options) & 0xFF);
+  h = ((h << 5) + h) +
+      (unsigned char)(php_phelper_options_hash(options) & 0xFF);
   return h;
 }
 
@@ -679,8 +680,8 @@ PHP_METHOD(Snobol_PatternHelper, tableSubst) {
     zval mname;
     ZVAL_STRINGL(&mname, "subst", sizeof("subst") - 1);
     add_next_index_zval(&callable, &mname);
-    if (zend_fcall_info_init(&callable, 0, &fci, &fcc, &callable_name,
-                             NULL) == SUCCESS) {
+    if (zend_fcall_info_init(&callable, 0, &fci, &fcc, &callable_name, NULL) ==
+        SUCCESS) {
       fci.retval = &subst_ret;
       fci.params = args_subst;
       fci.param_count = 3;

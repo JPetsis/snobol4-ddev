@@ -20,7 +20,7 @@ zend_class_entry *snobol_dynamic_pattern_cache_ce;
 static zend_object_handlers snobol_dynamic_pattern_cache_object_handlers;
 
 typedef struct {
-  zval cache; /* PHP array: pattern_source => Pattern */
+  zval cache;        /* PHP array: pattern_source => Pattern */
   zval access_order; /* PHP indexed array: keys in access order, newest at end
                         (always densely reindexed 0..n-1 after deletions) */
   zend_long capacity;
