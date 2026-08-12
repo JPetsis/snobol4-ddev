@@ -35,6 +35,7 @@ extern "C" {
 typedef struct array_entry {
   int32_t key;   /**< Integer key (1-based by convention). */
   char *value;   /**< Owned string value (NULL = tombstone). */
+  size_t value_len; /**< Byte length of value (0 when value is NULL). */
   uint32_t hash; /**< Pre-computed hash of key. */
   bool active;   /**< Entry is active (not deleted). */
 } array_entry_t;
@@ -89,6 +90,28 @@ SNOBOL_NODISCARD bool snobol_array_set(snobol_array_t *array, int32_t key,
  *         or NULL if the key is not set or is a tombstone.
  */
 const char *snobol_array_get(const snobol_array_t *array, int32_t key);
+
+/**
+ * @brief Set a value at the given key (NUL-safe byte-exact variant)
+ * @param array Target array.
+ * @param key   Integer key.
+ * @param value String value (copied internally), or NULL to delete.
+ * @param value_len Byte length of value (may contain NULs).
+ * @return true on success, false on allocation failure.
+ */
+SNOBOL_NODISCARD bool snobol_array_set_ex(snobol_array_t *array, int32_t key,
+                                          const char *value, size_t value_len);
+
+/**
+ * @brief Get the value at a given key (NUL-safe)
+ * @param array Target array.
+ * @param key   Integer key.
+ * @param out_len Set to the byte length of the returned value (may be NULL).
+ * @return Pointer to internal value string (owned by array, do not free),
+ *         or NULL if the key is not set or is a tombstone.
+ */
+const char *snobol_array_get_ex(const snobol_array_t *array, int32_t key,
+                                size_t *out_len);
 
 /**
  * @brief Check whether a key has an active entry.

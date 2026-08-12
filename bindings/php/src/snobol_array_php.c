@@ -178,13 +178,15 @@ PHP_METHOD(Snobol_Array_, get) {
     RETURN_NULL();
   }
 
-  const char *value = snobol_array_get(intern->array, (int32_t)key);
+  size_t value_len = 0;
+  const char *value =
+      snobol_array_get_ex(intern->array, (int32_t)key, &value_len);
 
   if (!value) {
     RETURN_NULL();
   }
 
-  RETVAL_STRING(value);
+  RETVAL_STRINGL(value, value_len);
 }
 
 /**
@@ -212,7 +214,8 @@ PHP_METHOD(Snobol_Array_, set) {
     RETURN_FALSE;
   }
 
-  bool result = snobol_array_set(intern->array, (int32_t)key, value);
+  bool result =
+      snobol_array_set_ex(intern->array, (int32_t)key, value, value_len);
 
   if (!result) {
     zend_throw_exception(zend_ce_exception, "Failed to set array value", 0);
@@ -345,21 +348,24 @@ PHP_METHOD(Snobol_Array_, values) {
     RETURN_NULL();
   }
 
+  /* Read via keys + get_ex so values are byte-exact (embedded NULs are
+   * preserved; snobol_array_values() cannot carry per-value lengths). */
   size_t count;
-  char **values = snobol_array_values(intern->array, &count);
+  int32_t *keys = snobol_array_keys(intern->array, &count);
 
   array_init(return_value);
   for (size_t i = 0; i < count; i++) {
-    if (values[i]) {
-      add_next_index_string(return_value, values[i]);
-      /* The core allocates with snobol_malloc (malloc in STANDALONE builds,
-       * emalloc in PHP_BUILD builds); snobol_free matches either. */
-      snobol_free(values[i]);
+    size_t vlen = 0;
+    const char *v = snobol_array_get_ex(intern->array, keys[i], &vlen);
+    if (v) {
+      add_next_index_stringl(return_value, v, vlen);
+    } else {
+      add_next_index_null(return_value);
     }
   }
 
-  if (values) {
-    snobol_free(values);
+  if (keys) {
+    snobol_free(keys);
   }
 }
 

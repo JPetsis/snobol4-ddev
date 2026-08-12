@@ -121,12 +121,17 @@ void snobol_array_release(snobol_array_t *array) {
 }
 
 bool snobol_array_set(snobol_array_t *array, int32_t key, const char *value) {
+  return snobol_array_set_ex(array, key, value, value ? strlen(value) : 0);
+}
+
+bool snobol_array_set_ex(snobol_array_t *array, int32_t key, const char *value,
+                         size_t value_len) {
   if (!array) {
     return false;
   }
 
-  SNOBOL_LOG("snobol_array_set: array=%p key=%d value='%s'", (void *)array, key,
-             value ? value : "(null)");
+  SNOBOL_LOG("snobol_array_set_ex: array=%p key=%d value='%.*s'", (void *)array,
+             key, (int)value_len, value ? value : "(null)");
 
   if (!array_maybe_resize(array)) {
     return false;
@@ -140,21 +145,24 @@ bool snobol_array_set(snobol_array_t *array, int32_t key, const char *value) {
   while (array->entries[idx].active) {
     if (array->entries[idx].hash == hash && array->entries[idx].key == key) {
       if (value) {
-        char *new_value = (char *)snobol_malloc(strlen(value) + 1);
+        char *new_value = (char *)snobol_malloc(value_len + 1);
         if (!new_value) {
           return false;
         }
         if (array->entries[idx].value) {
           snobol_free(array->entries[idx].value);
         }
+        memcpy(new_value, value, value_len);
+        new_value[value_len] = '\0';
         array->entries[idx].value = new_value;
-        strcpy(array->entries[idx].value, value);
+        array->entries[idx].value_len = value_len;
       } else {
         if (array->entries[idx].value) {
           snobol_free(array->entries[idx].value);
         }
         array->entries[idx].key = 0;
         array->entries[idx].value = nullptr;
+        array->entries[idx].value_len = 0;
         array->entries[idx].active = false;
         array->size--;
         array->tombstones++;
@@ -173,16 +181,18 @@ bool snobol_array_set(snobol_array_t *array, int32_t key, const char *value) {
 
   char *value_copy = nullptr;
   if (value) {
-    value_copy = (char *)snobol_malloc(strlen(value) + 1);
+    value_copy = (char *)snobol_malloc(value_len + 1);
     if (!value_copy) {
       return false;
     }
-    strcpy(value_copy, value);
+    memcpy(value_copy, value, value_len);
+    value_copy[value_len] = '\0';
   }
 
   array_entry_t *entry = &array->entries[insert_idx];
   entry->key = key;
   entry->value = value_copy;
+  entry->value_len = value ? value_len : 0;
   entry->hash = hash;
   entry->active = true;
 
@@ -195,6 +205,14 @@ bool snobol_array_set(snobol_array_t *array, int32_t key, const char *value) {
 }
 
 const char *snobol_array_get(const snobol_array_t *array, int32_t key) {
+  return snobol_array_get_ex(array, key, nullptr);
+}
+
+const char *snobol_array_get_ex(const snobol_array_t *array, int32_t key,
+                                size_t *out_len) {
+  if (out_len) {
+    *out_len = 0;
+  }
   if (!array) {
     return nullptr;
   }
@@ -205,6 +223,9 @@ const char *snobol_array_get(const snobol_array_t *array, int32_t key) {
 
   while (array->entries[idx].active) {
     if (array->entries[idx].hash == hash && array->entries[idx].key == key) {
+      if (out_len) {
+        *out_len = array->entries[idx].value_len;
+      }
       return array->entries[idx].value;
     }
     idx = (idx + 1) & mask;
@@ -233,6 +254,7 @@ bool snobol_array_delete(snobol_array_t *array, int32_t key) {
       }
       array->entries[idx].key = 0;
       array->entries[idx].value = nullptr;
+      array->entries[idx].value_len = 0;
       array->entries[idx].active = false;
       array->size--;
       array->tombstones++;
@@ -257,6 +279,7 @@ void snobol_array_clear(snobol_array_t *array) {
       }
       entry->key = 0;
       entry->value = nullptr;
+      entry->value_len = 0;
       entry->active = false;
     }
   }
@@ -310,9 +333,11 @@ char **snobol_array_values(const snobol_array_t *array, size_t *out_count) {
   for (size_t i = 0; i < array->capacity; i++) {
     if (array->entries[i].active && array->entries[i].value) {
       values[count] =
-          (char *)snobol_malloc(strlen(array->entries[i].value) + 1);
+          (char *)snobol_malloc(array->entries[i].value_len + 1);
       if (values[count]) {
-        strcpy(values[count], array->entries[i].value);
+        memcpy(values[count], array->entries[i].value,
+               array->entries[i].value_len);
+        values[count][array->entries[i].value_len] = '\0';
       }
       count++;
     }

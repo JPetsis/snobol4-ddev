@@ -371,7 +371,11 @@ PHP_FUNCTION(snobol_text_lpad) {
   if (zend_parse_parameters(ZEND_NUM_ARGS(), "sl|s", &s, &slen, &width, &pad,
                             &padlen) == FAILURE)
     return;
-  uint32_t pad_cp = (padlen > 0) ? (unsigned char)pad[0] : (uint32_t)' ';
+  /* Decode the pad string as a full UTF-8 codepoint (a multi-byte pad such
+     as '€' must not be truncated to its first byte). */
+  uint32_t pad_cp = (uint32_t)' ';
+  if (padlen > 0 && !snobol_ord(pad, padlen, &pad_cp))
+    pad_cp = (uint32_t)' ';
   snobol_buf b = {0};
   snobol_buf_init(&b);
   if (snobol_lpad(s, slen, (size_t)width, pad_cp, &b)) {
@@ -396,7 +400,10 @@ PHP_FUNCTION(snobol_text_rpad) {
   if (zend_parse_parameters(ZEND_NUM_ARGS(), "sl|s", &s, &slen, &width, &pad,
                             &padlen) == FAILURE)
     return;
-  uint32_t pad_cp = (padlen > 0) ? (unsigned char)pad[0] : (uint32_t)' ';
+  /* Decode the pad string as a full UTF-8 codepoint (see lpad). */
+  uint32_t pad_cp = (uint32_t)' ';
+  if (padlen > 0 && !snobol_ord(pad, padlen, &pad_cp))
+    pad_cp = (uint32_t)' ';
   snobol_buf b = {0};
   snobol_buf_init(&b);
   if (snobol_rpad(s, slen, (size_t)width, pad_cp, &b)) {

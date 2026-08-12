@@ -23,9 +23,13 @@
 #endif
 
 uint32_t table_hash_string(const char *str) {
+  return table_hash_bytes(str, str ? strlen(str) : 0);
+}
+
+uint32_t table_hash_bytes(const char *str, size_t len) {
   uint32_t hash = FNV_OFFSET_BASIS;
-  while (*str) {
-    hash ^= (uint8_t)*str++;
+  for (size_t i = 0; i < len; i++) {
+    hash ^= (uint8_t)str[i];
     hash *= FNV_PRIME;
   }
   return hash;
@@ -169,19 +173,25 @@ void table_release(snobol_table_t *table) {
 }
 
 bool table_set(snobol_table_t *table, const char *key, const char *value) {
+  return table_set_ex(table, key, key ? strlen(key) : 0, value,
+                      value ? strlen(value) : 0);
+}
+
+bool table_set_ex(snobol_table_t *table, const char *key, size_t key_len,
+                  const char *value, size_t value_len) {
   if (!table || !key) {
     return false;
   }
 
-  SNOBOL_LOG("table_set: table=%p key='%s' value='%s'", (void *)table, key,
-             value ? value : "(null)");
+  SNOBOL_LOG("table_set_ex: table=%p key='%.*s' value='%s'", (void *)table,
+             (int)key_len, key, value ? value : "(null)");
 
   /* Resize if needed */
   if (!table_maybe_resize(table)) {
     return false;
   }
 
-  uint32_t hash = table_hash_string(key);
+  uint32_t hash = table_hash_bytes(key, key_len);
   uint32_t mask = (uint32_t)(table->capacity - 1);
   uint32_t idx = hash & mask;
 
@@ -189,25 +199,30 @@ bool table_set(snobol_table_t *table, const char *key, const char *value) {
   size_t tombstone_idx = SIZE_MAX;
   while (table->entries[idx].active) {
     if (table->entries[idx].hash == hash && table->entries[idx].key &&
-        strcmp(table->entries[idx].key, key) == 0) {
+        table->entries[idx].key_len == key_len &&
+        memcmp(table->entries[idx].key, key, key_len) == 0) {
       /* Key found - update or delete */
       if (value) {
         /* Update value */
-        char *new_value = (char *)snobol_malloc(strlen(value) + 1);
+        char *new_value = (char *)snobol_malloc(value_len + 1);
         if (!new_value) {
           return false;
         }
         if (table->entries[idx].value) {
           snobol_free(table->entries[idx].value);
         }
+        memcpy(new_value, value, value_len);
+        new_value[value_len] = '\0';
         table->entries[idx].value = new_value;
-        strcpy(table->entries[idx].value, value);
+        table->entries[idx].value_len = value_len;
       } else {
         /* Delete entry (tombstone) */
         snobol_free(table->entries[idx].key);
         snobol_free(table->entries[idx].value);
         table->entries[idx].key = nullptr;
+        table->entries[idx].key_len = 0;
         table->entries[idx].value = nullptr;
+        table->entries[idx].value_len = 0;
         table->entries[idx].active = false;
         table->size--;
         table->tombstones++;
@@ -227,27 +242,31 @@ bool table_set(snobol_table_t *table, const char *key, const char *value) {
   size_t insert_idx = (tombstone_idx != SIZE_MAX) ? tombstone_idx : idx;
 
   /* Copy key */
-  char *key_copy = (char *)snobol_malloc(strlen(key) + 1);
+  char *key_copy = (char *)snobol_malloc(key_len + 1);
   if (!key_copy) {
     return false;
   }
-  strcpy(key_copy, key);
+  memcpy(key_copy, key, key_len);
+  key_copy[key_len] = '\0';
 
   /* Copy value if provided */
   char *value_copy = nullptr;
   if (value) {
-    value_copy = (char *)snobol_malloc(strlen(value) + 1);
+    value_copy = (char *)snobol_malloc(value_len + 1);
     if (!value_copy) {
       snobol_free(key_copy);
       return false;
     }
-    strcpy(value_copy, value);
+    memcpy(value_copy, value, value_len);
+    value_copy[value_len] = '\0';
   }
 
   /* Insert entry */
   table_entry_t *entry = &table->entries[insert_idx];
   entry->key = key_copy;
+  entry->key_len = key_len;
   entry->value = value_copy;
+  entry->value_len = value ? value_len : 0;
   entry->hash = hash;
   entry->active = true;
 
@@ -260,18 +279,30 @@ bool table_set(snobol_table_t *table, const char *key, const char *value) {
 }
 
 const char *table_get(const snobol_table_t *table, const char *key) {
+  return table_get_ex(table, key, key ? strlen(key) : 0, nullptr);
+}
+
+const char *table_get_ex(const snobol_table_t *table, const char *key,
+                         size_t key_len, size_t *out_len) {
+  if (out_len) {
+    *out_len = 0;
+  }
   if (!table || !key) {
     return nullptr;
   }
 
-  uint32_t hash = table_hash_string(key);
+  uint32_t hash = table_hash_bytes(key, key_len);
   uint32_t mask = (uint32_t)(table->capacity - 1);
   uint32_t idx = hash & mask;
 
   /* Linear probing */
   while (table->entries[idx].active) {
     if (table->entries[idx].hash == hash && table->entries[idx].key &&
-        strcmp(table->entries[idx].key, key) == 0) {
+        table->entries[idx].key_len == key_len &&
+        memcmp(table->entries[idx].key, key, key_len) == 0) {
+      if (out_len) {
+        *out_len = table->entries[idx].value_len;
+      }
       return table->entries[idx].value;
     }
     idx = (idx + 1) & mask;
@@ -281,27 +312,39 @@ const char *table_get(const snobol_table_t *table, const char *key) {
 }
 
 bool table_has(const snobol_table_t *table, const char *key) {
-  return table_get(table, key) != nullptr;
+  return table_has_ex(table, key, key ? strlen(key) : 0);
+}
+
+bool table_has_ex(const snobol_table_t *table, const char *key,
+                  size_t key_len) {
+  return table_get_ex(table, key, key_len, nullptr) != nullptr;
 }
 
 bool table_delete(snobol_table_t *table, const char *key) {
+  return table_delete_ex(table, key, key ? strlen(key) : 0);
+}
+
+bool table_delete_ex(snobol_table_t *table, const char *key, size_t key_len) {
   if (!table || !key) {
     return false;
   }
 
-  uint32_t hash = table_hash_string(key);
+  uint32_t hash = table_hash_bytes(key, key_len);
   uint32_t mask = (uint32_t)(table->capacity - 1);
   uint32_t idx = hash & mask;
 
   /* Linear probing */
   while (table->entries[idx].active) {
     if (table->entries[idx].hash == hash && table->entries[idx].key &&
-        strcmp(table->entries[idx].key, key) == 0) {
+        table->entries[idx].key_len == key_len &&
+        memcmp(table->entries[idx].key, key, key_len) == 0) {
       /* Found - mark as tombstone */
       snobol_free(table->entries[idx].key);
       snobol_free(table->entries[idx].value);
       table->entries[idx].key = nullptr;
+      table->entries[idx].key_len = 0;
       table->entries[idx].value = nullptr;
+      table->entries[idx].value_len = 0;
       table->entries[idx].active = false;
       table->size--;
       table->tombstones++;

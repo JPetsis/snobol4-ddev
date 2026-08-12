@@ -170,13 +170,14 @@ PHP_METHOD(Snobol_Table, get) {
     RETURN_NULL();
   }
 
-  const char *value = table_get(intern->table, key);
+  size_t value_len = 0;
+  const char *value = table_get_ex(intern->table, key, key_len, &value_len);
 
   if (!value) {
     RETURN_NULL();
   }
 
-  RETVAL_STRING(value);
+  RETVAL_STRINGL(value, value_len);
 }
 
 /**
@@ -204,16 +205,19 @@ PHP_METHOD(Snobol_Table, set) {
   }
 
   const char *val_to_set = NULL;
+  size_t val_len = 0;
   if (Z_TYPE_P(value_zv) == IS_NULL) {
     val_to_set = NULL;
   } else if (Z_TYPE_P(value_zv) == IS_STRING) {
     val_to_set = Z_STRVAL_P(value_zv);
+    val_len = Z_STRLEN_P(value_zv);
   } else {
     zend_throw_exception(zend_ce_exception, "Value must be string or null", 0);
     RETURN_FALSE;
   }
 
-  bool result = table_set(intern->table, key, val_to_set);
+  bool result = table_set_ex(intern->table, key, key_len, val_to_set,
+                             val_len);
 
   if (!result) {
     zend_throw_exception(zend_ce_exception, "Failed to set table value", 0);
@@ -243,7 +247,7 @@ PHP_METHOD(Snobol_Table, has) {
     RETURN_FALSE;
   }
 
-  bool result = table_has(intern->table, key);
+  bool result = table_has_ex(intern->table, key, key_len);
   RETURN_BOOL(result);
 }
 
@@ -267,7 +271,7 @@ PHP_METHOD(Snobol_Table, delete) {
     RETURN_FALSE;
   }
 
-  bool result = table_delete(intern->table, key);
+  bool result = table_delete_ex(intern->table, key, key_len);
   RETURN_BOOL(result);
 }
 

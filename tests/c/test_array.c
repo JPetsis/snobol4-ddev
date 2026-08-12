@@ -374,6 +374,33 @@ void test_cov_misc_round4_array(void) {
   snobol_array_release(a);
 }
 
+static void test_array_nul_safe_values(void) {
+  test_suite("Array: NUL-safe values (byte-exact)");
+
+  snobol_array_t *array = snobol_array_create(0);
+  const char bin_val[] = {'a', '\0', 'b', 'c'};
+  test_assert(snobol_array_set_ex(array, 7, bin_val, sizeof(bin_val)),
+              "set_ex stores a NUL-containing value");
+
+  size_t vlen = 0;
+  const char *got = snobol_array_get_ex(array, 7, &vlen);
+  test_assert(got != NULL, "get_ex finds the key");
+  test_assert(vlen == 4 && memcmp(got, bin_val, 4) == 0,
+              "get_ex returns all bytes (incl. embedded NUL)");
+
+  /* values() must copy byte-exact too. */
+  size_t cnt = 0;
+  char **vals = snobol_array_values(array, &cnt);
+  test_assert(vals && cnt == 1, "values() returns the entry");
+  if (vals && cnt == 1) {
+    test_assert(memcmp(vals[0], bin_val, 4) == 0,
+                "values() copy is byte-exact");
+    snobol_free(vals[0]);
+    snobol_free(vals);
+  }
+  snobol_array_release(array);
+}
+
 void test_array_suite(void) {
   test_array_create_free();
   test_array_create_no_hint();
@@ -387,6 +414,7 @@ void test_array_suite(void) {
   test_array_has();
   test_array_retain_release();
   test_array_keys_values();
+  test_array_nul_safe_values();
   test_cov_misc_array();
   test_cov_misc_array_round2();
   test_cov_misc_round3_array();

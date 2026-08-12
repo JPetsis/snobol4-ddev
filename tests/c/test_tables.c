@@ -296,6 +296,42 @@ static void test_table_create_use_release_cycle(void) {
   test_assert(true, "10 create/use/release cycles completed without leak");
 }
 
+static void test_table_nul_safe_keys_and_values(void) {
+  test_suite("Table: NUL-safe keys and values");
+
+  snobol_table_t *table = table_create("nul");
+  /* Two keys that share a prefix and differ only after an embedded NUL. */
+  const char key_a[] = {'k', '\0', 'a'};
+  const char key_b[] = {'k', '\0', 'b'};
+  const char bin_val[] = {'v', '\0', 'x'};
+
+  test_assert(table_set_ex(table, key_a, sizeof(key_a), bin_val,
+                           sizeof(bin_val)),
+              "set_ex with NUL-containing key and value");
+  test_assert(table_set_ex(table, key_b, sizeof(key_b), "plain", 5),
+              "set_ex with the sibling key");
+  test_assert(table_size(table) == 2, "keys differing only after the NUL "
+                                      "are distinct entries");
+
+  test_assert(table_has_ex(table, key_a, sizeof(key_a)), "has_ex key A");
+  test_assert(table_has_ex(table, key_b, sizeof(key_b)), "has_ex key B");
+  test_assert(!table_has_ex(table, "k", 1), "prefix alone is not a key");
+
+  size_t vlen = 0;
+  const char *got = table_get_ex(table, key_a, sizeof(key_a), &vlen);
+  test_assert(got != NULL, "get_ex key A");
+  test_assert(vlen == 3 && memcmp(got, bin_val, 3) == 0,
+              "get_ex value is byte-exact (embedded NUL preserved)");
+
+  test_assert(table_delete_ex(table, key_a, sizeof(key_a)),
+              "delete_ex key A");
+  test_assert(table_size(table) == 1, "size after delete");
+  test_assert(table_has_ex(table, key_b, sizeof(key_b)),
+              "sibling key survives");
+
+  table_release(table);
+}
+
 void test_table_suite(void) {
   test_table_create_free();
   test_table_create_unnamed();
@@ -311,4 +347,5 @@ void test_table_suite(void) {
   test_table_hash_function();
   test_table_collision_handling();
   test_table_create_use_release_cycle();
+  test_table_nul_safe_keys_and_values();
 }
