@@ -11,74 +11,6 @@ Changes to the **PHP binding** live in [bindings/php/CHANGELOG.md](bindings/php/
 Git tags: the core library is tagged `vX.Y.Z`; the PHP binding is
 tagged `php/vX.Y.Z`.
 
-## [1.0.4] - 2026-08-11
-
-### Fixed
-
-- **Search-engine wrong answers found by the differential oracle** — the
-  oracle suite (corpus equivalence, meta invariants, generator) and the
-  `fuzz_oracle` target went green by fixing every divergence they
-  reported, across four bug classes:
-  - **Empty matches** (`core/src/search_tiers.c`, `search_meta.c`): pike
-    scans now re-queue zero-progress threads (empty literals, BREAK at
-    the end), apply a zero-progress guard + overflow fallback for
-    repetitions, use window-relative ANCHOR semantics, and match
-    all-ASCII SPAN classes byte-wise; `derive_meta` now classifies
-    empty-literal roots, all-zero-width patterns (`^$`), and min==0 loop
-    roots as empty-capable, and start-bitmaps are all-ones for them.
-  - **Prefilter soundness** (`search_meta.c`): the required-literal scan
-    stops at the first ACCEPT (no derivation from trailing charclass
-    metadata), treats `OP_REPEAT_INIT` min==0 skip edges as bypasses (with
-    per-literal evaluation so post-loop literals stay required), and
-    preserves the bypass state across empty literals.
-  - **Alt-literals trie** (`search_tiers.c`, `search_internal.h`):
-    terminals now carry their branch order (first matching alternative
-    wins on prefix overlap), empty branches mark the root terminal, and
-    `derive_meta` gates classification on the trie pool budget with a
-    general-VM fallback on overflow.
-  - **Automaton/literal/fusion fast paths** (`search_meta.c`, `search_tiers.c`):
-    SPAN/BREAK excluded from DFA eligibility (their run-end exit cannot be
-    encoded), ANCHOR/position ops excluded from literal-only and fusion
-    classification (the fast paths cannot enforce them), and the DFA's
-    accepting check distinguishes literal data bytes (e.g. NUL) from
-    OP_ACCEPT instructions.
-
-### Changed
-
-- **Versioning docs aligned with the harmonized model** — the project
-  releases one shared version number (`project(libsnobol4 VERSION …)`);
-  per-component changelogs and tags (`core/v*`, `php/v*`) record what
-  changed in each component, not independent version numbers. A core-only
-  patch still moves the Packagist package version because the PHP package
-  embeds the core via the amalgam. `CONTRIBUTING.md` and `README.md`
-  updated; `composer.json` name fixed to the registered `libsnobol4/snobol`.
-
-### Added
-
-- **Differential search oracle** (`tests/c/corpus.h`,
-  `tests/c/test_search_oracle.c`): an embedded pattern corpus (60+ common
-  and uncommon shapes — tokenization, extraction, validation,
-  alternations incl. leading and >2048-byte ones, prefix-of-another
-  literals, empty literals, loops, BREAK/BREAKX, Unicode, case-insensitive)
-  plus a seeded generator, run through an equivalence harness: the
-  accelerated tier dispatch must match a reference per-offset `vm_exec`
-  run on the same bytecode in success, position, length, and captures
-  (cross-checked via search/_ex/batch/search_next where applicable). A
-  conservative must-analysis bytecode walk asserts metadata soundness
-  (`has_required_lit ⇒ literal on every accepting path`, leading
-  alternations derive no required literal, tier/eligibility consistency).
-  The suite first shipped reporting the divergences it found; the fixes
-  below close every one of them, and the harness stays as the regression
-  guard.
-- **`fuzz_oracle` differential fuzz target** (`tests/fuzz/fuzz_oracle.c`,
-  registered in `tests/fuzz/CMakeLists.txt` + `fuzz.yml` 30-min job):
-  converts the fuzzer from crash-only to a wrong-answer finder — runs tier
-  dispatch AND the reference VM on every input, writes a reproducer and
-  aborts on any disagreement.
-
-
-C test suite: **364 cases / 74,934 assertions** (custom runner).
-
 ## [Unreleased]
 
 ### Added
@@ -203,6 +135,74 @@ C test suite: **364 cases / 74,934 assertions** (custom runner).
   output at the first NUL byte); `ast_clone` had the same bug and is fixed.
 
 C test suite: **366 cases / 72,970 assertions** (custom runner).
+
+## [1.0.4] - 2026-08-11
+
+### Fixed
+
+- **Search-engine wrong answers found by the differential oracle** — the
+  oracle suite (corpus equivalence, meta invariants, generator) and the
+  `fuzz_oracle` target went green by fixing every divergence they
+  reported, across four bug classes:
+  - **Empty matches** (`core/src/search_tiers.c`, `search_meta.c`): pike
+    scans now re-queue zero-progress threads (empty literals, BREAK at
+    the end), apply a zero-progress guard + overflow fallback for
+    repetitions, use window-relative ANCHOR semantics, and match
+    all-ASCII SPAN classes byte-wise; `derive_meta` now classifies
+    empty-literal roots, all-zero-width patterns (`^$`), and min==0 loop
+    roots as empty-capable, and start-bitmaps are all-ones for them.
+  - **Prefilter soundness** (`search_meta.c`): the required-literal scan
+    stops at the first ACCEPT (no derivation from trailing charclass
+    metadata), treats `OP_REPEAT_INIT` min==0 skip edges as bypasses (with
+    per-literal evaluation so post-loop literals stay required), and
+    preserves the bypass state across empty literals.
+  - **Alt-literals trie** (`search_tiers.c`, `search_internal.h`):
+    terminals now carry their branch order (first matching alternative
+    wins on prefix overlap), empty branches mark the root terminal, and
+    `derive_meta` gates classification on the trie pool budget with a
+    general-VM fallback on overflow.
+  - **Automaton/literal/fusion fast paths** (`search_meta.c`, `search_tiers.c`):
+    SPAN/BREAK excluded from DFA eligibility (their run-end exit cannot be
+    encoded), ANCHOR/position ops excluded from literal-only and fusion
+    classification (the fast paths cannot enforce them), and the DFA's
+    accepting check distinguishes literal data bytes (e.g. NUL) from
+    OP_ACCEPT instructions.
+
+### Changed
+
+- **Versioning docs aligned with the harmonized model** — the project
+  releases one shared version number (`project(libsnobol4 VERSION …)`);
+  per-component changelogs and tags (`core/v*`, `php/v*`) record what
+  changed in each component, not independent version numbers. A core-only
+  patch still moves the Packagist package version because the PHP package
+  embeds the core via the amalgam. `CONTRIBUTING.md` and `README.md`
+  updated; `composer.json` name fixed to the registered `libsnobol4/snobol`.
+
+### Added
+
+- **Differential search oracle** (`tests/c/corpus.h`,
+  `tests/c/test_search_oracle.c`): an embedded pattern corpus (60+ common
+  and uncommon shapes — tokenization, extraction, validation,
+  alternations incl. leading and >2048-byte ones, prefix-of-another
+  literals, empty literals, loops, BREAK/BREAKX, Unicode, case-insensitive)
+  plus a seeded generator, run through an equivalence harness: the
+  accelerated tier dispatch must match a reference per-offset `vm_exec`
+  run on the same bytecode in success, position, length, and captures
+  (cross-checked via search/_ex/batch/search_next where applicable). A
+  conservative must-analysis bytecode walk asserts metadata soundness
+  (`has_required_lit ⇒ literal on every accepting path`, leading
+  alternations derive no required literal, tier/eligibility consistency).
+  The suite first shipped reporting the divergences it found; the fixes
+  below close every one of them, and the harness stays as the regression
+  guard.
+- **`fuzz_oracle` differential fuzz target** (`tests/fuzz/fuzz_oracle.c`,
+  registered in `tests/fuzz/CMakeLists.txt` + `fuzz.yml` 30-min job):
+  converts the fuzzer from crash-only to a wrong-answer finder — runs tier
+  dispatch AND the reference VM on every input, writes a reproducer and
+  aborts on any disagreement.
+
+
+C test suite: **364 cases / 74,934 assertions** (custom runner).
 
 ## [1.0.3] - 2026-08-10
 

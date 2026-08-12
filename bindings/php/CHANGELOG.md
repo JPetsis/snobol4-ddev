@@ -13,15 +13,6 @@ package version from the tag). The tag triplet `vX.Y.Z`, `core/vX.Y.Z`
 and `php/vX.Y.Z` is always cut from the same commit, so binding and
 core versions correspond 1:1.
 
-## [1.0.3] - 2026-08-10
-
-### Changed
-
-- **Bundles core v1.0.3** — the extension embeds the C core via the
-  amalgam, so this release ships the required-literal prefilter fix
-  (`snobol_pattern_search` false negatives on alternation chains).
-  No binding code changed; `php/v1.0.3` corresponds to `core/v1.0.3`.
-
 ## [Unreleased]
 
 ### Changed
@@ -113,6 +104,15 @@ core versions correspond 1:1.
 - **`snobol_text_lpad`/`rpad` pad with the full UTF-8 codepoint** — a
   multi-byte pad such as `'€'` is decoded via `snobol_ord` instead of
   being truncated to its first byte.
+
+## [1.0.3] - 2026-08-10
+
+### Changed
+
+- **Bundles core v1.0.3** — the extension embeds the C core via the
+  amalgam, so this release ships the required-literal prefilter fix
+  (`snobol_pattern_search` false negatives on alternation chains).
+  No binding code changed; `php/v1.0.3` corresponds to `core/v1.0.3`.
 
 ## [1.0.2] - 2026-08-06
 
