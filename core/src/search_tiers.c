@@ -1898,8 +1898,8 @@ static void epsilon_closure(const uint8_t *bc, size_t bc_len, uint16_t start,
  * so the lit_next table — which maps literal-data offsets to their
  * continuation and is DEAD for instruction offsets — distinguishes them:
  * a NUL literal-data byte must not look like an accepting instruction. */
-static inline bool nfa_is_accept(const uint8_t *bc, size_t bc_len,
-                                 uint16_t off, const uint16_t *lit_next) {
+static inline bool nfa_is_accept(const uint8_t *bc, size_t bc_len, uint16_t off,
+                                 const uint16_t *lit_next) {
   return off < bc_len && bc[off] == OP_ACCEPT &&
          (lit_next == NULL || lit_next[off] == SNOBOL_DFA_DEAD);
 }
@@ -3135,7 +3135,7 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         if (off == ip)
           ip += alen; /* literal data stored inline; skip past it */
         if (tp + alen > subject_len ||
-          memcmp(subject + tp, bc + off, alen) != 0)
+            memcmp(subject + tp, bc + off, alen) != 0)
           goto pike_die;
         tp += alen;
         th.ip = ip;
@@ -3221,8 +3221,7 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
          * considered, as an invalid sequence could decode into a class
          * byte).  Non-ASCII classes use codepoint-wise membership. */
         uint64_t amap[2];
-        bool ascii_class =
-            rp && ranges_to_ascii_bitmap(rp, cnt, amap);
+        bool ascii_class = rp && ranges_to_ascii_bitmap(rp, cnt, amap);
         size_t sp = tp;
         if (rp) {
           while (sp < subject_len) {
@@ -3673,9 +3672,8 @@ static bool SNOBOL_HOT dispatch_search_impl(
    * start_offset when anchored — mirroring tier_automaton's fallback. */
   if (anchored && dfa && meta->automaton_eligible && !meta->is_alt_literals &&
       meta->has_bmh_skip) {
-    bool anchored_ok =
-        search_automaton_exec_anchored(dfa, subject, subject_len, start_offset,
-                                       out_result);
+    bool anchored_ok = search_automaton_exec_anchored(dfa, subject, subject_len,
+                                                      start_offset, out_result);
     if (anchored_ok) {
       if (meta_derived_inline)
         snobol_search_meta_free(&local_meta);
@@ -3727,10 +3725,10 @@ static bool SNOBOL_HOT dispatch_search_impl(
  * Hoisted out of dispatch_search_impl so callers like snobol_pattern_search
  * can skip DFA building when the prefilter rejects, and shared by the
  * anchored entry point so anchored matches get the same fail-fast. */
-static bool SNOBOL_HOT search_prefilter_miss(
-    const snobol_search_meta_t *meta, const char *SNOBOL_RESTRICT subject,
-    size_t subject_len, size_t start_offset,
-    snobol_search_result_t *out_result) {
+static bool SNOBOL_HOT
+search_prefilter_miss(const snobol_search_meta_t *meta,
+                      const char *SNOBOL_RESTRICT subject, size_t subject_len,
+                      size_t start_offset, snobol_search_result_t *out_result) {
   if (meta && meta->has_required_lit && meta->required_lit_len > 0) {
     bool absent;
     if (meta->required_lit_len == 1) {

@@ -436,8 +436,7 @@ snobol_match_t *snobol_pattern_match(snobol_pattern_t *pattern,
    * failure); a failed match carries no captures anyway. */
   if (ok && n > 0) {
     const char *win_subject = subject + sr.match_start;
-    size_t win_len =
-        (sr.match_start <= len) ? len - sr.match_start : 0;
+    size_t win_len = (sr.match_start <= len) ? len - sr.match_start : 0;
     for (int i = 0; i < n; i++) {
       size_t vs = vm.var_start[i];
       size_t ve = vm.var_end[i];
@@ -1737,8 +1736,8 @@ ast_node_t *snobol_pattern_build_emit(snobol_pattern_build_t *build,
 }
 
 snobol_pattern_t *snobol_pattern_build_compile(snobol_context_t *ctx,
-                                               ast_node_t *root,
-                                               uint32_t flags, char **error) {
+                                               ast_node_t *root, uint32_t flags,
+                                               char **error) {
   (void)ctx; /* context owns the pattern conceptually; no registry yet */
   if (error)
     *error = NULL;

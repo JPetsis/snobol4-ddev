@@ -144,8 +144,8 @@ static void test_anchored_prefilter_miss(void) {
   for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
     snobol_context_t *ctx = snobol_context_create();
     char *err = NULL;
-    snobol_pattern_t *p = snobol_pattern_compile(ctx, patterns[i],
-                                                 strlen(patterns[i]), &err);
+    snobol_pattern_t *p =
+        snobol_pattern_compile(ctx, patterns[i], strlen(patterns[i]), &err);
     if (!p) {
       test_assert(false, "anchored prefilter miss: compile");
       snobol_context_destroy(ctx);

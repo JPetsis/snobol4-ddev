@@ -943,8 +943,8 @@ ast_node_t *snobol_pattern_build_emit(snobol_pattern_build_t *build,
  *         Free with snobol_pattern_free() before destroying the context.
  */
 snobol_pattern_t *snobol_pattern_build_compile(snobol_context_t *ctx,
-                                               ast_node_t *root,
-                                               uint32_t flags, char **error);
+                                               ast_node_t *root, uint32_t flags,
+                                               char **error);
 
 #ifdef __cplusplus
 }

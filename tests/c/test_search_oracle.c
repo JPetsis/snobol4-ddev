@@ -148,8 +148,8 @@ static int oracle_compare_match(snobol_match_t *m, const oracle_ref_t *ref) {
       if (len != ref->var_lens[k] ||
           (len > 0 && memcmp(val, ref->vars[k], len) != 0)) {
         mismatches++;
-        printf("  capture %s: search=\"%.*s\" ref=\"%.*s\"\n", name,
-               (int)len, val, (int)ref->var_lens[k], ref->vars[k]);
+        printf("  capture %s: search=\"%.*s\" ref=\"%.*s\"\n", name, (int)len,
+               val, (int)ref->var_lens[k], ref->vars[k]);
         break;
       }
     } else if (ref->has_var[k] && ref->var_lens[k] > 0) {
@@ -235,8 +235,8 @@ static void oracle_check_pair(const char *name, const char *src, size_t src_len,
     int mm = oracle_compare_match(m, &ref);
     if (mm > 0) {
       (*mismatch)++;
-      printf("ORACLE MISMATCH search: %s subject=\"%.40s\" (%d fields)\n",
-             name, subject, mm);
+      printf("ORACLE MISMATCH search: %s subject=\"%.40s\" (%d fields)\n", name,
+             subject, mm);
     }
     snobol_match_free(m);
   }
@@ -274,8 +274,8 @@ static void oracle_check_pair(const char *name, const char *src, size_t src_len,
   /* --- batch (compare only when batch-eligible) --- */
   snobol_batch_result_t br;
   memset(&br, 0, sizeof(br));
-  bool bret = snobol_pattern_search_batch(bc, bc_len, subject, sub_len, meta,
-                                          &br);
+  bool bret =
+      snobol_pattern_search_batch(bc, bc_len, subject, sub_len, meta, &br);
   if (br.eligible) {
     (*checked)++;
     if (ref.success) {
@@ -312,7 +312,9 @@ typedef struct {
   uint64_t bits[4]; /* 256-bit bitset */
 } litset_t;
 
-static void litset_clear(litset_t *s) { memset(s, 0, sizeof(*s)); }
+static void litset_clear(litset_t *s) {
+  memset(s, 0, sizeof(*s));
+}
 static bool litset_empty(const litset_t *s) {
   return (s->bits[0] | s->bits[1] | s->bits[2] | s->bits[3]) == 0;
 }
@@ -367,10 +369,10 @@ static int must_find_lit(const must_ctx_t *ctx, const uint8_t *bc,
 
 /* Edge kinds emitted by the transfer function. */
 enum {
-  MUST_EDGE_NONE = 0, /* terminator: no outgoing edge */
-  MUST_EDGE_LINEAR,   /* fall through: dst = p + advance */
-  MUST_EDGE_JMP,      /* one explicit target */
-  MUST_EDGE_SPLIT,    /* two explicit targets */
+  MUST_EDGE_NONE = 0,   /* terminator: no outgoing edge */
+  MUST_EDGE_LINEAR,     /* fall through: dst = p + advance */
+  MUST_EDGE_JMP,        /* one explicit target */
+  MUST_EDGE_SPLIT,      /* two explicit targets */
   MUST_EDGE_LINEAR_JMP, /* both the linear continuation and one explicit
                            target (repetition control flow) */
 };
@@ -391,144 +393,140 @@ static void must_transfer(must_ctx_t *ctx, const uint8_t *bc, size_t bc_len,
   }
   uint8_t op = bc[p];
   switch (op) {
-  case OP_LIT: {
-    if (p + 9 > bc_len) {
-      ctx->gave_up = true;
+    case OP_LIT: {
+      if (p + 9 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      uint32_t off = must_read_u32(bc, bc_len, p + 1);
+      uint32_t len = must_read_u32(bc, bc_len, p + 5);
+      size_t payload = (off == p + 9) ? p + 9 : (size_t)off;
+      if (payload + len > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      int id = must_lit_id(ctx, payload, len);
+      if (id >= 0)
+        litset_add_id(out, id);
+      *edge_kind = MUST_EDGE_LINEAR;
+      *advance = (off == p + 9) ? 9 + len : 9;
       return;
     }
-    uint32_t off = must_read_u32(bc, bc_len, p + 1);
-    uint32_t len = must_read_u32(bc, bc_len, p + 5);
-    size_t payload = (off == p + 9) ? p + 9 : (size_t)off;
-    if (payload + len > bc_len) {
-      ctx->gave_up = true;
+    case OP_ACCEPT:
+    case OP_SUCCEED:
+    case OP_FAIL:
+    case OP_ABORT: *edge_kind = MUST_EDGE_NONE; return;
+    case OP_JMP:
+      if (p + 5 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      *edge_kind = MUST_EDGE_JMP;
+      *e1 = must_read_u32(bc, bc_len, p + 1);
       return;
-    }
-    int id = must_lit_id(ctx, payload, len);
-    if (id >= 0)
-      litset_add_id(out, id);
-    *edge_kind = MUST_EDGE_LINEAR;
-    *advance = (off == p + 9) ? 9 + len : 9;
-    return;
-  }
-  case OP_ACCEPT:
-  case OP_SUCCEED:
-  case OP_FAIL:
-  case OP_ABORT:
-    *edge_kind = MUST_EDGE_NONE;
-    return;
-  case OP_JMP:
-    if (p + 5 > bc_len) {
-      ctx->gave_up = true;
+    case OP_SPLIT:
+      if (p + 9 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      *edge_kind = MUST_EDGE_SPLIT;
+      *e1 = must_read_u32(bc, bc_len, p + 1);
+      *e2 = must_read_u32(bc, bc_len, p + 5);
       return;
-    }
-    *edge_kind = MUST_EDGE_JMP;
-    *e1 = must_read_u32(bc, bc_len, p + 1);
-    return;
-  case OP_SPLIT:
-    if (p + 9 > bc_len) {
-      ctx->gave_up = true;
-      return;
-    }
-    *edge_kind = MUST_EDGE_SPLIT;
-    *e1 = must_read_u32(bc, bc_len, p + 1);
-    *e2 = must_read_u32(bc, bc_len, p + 5);
-    return;
-  case OP_REPEAT_INIT:
-    if (p + 14 > bc_len) {
-      ctx->gave_up = true;
-      return;
-    }
-    /* min==0: both the linear entry into the body and the skip edge
+    case OP_REPEAT_INIT:
+      if (p + 14 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      /* min==0: both the linear entry into the body and the skip edge
      * (zero iterations, a real accepting path).  min>=1: the skip edge is
      * a failure path, so only the linear continuation counts. */
-    if (must_read_u32(bc, bc_len, p + 2) == 0) {
+      if (must_read_u32(bc, bc_len, p + 2) == 0) {
+        *edge_kind = MUST_EDGE_LINEAR_JMP;
+        *e1 = must_read_u32(bc, bc_len, p + 10);
+        *advance = 14;
+      } else {
+        *edge_kind = MUST_EDGE_LINEAR;
+        *advance = 14;
+      }
+      return;
+    case OP_REPEAT_STEP:
+      if (p + 6 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      /* Both the linear loop exit and the back edge into the body. */
       *edge_kind = MUST_EDGE_LINEAR_JMP;
-      *e1 = must_read_u32(bc, bc_len, p + 10);
-      *advance = 14;
-    } else {
+      *e1 = must_read_u32(bc, bc_len, p + 2);
+      *advance = 6;
+      return;
+    case OP_ANY:
+    case OP_NOTANY:
+    case OP_SPAN:
+    case OP_BREAK:
+    case OP_BREAKX:
+    case OP_ANCHOR:
+    case OP_CAP_START:
+    case OP_CAP_END:
+    case OP_EMIT_CAPTURE:
+      if (p + 2 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
       *edge_kind = MUST_EDGE_LINEAR;
-      *advance = 14;
-    }
-    return;
-  case OP_REPEAT_STEP:
-    if (p + 6 > bc_len) {
-      ctx->gave_up = true;
+      *advance = (op == OP_ANY || op == OP_NOTANY || op == OP_SPAN ||
+                  op == OP_BREAK || op == OP_BREAKX)
+                     ? 3
+                     : 2;
       return;
-    }
-    /* Both the linear loop exit and the back edge into the body. */
-    *edge_kind = MUST_EDGE_LINEAR_JMP;
-    *e1 = must_read_u32(bc, bc_len, p + 2);
-    *advance = 6;
-    return;
-  case OP_ANY:
-  case OP_NOTANY:
-  case OP_SPAN:
-  case OP_BREAK:
-  case OP_BREAKX:
-  case OP_ANCHOR:
-  case OP_CAP_START:
-  case OP_CAP_END:
-  case OP_EMIT_CAPTURE:
-    if (p + 2 > bc_len) {
-      ctx->gave_up = true;
+    case OP_LEN:
+    case OP_POS:
+    case OP_RPOS:
+    case OP_TAB:
+    case OP_RTAB:
+      if (p + 5 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      *edge_kind = MUST_EDGE_LINEAR;
+      *advance = 5;
       return;
-    }
-    *edge_kind = MUST_EDGE_LINEAR;
-    *advance = (op == OP_ANY || op == OP_NOTANY || op == OP_SPAN ||
-                op == OP_BREAK || op == OP_BREAKX)
-                   ? 3
-                   : 2;
-    return;
-  case OP_LEN:
-  case OP_POS:
-  case OP_RPOS:
-  case OP_TAB:
-  case OP_RTAB:
-    if (p + 5 > bc_len) {
-      ctx->gave_up = true;
+    case OP_BAL:
+      if (p + 9 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      *edge_kind = MUST_EDGE_LINEAR;
+      *advance = 9;
       return;
-    }
-    *edge_kind = MUST_EDGE_LINEAR;
-    *advance = 5;
-    return;
-  case OP_BAL:
-    if (p + 9 > bc_len) {
-      ctx->gave_up = true;
+    case OP_ASSIGN:
+    case OP_EVAL:
+      if (p + 4 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      *edge_kind = MUST_EDGE_LINEAR;
+      *advance = 4;
       return;
-    }
-    *edge_kind = MUST_EDGE_LINEAR;
-    *advance = 9;
-    return;
-  case OP_ASSIGN:
-  case OP_EVAL:
-    if (p + 4 > bc_len) {
-      ctx->gave_up = true;
+    case OP_EMIT_LITERAL:
+      if (p + 9 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      *edge_kind = MUST_EDGE_LINEAR;
+      *advance = 9;
       return;
-    }
-    *edge_kind = MUST_EDGE_LINEAR;
-    *advance = 4;
-    return;
-  case OP_EMIT_LITERAL:
-    if (p + 9 > bc_len) {
-      ctx->gave_up = true;
+    case OP_NOP:
+    case OP_FENCE:
+    case OP_REM:
+      if (p + 1 > bc_len) {
+        ctx->gave_up = true;
+        return;
+      }
+      *edge_kind = MUST_EDGE_LINEAR;
+      *advance = 1;
       return;
-    }
-    *edge_kind = MUST_EDGE_LINEAR;
-    *advance = 9;
-    return;
-  case OP_NOP:
-  case OP_FENCE:
-  case OP_REM:
-    if (p + 1 > bc_len) {
-      ctx->gave_up = true;
-      return;
-    }
-    *edge_kind = MUST_EDGE_LINEAR;
-    *advance = 1;
-    return;
-  default:
-    ctx->gave_up = true;
-    return;
+    default: ctx->gave_up = true; return;
   }
 }
 
@@ -572,8 +570,7 @@ static bool must_analyze(const uint8_t *bc, size_t bc_len, must_ctx_t *ctx,
       int kind;
       uint32_t e1, e2;
       size_t adv;
-      must_transfer(ctx, bc, bc_len, p, &must[p], &out, &kind, &e1, &e2,
-                    &adv);
+      must_transfer(ctx, bc, bc_len, p, &must[p], &out, &kind, &e1, &e2, &adv);
       if (ctx->gave_up)
         break;
       if (kind == MUST_EDGE_NONE) {
@@ -642,8 +639,8 @@ static int oracle_check_meta_invariants(const char *name, const uint8_t *bc,
     must_ctx_t ctx;
     litset_t accept;
     if (must_analyze(bc, bc_len, &ctx, &accept)) {
-      int id = must_find_lit(&ctx, bc, meta->required_lit,
-                             meta->required_lit_len);
+      int id =
+          must_find_lit(&ctx, bc, meta->required_lit, meta->required_lit_len);
       if (id < 0 || !(accept.bits[id >> 6] & (1ULL << (id & 63)))) {
         fails++;
         printf("  meta invariant FAIL (required-lit not on all paths): %s\n",
@@ -683,7 +680,9 @@ static unsigned char gen_byte(void) {
   return (unsigned char)(gen_state >> 32);
 }
 
-static size_t gen_bounded(size_t n) { return gen_byte() % n; }
+static size_t gen_bounded(size_t n) {
+  return gen_byte() % n;
+}
 
 #define GEN_BUF_CAP 4096
 
@@ -703,68 +702,65 @@ static size_t gen_literal(char *buf, size_t cap, size_t max_len) {
   return off;
 }
 
-static size_t gen_pattern_fragment(char *buf, size_t cap, int kind,
-                                   int depth) {
+static size_t gen_pattern_fragment(char *buf, size_t cap, int kind, int depth) {
   if (depth <= 0)
     kind = 0;
   switch (kind) {
-  case 0:
-    return gen_literal(buf, cap, 6);
-  case 1: {
-    static const char *const classes[] = {"SPAN('a-z')", "SPAN('0-9')",
-                                          "BREAK(' ,;')", "ANY('abc')"};
-    const char *c = classes[gen_bounded(4)];
-    size_t l = strlen(c);
-    if (l >= cap)
-      l = cap - 1;
-    memcpy(buf, c, l);
-    buf[l] = '\0';
-    return l;
-  }
-  case 2: {
-    int n = 2 + (int)gen_bounded(5);
-    size_t off = 0;
-    for (int i = 0; i < n; i++) {
-      if (i)
-        off += (size_t)snprintf(buf + off, cap - off, " | ");
-      off += gen_literal(buf + off, cap - off, 4);
+    case 0: return gen_literal(buf, cap, 6);
+    case 1: {
+      static const char *const classes[] = {"SPAN('a-z')", "SPAN('0-9')",
+                                            "BREAK(' ,;')", "ANY('abc')"};
+      const char *c = classes[gen_bounded(4)];
+      size_t l = strlen(c);
+      if (l >= cap)
+        l = cap - 1;
+      memcpy(buf, c, l);
+      buf[l] = '\0';
+      return l;
     }
-    return off;
-  }
-  case 3: {
-    size_t off = 0;
-    if (off + 2 < cap) {
-      buf[off++] = '(';
-      off += gen_pattern_fragment(buf + off, cap - off, 0, depth - 1);
-      buf[off++] = ')';
-      buf[off++] = gen_byte() & 1 ? '+' : '*';
-      buf[off] = '\0';
-    }
-    return off;
-  }
-  case 4: {
-    /* capture: must lead the pattern (grammar: @IDENT prefix) */
-    size_t off = (size_t)snprintf(buf, cap, "@v1 ");
-    off += gen_pattern_fragment(buf + off, cap - off, 0, depth - 1);
-    return off;
-  }
-  case 5: {
-    /* anchor: "^ " prefix, none, or " $" suffix */
-    int mode = (int)gen_bounded(3);
-    size_t off = 0;
-    if (mode == 0)
-      off = (size_t)snprintf(buf, cap, "^ ");
-    off += gen_pattern_fragment(buf + off, cap - off, 0, depth - 1);
-    if (mode == 2) {
-      if (off + 3 < cap) {
-        snprintf(buf + off, cap - off, " $");
-        off += 2;
+    case 2: {
+      int n = 2 + (int)gen_bounded(5);
+      size_t off = 0;
+      for (int i = 0; i < n; i++) {
+        if (i)
+          off += (size_t)snprintf(buf + off, cap - off, " | ");
+        off += gen_literal(buf + off, cap - off, 4);
       }
+      return off;
     }
-    return off;
-  }
-  default:
-    return gen_literal(buf, cap, 6);
+    case 3: {
+      size_t off = 0;
+      if (off + 2 < cap) {
+        buf[off++] = '(';
+        off += gen_pattern_fragment(buf + off, cap - off, 0, depth - 1);
+        buf[off++] = ')';
+        buf[off++] = gen_byte() & 1 ? '+' : '*';
+        buf[off] = '\0';
+      }
+      return off;
+    }
+    case 4: {
+      /* capture: must lead the pattern (grammar: @IDENT prefix) */
+      size_t off = (size_t)snprintf(buf, cap, "@v1 ");
+      off += gen_pattern_fragment(buf + off, cap - off, 0, depth - 1);
+      return off;
+    }
+    case 5: {
+      /* anchor: "^ " prefix, none, or " $" suffix */
+      int mode = (int)gen_bounded(3);
+      size_t off = 0;
+      if (mode == 0)
+        off = (size_t)snprintf(buf, cap, "^ ");
+      off += gen_pattern_fragment(buf + off, cap - off, 0, depth - 1);
+      if (mode == 2) {
+        if (off + 3 < cap) {
+          snprintf(buf + off, cap - off, " $");
+          off += 2;
+        }
+      }
+      return off;
+    }
+    default: return gen_literal(buf, cap, 6);
   }
 }
 
@@ -784,7 +780,7 @@ static size_t gen_subject(char *buf, size_t cap) {
   size_t len = 1 + gen_bounded(48);
   if (len >= cap)
     len = cap - 1;
-  static const char *const tokens[] = {"a", "ab", "abc", "x",  "123",
+  static const char *const tokens[] = {"a",  "ab", "abc",   "x",   "123",
                                        "  ", ",",  "κόσμε", "cat", "dog"};
   size_t off = 0;
   while (off < len) {
@@ -833,16 +829,16 @@ void test_search_oracle_suite(void) {
                     "v1.0.2 v1.0.3 core/v1.0.2", 24, &checked, &mismatch);
   oracle_check_pair("marker-alt-82", marker_alt, marker_len, 0,
                     "no markers here", 15, &checked, &mismatch);
-  oracle_check_pair("marker-alt-82", marker_alt, marker_len, 0,
-                    "v1.8.1", 6, &checked, &mismatch);
-  oracle_check_pair("big-alt-30", big_alt, big30_len, 0,
-                    "mmmmmmmmmmmmmmmmmmmm", 20, &checked, &mismatch);
-  oracle_check_pair("big-alt-30", big_alt, big30_len, 0,
-                    "jjjjjjjjjjjjjjjjjjjj", 20, &checked, &mismatch);
-  oracle_check_pair("big-alt-70", big_alt, big70_len, 0,
-                    "mmmmmmmmmmmmmmmmmmmm", 20, &checked, &mismatch);
-  oracle_check_pair("big-alt-70", big_alt, big70_len, 0,
-                    "no match here", 13, &checked, &mismatch);
+  oracle_check_pair("marker-alt-82", marker_alt, marker_len, 0, "v1.8.1", 6,
+                    &checked, &mismatch);
+  oracle_check_pair("big-alt-30", big_alt, big30_len, 0, "mmmmmmmmmmmmmmmmmmmm",
+                    20, &checked, &mismatch);
+  oracle_check_pair("big-alt-30", big_alt, big30_len, 0, "jjjjjjjjjjjjjjjjjjjj",
+                    20, &checked, &mismatch);
+  oracle_check_pair("big-alt-70", big_alt, big70_len, 0, "mmmmmmmmmmmmmmmmmmmm",
+                    20, &checked, &mismatch);
+  oracle_check_pair("big-alt-70", big_alt, big70_len, 0, "no match here", 13,
+                    &checked, &mismatch);
 
   test_assert(mismatch == 0, "no tier-dispatch vs reference disagreements");
   test_assert(checked > 1000, "corpus equivalence checks ran");
@@ -871,8 +867,8 @@ void test_search_oracle_meta_suite(void) {
     const snobol_search_meta_t *meta = NULL;
     const snobol_range_meta_t *range = NULL;
     size_t range_count = 0;
-    if (oracle_compile(e->pattern, strlen(e->pattern), e->flags, ctx, &pat,
-                       &bc, &bc_len, &meta, &range, &range_count)) {
+    if (oracle_compile(e->pattern, strlen(e->pattern), e->flags, ctx, &pat, &bc,
+                       &bc_len, &meta, &range, &range_count)) {
       fails += oracle_check_meta_invariants(e->name, bc, bc_len, meta);
       meta_checked++;
       snobol_pattern_free(pat);

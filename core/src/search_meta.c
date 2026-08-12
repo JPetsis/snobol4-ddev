@@ -725,8 +725,7 @@ static bool check_automaton_eligible(const uint8_t *bc, size_t bc_len) {
  */
 /* True when the SPLIT/LIT alternation tree contains an empty (len 0)
  * literal branch. */
-static bool SNOBOL_PURE alt_has_empty_branch(const uint8_t *bc,
-                                             size_t bc_len) {
+static bool SNOBOL_PURE alt_has_empty_branch(const uint8_t *bc, size_t bc_len) {
   size_t stack[64];
   int sp = 0;
   stack[sp++] = 0;
@@ -757,7 +756,8 @@ static bool SNOBOL_PURE alt_has_empty_branch(const uint8_t *bc,
 }
 
 static bool SNOBOL_PURE check_alt_literals(const uint8_t *bc, size_t bc_len,
-                                           size_t ip, size_t *lit_bytes) {  if (ip + 2 > bc_len)
+                                           size_t ip, size_t *lit_bytes) {
+  if (ip + 2 > bc_len)
     return false;
   uint8_t op = bc[ip];
 
@@ -1557,7 +1557,8 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
       ip += 2;
       continue;
     } /* op + type:u8 */
-    if (peek == OP_POS || peek == OP_RPOS || peek == OP_TAB || peek == OP_RTAB) {
+    if (peek == OP_POS || peek == OP_RPOS || peek == OP_TAB ||
+        peek == OP_RTAB) {
       if (ip + 5 > bc_len)
         break; /* truncated opcode: bail, leave meta unclassified */
       ip += 5;
@@ -1821,9 +1822,8 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
   if (op0 == OP_SPLIT && bc_len >= 10) {
     size_t bc_remain = bc_len > 2048 ? 2048 : bc_len;
     size_t lit_bytes = 0;
-    out->is_alt_literals =
-        check_alt_literals(bc, bc_remain, 0, &lit_bytes) &&
-        lit_bytes <= SNOBOL_AUTO_MAX_LIT_BYTES;
+    out->is_alt_literals = check_alt_literals(bc, bc_remain, 0, &lit_bytes) &&
+                           lit_bytes <= SNOBOL_AUTO_MAX_LIT_BYTES;
     /* An empty branch makes the alternation match empty at any position. */
     if (out->is_alt_literals && alt_has_empty_branch(bc, bc_remain))
       out->may_match_empty = true;
@@ -2051,9 +2051,8 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
            * previous literal, or when it sits inside a min==0 loop body.
            * An EMPTY literal does not replace last_lit, so it must not
            * change the bypass state of the record it leaves in place. */
-          lit_bypassed =
-              split_seen_before_lit || split_branch_bypass ||
-              (skippable_loop_end > 0 && scan < skippable_loop_end);
+          lit_bypassed = split_seen_before_lit || split_branch_bypass ||
+                         (skippable_loop_end > 0 && scan < skippable_loop_end);
         }
         scan += 9 + (size_t)lit_len;
         continue;
@@ -2124,8 +2123,7 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
             skippable_loop_end = skip;
           }
         }
-      }
-      else if (op == OP_REPEAT_STEP)
+      } else if (op == OP_REPEAT_STEP)
         adv = 6;
       else if (op == OP_JMP || op == OP_LEN || op == OP_POS || op == OP_RPOS ||
                op == OP_TAB || op == OP_RTAB)

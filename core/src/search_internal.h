@@ -47,8 +47,8 @@ static const void *snobol_memmem(const void *hay, size_t hlen,
    * O(n·m) per-position memcmp loop.  This keeps the required-byte
    * prefilter's fail-fast O(n) on platforms without a libc memmem. */
   while (i <= limit) {
-    const char *p = (const char *)memchr(h + i, (unsigned char)n[0],
-                                         limit - i + 1);
+    const char *p =
+        (const char *)memchr(h + i, (unsigned char)n[0], limit - i + 1);
     if (!p)
       return nullptr;
     if (memcmp(p, n, nlen) == 0)

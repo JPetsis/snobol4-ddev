@@ -347,8 +347,7 @@ void test_alt_literals_large_chain(void) {
 
   /* ~40 branches with distinct lengths — bytecode > 512 bytes, < 2048. */
   char *src = build_alt_source(40, "lit");
-  snobol_pattern_t *p =
-      snobol_pattern_compile(ctx, src, strlen(src), NULL);
+  snobol_pattern_t *p = snobol_pattern_compile(ctx, src, strlen(src), NULL);
   test_assert(p != NULL, "large alternation compiles");
   if (p) {
     const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);

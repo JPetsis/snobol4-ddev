@@ -699,9 +699,8 @@ int compile_ast_to_bytecode(zval *ast, zval *options, uint8_t **out_bc,
  * Format (capture key): opcode u8, table_id u16 (0xFFFF=unbound),
  *   key_type u8 (1=capture), name_len u8, name_bytes[name_len], key_reg u8
  */
-static bool template_emit_table_lookup(CodeBuf *cb, const char *tpl,
-                                       size_t len, size_t *ip,
-                                       size_t start_of_dollar,
+static bool template_emit_table_lookup(CodeBuf *cb, const char *tpl, size_t len,
+                                       size_t *ip, size_t start_of_dollar,
                                        const char *table_name,
                                        size_t table_name_len) {
   bool quoted = (*ip < len && tpl[*ip] == '\'');

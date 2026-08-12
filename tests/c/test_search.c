@@ -485,7 +485,8 @@ void test_cov_automaton_bmh_gate(void) {
   /* SPAN's zero-width run-end exit cannot be encoded in the DFA (it would
    * accept after the FIRST class byte), so SPAN patterns are NOT
    * automaton-eligible — the search-VM handles them correctly. */
-  test_assert(!meta->automaton_eligible, "SPAN patterns are not automaton-eligible");
+  test_assert(!meta->automaton_eligible,
+              "SPAN patterns are not automaton-eligible");
   test_assert(!meta->is_alt_literals, "not alt-literals");
 
   /* No DFA promotion without automaton eligibility. */

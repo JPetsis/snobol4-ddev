@@ -425,11 +425,11 @@ typedef struct {
                                 position is then unreliable (the min==0 skip
                                 path can match empty earlier), so the caller
                                 must fall back to the restart loop. */
-  bool prefilter_skip;  /**< Set true when the required-byte prefilter
+  bool prefilter_skip;     /**< Set true when the required-byte prefilter
                              rejected the subject without entering any tier. */
-  size_t match_start;   /**< Byte offset of match start within the original
+  size_t match_start;      /**< Byte offset of match start within the original
                           subject */
-  size_t match_end;     /**< Byte offset just past the match end in the original
+  size_t match_end; /**< Byte offset just past the match end in the original
                           subject */
 } snobol_search_result_t;
 

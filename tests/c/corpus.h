@@ -142,7 +142,8 @@ static const char *const oracle_subjects[] = {
     "Hello WORLD hello",
     "hello HELLO HeLLo",
     "abcdefghijklmnopqrstuvwxyz0123456789",
-    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "aaaaaaaaaaaaaaaaaaaaaaaaaa",
     "mixed 123 abc !!!",
     "(555) 123-4567",
     "01/02/2026",

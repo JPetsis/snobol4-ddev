@@ -348,9 +348,8 @@ static void pike_test_position_ops(void) {
     const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
     size_t rc = 0;
     const snobol_range_meta_t *rm = snobol_pattern_get_range_meta(p, &rc);
-    bool ok = pike_scan(snobol_pattern_get_bc(p),
-                        snobol_pattern_get_bc_len(p), subject, 3, meta, rm, rc,
-                        NULL, &r);
+    bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
+                        subject, 3, meta, rm, rc, NULL, &r);
     if (expect[i]) {
       pike_assert(ok, "position-op positive control matches");
       pike_assert(r.match_start == 0 && r.match_end == 3,
