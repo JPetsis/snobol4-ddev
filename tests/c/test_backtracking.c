@@ -67,37 +67,41 @@ static VM make_vm(const uint8_t *bc, size_t bc_len, const char *subject) {
 
 static bool cap_equals(const VM *vm, uint8_t reg, const char *subject,
                        const char *expected) {
-  if (reg >= MAX_CAPS)
+  if (reg >= MAX_CAPS) {
     return false;
+  }
   size_t a = vm->cap_start[reg];
   size_t b = vm->cap_end[reg];
 
   if (expected == NULL) {
     // Expect unset (defaults to [0,0])
-    return a == 0 && b == 0;
+    return (a == 0 && b == 0) != 0;
   }
 
-  if (b < a)
+  if (b < a) {
     return false;
+  }
   size_t n = b - a;
-  return strlen(expected) == n && memcmp(subject + a, expected, n) == 0;
+  return (strlen(expected) == n && memcmp(subject + a, expected, n) == 0) != 0;
 }
 
 static bool var_equals(const VM *vm, uint16_t var, const char *subject,
                        const char *expected) {
-  if (var >= MAX_VARS)
+  if (var >= MAX_VARS) {
     return false;
+  }
   size_t a = vm->var_start[var];
   size_t b = vm->var_end[var];
 
   if (expected == NULL) {
-    return a == 0 && b == 0;
+    return (a == 0 && b == 0) != 0;
   }
 
-  if (b < a)
+  if (b < a) {
     return false;
+  }
   size_t n = b - a;
-  return strlen(expected) == n && memcmp(subject + a, expected, n) == 0;
+  return (strlen(expected) == n && memcmp(subject + a, expected, n) == 0) != 0;
 }
 
 /*
@@ -255,7 +259,7 @@ static void test_nested_captures_deep_alternation(void) {
   test_assert(ok, "Nested capture backtrack: match should succeed");
   test_assert(cap_equals(&vm, 0, vm.s, "y"),
               "Nested capture backtrack: cap0 should be 'y'");
-  test_assert(cap_equals(&vm, 1, vm.s, NULL),
+  test_assert(cap_equals(&vm, 1, vm.s, nullptr),
               "Nested capture backtrack: cap1 should be unset (not leaked from "
               "failed branch)");
 }

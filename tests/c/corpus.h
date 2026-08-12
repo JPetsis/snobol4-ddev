@@ -142,7 +142,8 @@ static const char *const oracle_subjects[] = {
     "Hello WORLD hello",
     "hello HELLO HeLLo",
     "abcdefghijklmnopqrstuvwxyz0123456789",
-    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    "a",
     "aaaaaaaaaaaaaaaaaaaaaaaaaa",
     "mixed 123 abc !!!",
     "(555) 123-4567",
@@ -175,12 +176,14 @@ static size_t oracle_build_marker_alt(char *buf, size_t cap) {
   for (int maj = 1; maj <= 1 && n < 82; maj++) {
     for (int min = 0; min <= 8 && n < 82; min++) {
       for (int pat = 0; pat <= 9 && n < 82; pat++) {
-        if (min == 8 && pat > 1)
+        if (min == 8 && pat > 1) {
           break;
+        }
         int w = snprintf(buf + off, cap - off, "%s'v%d.%d.%d'",
                          off ? " | " : "", maj, min, pat);
-        if (w < 0 || (size_t)w >= cap - off)
+        if (w < 0 || (size_t)w >= cap - off) {
           break;
+        }
         off += (size_t)w;
         n++;
       }
@@ -198,8 +201,9 @@ static size_t oracle_build_big_alt(char *buf, size_t cap, int branches,
   size_t off = 0;
   for (int i = 0; i < branches; i++) {
     size_t need = (off ? 3 : 1) + lit_len + 1; /* " | 'lit'" or "'lit'" */
-    if (off + need >= cap)
+    if (off + need >= cap) {
       break;
+    }
     if (off) {
       buf[off++] = ' ';
       buf[off++] = '|';
@@ -207,8 +211,9 @@ static size_t oracle_build_big_alt(char *buf, size_t cap, int branches,
     }
     buf[off++] = '\'';
     char c = (char)('a' + (i % 26));
-    for (size_t j = 0; j < lit_len; j++)
+    for (size_t j = 0; j < lit_len; j++) {
       buf[off++] = c;
+    }
     buf[off++] = '\'';
   }
   buf[off] = '\0';

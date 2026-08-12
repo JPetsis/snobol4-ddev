@@ -24,7 +24,7 @@ extern void test_assert(bool condition, const char *message);
 static void assert_batch_ex_matches_batch(const char *src, const char *subject,
                                           size_t slen, const char *label) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   (void)label;
   snobol_pattern_t *pat = snobol_pattern_compile(ctx, src, strlen(src), &err);
   test_assert(pat != NULL, "compile succeeds");
@@ -66,7 +66,7 @@ static void assert_batch_ex_matches_batch(const char *src, const char *subject,
  * eligible == true (so callers must NOT re-run the search). */
 static void test_batch_ex_eligible_zero_match(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *pat =
       snobol_pattern_compile(ctx, "SPAN('abc') 'd'", 14, &err);
   test_assert(pat != NULL, "compile eligible pattern");
@@ -78,7 +78,7 @@ static void test_batch_ex_eligible_zero_match(void) {
     snobol_batch_result_t b;
     memset(&b, 0, sizeof(b));
     bool ok = snobol_pattern_search_batch(bc, bc_len, "aaaa", 4, meta, &b);
-    test_assert(!ok, "zero-match eligible returns false");
+    test_assert((!ok) != 0, "zero-match eligible returns false");
     test_assert(b.eligible, "eligible true on zero-match (stateless)");
     test_assert(b.match_count == 0, "match_count 0");
     snobol_batch_result_free(&b);
@@ -88,7 +88,7 @@ static void test_batch_ex_eligible_zero_match(void) {
     snobol_batch_result_t be;
     memset(&be, 0, sizeof(be));
     bool oke = snobol_pattern_search_batch_ex(st, "aaaa", 4, &be);
-    test_assert(!oke, "batch_ex zero-match returns false");
+    test_assert((!oke) != 0, "batch_ex zero-match returns false");
     test_assert(be.eligible, "eligible true on zero-match (batch_ex)");
     snobol_batch_result_free(&be);
     snobol_pattern_search_state_destroy(st);
@@ -112,8 +112,8 @@ static void test_batch_ex_ineligible_flag(void) {
   snobol_batch_result_t b;
   memset(&b, 0, sizeof(b));
   bool ok = snobol_pattern_search_batch(bc, bc_len, "x", 1, &meta, &b);
-  test_assert(!ok, "ineligible returns false");
-  test_assert(!b.eligible, "ineligible flag false (stateless)");
+  test_assert((!ok) != 0, "ineligible returns false");
+  test_assert((!b.eligible) != 0, "ineligible flag false (stateless)");
   snobol_batch_result_free(&b);
 
   snobol_pattern_search_state_t *st =
@@ -121,8 +121,8 @@ static void test_batch_ex_ineligible_flag(void) {
   snobol_batch_result_t be;
   memset(&be, 0, sizeof(be));
   bool oke = snobol_pattern_search_batch_ex(st, "x", 1, &be);
-  test_assert(!oke, "batch_ex ineligible returns false");
-  test_assert(!be.eligible, "ineligible flag false (batch_ex)");
+  test_assert((!oke) != 0, "batch_ex ineligible returns false");
+  test_assert((!be.eligible) != 0, "ineligible flag false (batch_ex)");
   snobol_batch_result_free(&be);
   snobol_pattern_search_state_destroy(st);
   snobol_search_meta_free(&meta);
@@ -133,7 +133,7 @@ static void test_batch_ex_ineligible_flag(void) {
  * once and reused without corruption. ASan covers the no-leak part. */
 static void test_batch_ex_dfa_reused(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *pat =
       snobol_pattern_compile(ctx, "SPAN('abc') 'd'", 14, &err);
   test_assert(pat != NULL, "compile automaton pattern");
@@ -162,7 +162,7 @@ static void test_batch_ex_dfa_reused(void) {
  * must stay correct and leak-free. */
 static void test_batch_ex_interleaved_with_search_ex(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'abc'", 5, &err);
   test_assert(pat != NULL, "compile 'abc'");
   if (pat) {
@@ -175,7 +175,7 @@ static void test_batch_ex_interleaved_with_search_ex(void) {
 
     for (int i = 0; i < 20; i++) {
       snobol_match_t *m = snobol_pattern_search_ex(st, subj, slen, 0);
-      test_assert(m && snobol_match_success(m), "search_ex first match");
+      test_assert((m && snobol_match_success(m)) != 0, "search_ex first match");
       if (m) {
         test_assert(snobol_match_get_position(m) == 0, "search_ex pos 0");
         /* NOT freed — search_ex returns an internal pointer owned by the
@@ -184,7 +184,7 @@ static void test_batch_ex_interleaved_with_search_ex(void) {
       snobol_batch_result_t b;
       memset(&b, 0, sizeof(b));
       bool ok = snobol_pattern_search_batch_ex(st, subj, slen, &b);
-      test_assert(ok && b.match_count == 3, "batch_ex finds 3 abc");
+      test_assert((ok && b.match_count == 3) != 0, "batch_ex finds 3 abc");
       snobol_batch_result_free(&b);
     }
     snobol_pattern_search_state_destroy(st);

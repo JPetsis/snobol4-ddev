@@ -131,14 +131,14 @@ void test_alt_literals_flat_trie(void) {
   vm.bc_len = bc_len;
   snobol_search_result_t result;
   bool ok = snobol_search_exec(&vm, "I ate a banana for lunch", 23, 0, &meta,
-                               NULL, &result, NULL);
+                               nullptr, &result, nullptr);
   test_assert(ok, "flat alt-literals matches 'banana' via trie");
 
   /* Verify no-match case. */
   result.success = false;
-  ok = snobol_search_exec(&vm, "nothing here", 12, 0, &meta, NULL, &result,
-                          NULL);
-  test_assert(!ok, "flat alt-literals no match on non-matching subject");
+  ok = snobol_search_exec(&vm, "nothing here", 12, 0, &meta, nullptr, &result,
+                          nullptr);
+  test_assert((!ok) != 0, "flat alt-literals no match on non-matching subject");
 
   snobol_search_meta_free(&meta);
   snobol_search_vm_cleanup(&vm);
@@ -155,7 +155,8 @@ void test_alt_literals_bushy_trie(void) {
   snobol_search_derive_meta(bc, bc_len, &meta);
 
   test_assert(meta.is_alt_literals, "detected as alt-literals");
-  test_assert(!meta.is_alt_literals_flat, "classified bushy (shared prefix)");
+  test_assert((!meta.is_alt_literals_flat) != 0,
+              "classified bushy (shared prefix)");
   test_assert(meta.tier == TIER_ALT_LIT,
               "bushy alt-literals dispatched to TIER_ALT_LIT");
 
@@ -164,8 +165,8 @@ void test_alt_literals_bushy_trie(void) {
   vm.bc = bc;
   vm.bc_len = bc_len;
   snobol_search_result_t result;
-  bool ok = snobol_search_exec(&vm, "an apricot fell", 16, 0, &meta, NULL,
-                               &result, NULL);
+  bool ok = snobol_search_exec(&vm, "an apricot fell", 16, 0, &meta, nullptr,
+                               &result, nullptr);
   test_assert(ok, "bushy alt-literals matches 'apricot' via trie");
   test_assert(result.match_start == 3, "match at offset 3");
 
@@ -187,7 +188,7 @@ void test_tier5_start_bitmap_skip(void) {
   snobol_search_derive_meta(bc, bc_len, &meta);
 
   test_assert(meta.is_alt_literals, "detected as alt-literals");
-  test_assert(!meta.is_alt_literals_flat,
+  test_assert((!meta.is_alt_literals_flat) != 0,
               "bushy (first bytes differ, shared?)");
   test_assert(meta.tier == TIER_ALT_LIT, "uses trie path");
   test_assert(meta.has_start_bitmap, "start-bitmap computed for alt-literals");
@@ -197,7 +198,8 @@ void test_tier5_start_bitmap_skip(void) {
   vm.bc = bc;
   vm.bc_len = bc_len;
   snobol_search_result_t result;
-  bool ok = snobol_search_exec(&vm, "xabc", 4, 0, &meta, NULL, &result, NULL);
+  bool ok =
+      snobol_search_exec(&vm, "xabc", 4, 0, &meta, nullptr, &result, nullptr);
   test_assert(ok, "'abc'|'axy' matches in 'xabc'");
   test_assert(result.match_start == 1,
               "match found at offset 1 (offset 0 'x' filtered by bitmap)");
@@ -213,16 +215,17 @@ void test_2byte_prefix_memchr(void) {
   test_suite("Small-prefix: 2-byte memchr fast-path");
 
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *pat = snobol_pattern_compile_ex(ctx, "'ab'", 4, 0, &err);
   test_assert(pat != NULL, "compile 2-byte literal succeeds");
 
   if (pat) {
     const snobol_search_meta_t *meta = snobol_pattern_get_meta(pat);
     test_assert(meta != NULL, "meta available");
-    if (meta)
+    if (meta) {
       test_assert(meta->literal_prefix_len == 2,
                   "literal_prefix_len is 2 (memchr path)");
+    }
 
     snobol_match_t *m = snobol_pattern_search(pat, "xxabyy", 6);
     test_assert(m != NULL, "search returns a result");
@@ -234,21 +237,24 @@ void test_2byte_prefix_memchr(void) {
 
     m = snobol_pattern_search(pat, "abc", 3);
     if (m) {
-      test_assert(snobol_match_success(m) && snobol_match_get_position(m) == 0,
-                  "'ab' matches at offset 0 in 'abc'");
+      test_assert(
+          (snobol_match_success(m) && snobol_match_get_position(m) == 0) != 0,
+          "'ab' matches at offset 0 in 'abc'");
       snobol_match_free(m);
     }
 
     m = snobol_pattern_search(pat, "xxxx", 4);
     if (m) {
-      test_assert(!snobol_match_success(m), "'ab' does not match 'xxxx'");
+      test_assert((!snobol_match_success(m)) != 0,
+                  "'ab' does not match 'xxxx'");
       snobol_match_free(m);
     }
 
     m = snobol_pattern_search(pat, "abab", 4);
     if (m) {
-      test_assert(snobol_match_success(m) && snobol_match_get_position(m) == 0,
-                  "'ab' first match at offset 0 in 'abab'");
+      test_assert(
+          (snobol_match_success(m) && snobol_match_get_position(m) == 0) != 0,
+          "'ab' first match at offset 0 in 'abab'");
       snobol_match_free(m);
     }
 
@@ -273,14 +279,15 @@ void test_alt_literals_bmh_skip(void) {
   snobol_search_derive_meta(bc_bushy, len_bushy, &meta_b);
 
   test_assert(meta_b.is_alt_literals, "detected as alt-literals");
-  test_assert(!meta_b.is_alt_literals_flat, "classified bushy (shared prefix)");
+  test_assert((!meta_b.is_alt_literals_flat) != 0,
+              "classified bushy (shared prefix)");
   test_assert(meta_b.has_bmh_skip, "has_bmh_skip set for shared prefix");
   test_assert(meta_b.bmh_skip_len == 2, "bmh_skip_len == 2 (shared 'ab')");
   test_assert(meta_b.literal_prefix_len == 2, "literal_prefix_len == 2");
-  test_assert(meta_b.literal_prefix[0] == 'a' &&
-                  meta_b.literal_prefix[1] == 'b',
-              "shared prefix bytes are 'ab'");
-  test_assert(!meta_b.has_literal_prefix,
+  test_assert(
+      (meta_b.literal_prefix[0] == 'a' && meta_b.literal_prefix[1] == 'b') != 0,
+      "shared prefix bytes are 'ab'");
+  test_assert((!meta_b.has_literal_prefix) != 0,
               "has_literal_prefix stays false (no TIER_PREFIX misroute)");
   /* BMH table: prefix[0]='a' gets skip 1 (plen-1-0), other bytes skip 2. */
   test_assert(meta_b.bmh_skip[(uint8_t)'a'] == 1,
@@ -293,12 +300,13 @@ void test_alt_literals_bmh_skip(void) {
   vm.bc = bc_bushy;
   vm.bc_len = len_bushy;
   snobol_search_result_t r;
-  bool ok = snobol_search_exec(&vm, "xxabcyy", 7, 0, &meta_b, NULL, &r, NULL);
-  test_assert(ok && r.match_start == 2, "'abc' matches at offset 2");
-  ok = snobol_search_exec(&vm, "xxabdyy", 7, 0, &meta_b, NULL, &r, NULL);
-  test_assert(ok && r.match_start == 2, "'abd' matches at offset 2");
-  ok = snobol_search_exec(&vm, "zzzzzzz", 7, 0, &meta_b, NULL, &r, NULL);
-  test_assert(!ok, "no match when no shared-prefix start");
+  bool ok =
+      snobol_search_exec(&vm, "xxabcyy", 7, 0, &meta_b, nullptr, &r, nullptr);
+  test_assert((ok && r.match_start == 2) != 0, "'abc' matches at offset 2");
+  ok = snobol_search_exec(&vm, "xxabdyy", 7, 0, &meta_b, nullptr, &r, nullptr);
+  test_assert((ok && r.match_start == 2) != 0, "'abd' matches at offset 2");
+  ok = snobol_search_exec(&vm, "zzzzzzz", 7, 0, &meta_b, nullptr, &r, nullptr);
+  test_assert((!ok) != 0, "no match when no shared-prefix start");
   snobol_search_meta_free(&meta_b);
 
   /* Flat: 'foo' | 'bar'  (no shared prefix) */
@@ -309,7 +317,7 @@ void test_alt_literals_bmh_skip(void) {
 
   test_assert(meta_f.is_alt_literals, "flat detected as alt-literals");
   test_assert(meta_f.is_alt_literals_flat, "classified flat");
-  test_assert(!meta_f.has_bmh_skip,
+  test_assert((!meta_f.has_bmh_skip) != 0,
               "has_bmh_skip NOT set for flat (no shared prefix)");
   snobol_search_meta_free(&meta_f);
   snobol_search_vm_cleanup(&vm);
@@ -317,15 +325,17 @@ void test_alt_literals_bmh_skip(void) {
 
 /* Build a source alternation of n literal branches and return it malloc'd. */
 static char *build_alt_source(size_t n, const char *prefix) {
-  size_t cap = n * (strlen(prefix) + 12) + 8;
+  size_t cap = (n * (strlen(prefix) + 12)) + 8;
   char *src = (char *)malloc(cap);
-  if (!src)
-    return NULL;
+  if (!src) {
+    return nullptr;
+  }
   char *p = src;
   *p++ = '\'';
   for (size_t i = 0; i < n; i++) {
-    if (i)
+    if (i) {
       p += sprintf(p, "' | '");
+    }
     p += sprintf(p, "%s%zu", prefix, i);
   }
   *p++ = '\'';
@@ -347,7 +357,7 @@ void test_alt_literals_large_chain(void) {
 
   /* ~40 branches with distinct lengths — bytecode > 512 bytes, < 2048. */
   char *src = build_alt_source(40, "lit");
-  snobol_pattern_t *p = snobol_pattern_compile(ctx, src, strlen(src), NULL);
+  snobol_pattern_t *p = snobol_pattern_compile(ctx, src, strlen(src), nullptr);
   test_assert(p != NULL, "large alternation compiles");
   if (p) {
     const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
@@ -355,14 +365,14 @@ void test_alt_literals_large_chain(void) {
     test_assert(meta->tier == TIER_ALT_LIT,
                 "large alternation stays on TIER_ALT_LIT");
     snobol_match_t *m = snobol_pattern_search(p, "xx lit17 yy", 11);
-    test_assert(m && snobol_match_success(m),
+    test_assert((m && snobol_match_success(m)) != 0,
                 "middle branch matches via the trie");
     snobol_match_free(m);
     m = snobol_pattern_search(p, "lit39 end", 9);
-    test_assert(m && snobol_match_success(m), "last branch matches");
+    test_assert((m && snobol_match_success(m)) != 0, "last branch matches");
     snobol_match_free(m);
     m = snobol_pattern_search(p, "none", 4);
-    test_assert(m && !snobol_match_success(m), "no branch -> miss");
+    test_assert((m && !snobol_match_success(m)) != 0, "no branch -> miss");
     snobol_match_free(m);
     snobol_pattern_free(p);
   }
@@ -371,14 +381,14 @@ void test_alt_literals_large_chain(void) {
   /* ~260 branches — bytecode > 2048 bytes: falls off the trie walk bound
    * but must still match any branch (prefilter regression). */
   src = build_alt_source(260, "longlit");
-  p = snobol_pattern_compile(ctx, src, strlen(src), NULL);
+  p = snobol_pattern_compile(ctx, src, strlen(src), nullptr);
   test_assert(p != NULL, "over-bound alternation compiles");
   if (p) {
     const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
-    test_assert(!meta->has_required_lit,
+    test_assert((!meta->has_required_lit) != 0,
                 "over-bound alternation derives no required literal");
     snobol_match_t *m = snobol_pattern_search(p, "zz longlit130 zz", 16);
-    test_assert(m && snobol_match_success(m),
+    test_assert((m && snobol_match_success(m)) != 0,
                 "over-bound alternation matches a middle branch");
     snobol_match_free(m);
     snobol_pattern_free(p);

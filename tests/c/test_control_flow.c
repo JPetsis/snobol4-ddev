@@ -55,8 +55,9 @@ static uint8_t *build_bytecode(size_t *out_len) {
   bc[ip++] = OP_ACCEPT;
 
   /* Literal data at offset 10 */
-  while (ip < 10)
+  while (ip < 10) {
     bc[ip++] = 0;
+  }
   bc[ip++] = 'A';
 
   *out_len = ip;
@@ -66,11 +67,11 @@ static uint8_t *build_bytecode(size_t *out_len) {
 static void test_label_registration(void) {
   test_suite("Control Flow: label registration");
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm_init_labels(&vm);
 
   bool result = vm_register_label(&vm, 1, 100);
-  test_assert(result == true, "register_label succeeds");
+  test_assert(result, "register_label succeeds");
   test_assert(vm.label_count >= 1, "label_count is at least 1");
 
   uint32_t offset = vm_get_label_offset(&vm, 1);
@@ -78,7 +79,7 @@ static void test_label_registration(void) {
 
   /* Register another label */
   result = vm_register_label(&vm, 2, 200);
-  test_assert(result == true, "register second label succeeds");
+  test_assert(result, "register second label succeeds");
   test_assert(vm.label_count >= 2, "label_count is at least 2");
 
   offset = vm_get_label_offset(&vm, 2);
@@ -95,13 +96,13 @@ static void test_label_registration(void) {
 static void test_label_capacity_growth(void) {
   test_suite("Control Flow: label capacity growth");
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm_init_labels(&vm);
 
   /* Register many labels to trigger capacity growth */
   for (uint16_t i = 0; i < 100; i++) {
     bool result = vm_register_label(&vm, i, i * 100);
-    test_assert(result == true, "register label succeeds");
+    test_assert(result, "register label succeeds");
   }
 
   test_assert(vm.label_count == 100, "label_count is 100");
@@ -122,7 +123,7 @@ static void test_goto_execution(void) {
   size_t bc_len;
   uint8_t *bc = build_bytecode(&bc_len);
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm.bc = bc;
   vm.bc_len = bc_len;
   vm.s = "A";
@@ -149,7 +150,7 @@ static void test_goto_execution(void) {
 
   /* Now test GOTO */
   op = bc[vm.ip];
-  test_assert(op == OP_GOTO || op == OP_LIT, "next op is GOTO or LIT");
+  test_assert((op == OP_GOTO || op == OP_LIT) != 0, "next op is GOTO or LIT");
 
   free(bc);
   vm_free_labels(&vm);
@@ -159,7 +160,7 @@ static void test_goto_execution(void) {
 static void test_invalid_label_fails(void) {
   test_suite("Control Flow: invalid label fails");
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm_init_labels(&vm);
 
   /* Don't register any labels */
@@ -177,7 +178,7 @@ static void test_invalid_label_fails(void) {
 static void test_label_free_with_offsets(void) {
   test_suite("Control Flow: free with offsets");
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm_init_labels(&vm);
 
   vm_register_label(&vm, 1, 100);
@@ -205,11 +206,11 @@ static void test_goto_does_not_restore_backtracking(void) {
    * This is verified by code inspection of the OP_GOTO handler in snobol_vm.c
    */
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm_init_labels(&vm);
 
   /* Verify VM initializes with correct goto state */
-  test_assert(vm.in_goto_fail == false, "initial in_goto_fail is false");
+  test_assert(!vm.in_goto_fail, "initial in_goto_fail is false");
   test_assert(vm.label_offsets == NULL, "initial label_offsets is NULL");
 
   /* Register a label */
@@ -233,15 +234,15 @@ static void test_goto_does_not_restore_backtracking(void) {
 static void test_goto_fail_flag(void) {
   test_suite("Control Flow: GOTO_F flag handling");
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm_init_labels(&vm);
 
   /* Initially not in goto fail state */
-  test_assert(vm.in_goto_fail == false, "initial in_goto_fail is false");
+  test_assert(!vm.in_goto_fail, "initial in_goto_fail is false");
 
   /* Simulate setting the flag */
   vm.in_goto_fail = true;
-  test_assert(vm.in_goto_fail == true, "in_goto_fail can be set");
+  test_assert(vm.in_goto_fail, "in_goto_fail can be set");
 
   vm_free_labels(&vm);
 }
@@ -249,7 +250,7 @@ static void test_goto_fail_flag(void) {
 static void test_label_zero_is_valid(void) {
   test_suite("Control Flow: label 0 is valid");
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm_init_labels(&vm);
 
   /* Register label 0 */
@@ -281,8 +282,9 @@ static void test_duplicate_label_detection(void) {
               "parser detects duplicate label");
   test_assert(ast == NULL, "parser returns NULL AST for duplicate label");
 
-  if (ast)
+  if (ast) {
     snobol_ast_free(ast);
+  }
   snobol_lexer_destroy(lexer);
   snobol_parser_destroy(parser);
 }
@@ -297,15 +299,16 @@ static void test_duplicate_label_compiler(void) {
   parts[1] = snobol_ast_create_label("x", snobol_ast_create_lit("B", 1));
   ast_node_t *root = snobol_ast_create_concat(parts, 2);
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(root, false, &bc, &bc_len);
 
   test_assert(rc == -1, "compiler rejects duplicate label definition");
   test_assert(bc == NULL, "no bytecode produced on duplicate label error");
 
-  if (bc)
+  if (bc) {
     compiler_free(bc);
+  }
   snobol_ast_free(root);
 }
 
@@ -318,15 +321,16 @@ static void test_unknown_label_detection(void) {
   /* Build AST: goto("nonexistent") with no matching label definition */
   ast_node_t *goto_node = snobol_ast_create_goto("nonexistent");
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(goto_node, false, &bc, &bc_len);
 
   test_assert(rc == -1, "compiler rejects goto to undefined label");
   test_assert(bc == NULL, "no bytecode produced for undefined label reference");
 
-  if (bc)
+  if (bc) {
     compiler_free(bc);
+  }
   snobol_ast_free(goto_node);
 }
 
@@ -340,7 +344,8 @@ static void test_label_pattern_execution(void) {
   ast_node_t *body = snobol_ast_create_lit("hello", 5);
   ast_node_t *label_node = snobol_ast_create_label("done", body);
 
-  int match_len = 0, cap_count = 0;
+  int match_len = 0;
+  int cap_count = 0;
   bool ok =
       run_ast_pattern(label_node, "hello world", 11, &match_len, &cap_count);
   test_assert(ok, "simple label pattern matches 'hello' in subject");
@@ -360,12 +365,13 @@ static void test_forward_goto_execution(void) {
   parts[2] = snobol_ast_create_label("done", snobol_ast_create_lit("B", 1));
   ast_node_t *root = snobol_ast_create_concat(parts, 3);
 
-  int match_len = 0, cap_count = 0;
+  int match_len = 0;
+  int cap_count = 0;
   bool ok = run_ast_pattern(root, "AB", 2, &match_len, &cap_count);
   test_assert(ok, "forward goto pattern matches 'AB'");
 
   ok = run_ast_pattern(root, "AC", 2, &match_len, &cap_count);
-  test_assert(!ok, "forward goto pattern rejects 'AC'");
+  test_assert((!ok) != 0, "forward goto pattern rejects 'AC'");
 
   snobol_ast_free(root);
 }

@@ -4,7 +4,7 @@
 #include <string.h>
 
 static uint32_t array_hash_int(int32_t key) {
-  return (uint32_t)key * 2654435761u;
+  return (uint32_t)key * 2654435761U;
 }
 
 static bool array_resize(snobol_array_t *array, size_t new_capacity) {
@@ -294,8 +294,9 @@ size_t snobol_array_size(const snobol_array_t *array) {
 
 int32_t *snobol_array_keys(const snobol_array_t *array, size_t *out_count) {
   if (!array || !out_count) {
-    if (out_count)
+    if (out_count) {
       *out_count = 0;
+    }
     return nullptr;
   }
 
@@ -318,8 +319,9 @@ int32_t *snobol_array_keys(const snobol_array_t *array, size_t *out_count) {
 
 char **snobol_array_values(const snobol_array_t *array, size_t *out_count) {
   if (!array || !out_count) {
-    if (out_count)
+    if (out_count) {
       *out_count = 0;
+    }
     return nullptr;
   }
 

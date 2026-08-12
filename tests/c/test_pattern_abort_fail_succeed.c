@@ -17,9 +17,11 @@ void test_pattern_abort_suite(void) {
     parts[0] = snobol_ast_create_lit("a", 1);
     parts[1] = snobol_ast_create_abort();
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "abc", 3, &match_len, &cap_count);
-    test_assert(!ok, "ABORT: 'a' ABORT on 'abc' terminates with failure");
+    test_assert((!ok) != 0,
+                "ABORT: 'a' ABORT on 'abc' terminates with failure");
     snobol_ast_free(ast);
   }
 
@@ -31,9 +33,10 @@ void test_pattern_abort_suite(void) {
     ast_node_t *left = snobol_ast_create_concat(left_parts, 2);
     ast_node_t *ast =
         snobol_ast_create_alt(left, snobol_ast_create_lit("b", 1));
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "abc", 3, &match_len, &cap_count);
-    test_assert(!ok, "ABORT: prevents backtracking to alt branch");
+    test_assert((!ok) != 0, "ABORT: prevents backtracking to alt branch");
     snobol_ast_free(ast);
   }
 }
@@ -48,9 +51,10 @@ void test_pattern_fail_suite(void) {
     parts[1] = snobol_ast_create_fail();
     parts[2] = snobol_ast_create_lit("x", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 3);
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "abc", 3, &match_len, &cap_count);
-    test_assert(!ok, "FAIL: 'a' FAIL on 'abc' eventually fails");
+    test_assert((!ok) != 0, "FAIL: 'a' FAIL on 'abc' eventually fails");
     snobol_ast_free(ast);
   }
 
@@ -64,7 +68,8 @@ void test_pattern_fail_suite(void) {
     ast_node_t *left = snobol_ast_create_concat(left_parts, 2);
     ast_node_t *ast =
         snobol_ast_create_alt(left, snobol_ast_create_lit("a", 1));
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "abc", 3, &match_len, &cap_count);
     test_assert(ok, "FAIL: backtracking to alt branch succeeds");
     test_assert(match_len == 1, "FAIL: alt branch matched 'a' at pos=1");
@@ -81,7 +86,8 @@ void test_pattern_succeed_suite(void) {
     parts[0] = snobol_ast_create_lit("a", 1);
     parts[1] = snobol_ast_create_succeed();
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "abc", 3, &match_len, &cap_count);
     test_assert(ok, "SUCCEED: skips remaining pattern and succeeds");
     test_assert(match_len == 1, "SUCCEED: position stays at 1");
@@ -91,7 +97,8 @@ void test_pattern_succeed_suite(void) {
   /* SUCCEED at start of string succeeds immediately */
   {
     ast_node_t *ast = snobol_ast_create_succeed();
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "abc", 3, &match_len, &cap_count);
     test_assert(ok, "SUCCEED: succeeds immediately at pos=0");
     test_assert(match_len == 0, "SUCCEED: position stays at 0");

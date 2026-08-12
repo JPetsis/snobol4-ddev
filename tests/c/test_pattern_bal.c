@@ -42,22 +42,24 @@ static bool run_bal_match(const char *subject, size_t subj_len,
   /* OP_ACCEPT */
   bc_buf[bc_off++] = OP_ACCEPT;
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm.bc = bc_buf;
   vm.bc_len = bc_off;
   vm.s = subject;
   vm.len = subj_len;
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {nullptr};
   snobol_buf_init(&out_buf);
   vm.out = &out_buf;
 
   bool result = vm_run(&vm);
   if (result) {
-    if (out_cap_start)
+    if (out_cap_start) {
       *out_cap_start = vm.cap_start[0];
-    if (out_cap_end)
+    }
+    if (out_cap_end) {
       *out_cap_end = vm.cap_end[0];
+    }
   }
   snobol_buf_free(&out_buf);
   vm_free_labels(&vm);
@@ -67,7 +69,8 @@ static bool run_bal_match(const char *subject, size_t subj_len,
 void test_pattern_bal_suite(void) {
   test_suite("Pattern: BAL");
 
-  size_t cs = 0, ce = 0;
+  size_t cs = 0;
+  size_t ce = 0;
 
   /* Balanced parentheses */
   bool ok = run_bal_match("(a + b)", 7, '(', ')', &cs, &ce);
@@ -81,11 +84,12 @@ void test_pattern_bal_suite(void) {
 
   /* Unbalanced input: more opens than closes */
   ok = run_bal_match("(a + (b * c)", 12, '(', ')', &cs, &ce);
-  test_assert(!ok, "BAL fails on unbalanced input (extra open)");
+  test_assert((!ok) != 0, "BAL fails on unbalanced input (extra open)");
 
   /* Subject does not start with open delimiter */
   ok = run_bal_match("a + b", 5, '(', ')', &cs, &ce);
-  test_assert(!ok, "BAL fails when subject does not start with open delimiter");
+  test_assert((!ok) != 0,
+              "BAL fails when subject does not start with open delimiter");
 
   /* Balanced brackets */
   ok = run_bal_match("[inner]", 7, '[', ']', &cs, &ce);

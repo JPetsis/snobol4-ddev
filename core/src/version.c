@@ -6,12 +6,15 @@
 #include "snobol/snobol.h"
 
 void snobol_version(int *major, int *minor, int *patch) {
-  if (major)
+  if (major) {
     *major = SNOBOL_VERSION_MAJOR;
-  if (minor)
+  }
+  if (minor) {
     *minor = SNOBOL_VERSION_MINOR;
-  if (patch)
+  }
+  if (patch) {
     *patch = SNOBOL_VERSION_PATCH;
+  }
 }
 
 uint32_t snobol_get_api_version(void) {

@@ -415,7 +415,7 @@ static void run_template(const char *tpl_src, const char *subject,
                          size_t cap0_start,
                          size_t cap0_end, /* capture register 0 */
                          snobol_buf *out) {
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   compile_template_to_bytecode(tpl_src, strlen(tpl_src), &bc, &bc_len);
   VM vm;
@@ -440,8 +440,9 @@ static void run_template(const char *tpl_src, const char *subject,
   vm_free_tables(&vm);
   vm_free_arrays(&vm);
 #endif
-  if (bc)
+  if (bc) {
     compiler_free(bc);
+  }
 }
 
 /* compile-and-run .lower() */
@@ -449,7 +450,7 @@ static void test_compile_lower(void) {
   test_suite("Template Ops: compile-and-run .lower()");
   snobol_buf out;
   run_template("${v0.lower()}", "HELLO", 0, 5, &out);
-  test_assert(out.len == 5 && memcmp(out.data, "hello", 5) == 0,
+  test_assert((out.len == 5 && memcmp(out.data, "hello", 5) == 0) != 0,
               "lower output is 'hello'");
   snobol_buf_free(&out);
 }
@@ -459,7 +460,7 @@ static void test_compile_lpad_fill(void) {
   test_suite("Template Ops: compile-and-run .lpad(5,'0')");
   snobol_buf out;
   run_template("${v0.lpad(5,'0')}", "42", 0, 2, &out);
-  test_assert(out.len == 5 && memcmp(out.data, "00042", 5) == 0,
+  test_assert((out.len == 5 && memcmp(out.data, "00042", 5) == 0) != 0,
               "lpad output is '00042'");
   snobol_buf_free(&out);
 }
@@ -479,12 +480,12 @@ static void test_pad_noop_when_long(void) {
   test_suite("Template Ops: lpad/rpad no-op when capture >= width");
   snobol_buf out;
   run_template("${v0.lpad(3)}", "hello", 0, 5, &out);
-  test_assert(out.len == 5 && memcmp(out.data, "hello", 5) == 0,
+  test_assert((out.len == 5 && memcmp(out.data, "hello", 5) == 0) != 0,
               "lpad no-op for long capture");
   snobol_buf_free(&out);
 
   run_template("${v0.rpad(2,'.')}", "hi", 0, 2, &out);
-  test_assert(out.len == 2 && memcmp(out.data, "hi", 2) == 0,
+  test_assert((out.len == 2 && memcmp(out.data, "hi", 2) == 0) != 0,
               "rpad no-op exactly at width");
   snobol_buf_free(&out);
 }
@@ -493,7 +494,7 @@ static void test_pad_noop_when_long(void) {
 static void test_missing_capture_degradation(void) {
   test_suite("Template Ops: missing capture graceful degradation");
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   /* .lower() with cap_end <= cap_start (missing) */
   compile_template_to_bytecode("${v0.lower()}", 13, &bc, &bc_len);
@@ -541,13 +542,14 @@ static void test_missing_capture_degradation(void) {
 static void test_bind_tables_patch(void) {
   test_suite("Template Ops: snobol_template_bind_tables patches table_id");
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   const char *tpl = "$v0[mydict['hello']]";
   int rc = compile_template_to_bytecode(tpl, strlen(tpl), &bc, &bc_len);
   test_assert(rc == 0, "template compiles successfully");
-  if (rc != 0)
+  if (rc != 0) {
     return;
+  }
 
   /* Bytecode should contain 0xFFFF (unbound sentinel) */
   /* Find OP_EMIT_TABLE in bytecode */
@@ -593,7 +595,7 @@ static void test_bind_tables_unresolvable(void) {
   test_suite(
       "Template Ops: snobol_template_bind_tables returns -1 for unknown name");
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   compile_template_to_bytecode("$v0[unknown['key']]", 19, &bc, &bc_len);
 
@@ -629,7 +631,7 @@ static void test_e2e_table_literal_key(void) {
   (void)table_set(table, "sky", "blue");
   (void)table_set(table, "sun", "yellow");
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   compile_template_to_bytecode("$v0[colors['sky']]", 18, &bc, &bc_len);
 
@@ -656,7 +658,7 @@ static void test_e2e_table_literal_key(void) {
   vm_free_arrays(&vm);
   vm_free_labels(&vm);
 
-  test_assert(out.len == 4 && memcmp(out.data, "blue", 4) == 0,
+  test_assert((out.len == 4 && memcmp(out.data, "blue", 4) == 0) != 0,
               "literal key table lookup returns 'blue'");
 
   snobol_buf_free(&out);
@@ -674,7 +676,7 @@ static void test_e2e_table_capture_key(void) {
   (void)table_set(table, "dog", "perro");
 
   const char *tpl = "$v0[words[v0]]";
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   compile_template_to_bytecode(tpl, strlen(tpl), &bc, &bc_len);
 
@@ -705,7 +707,7 @@ static void test_e2e_table_capture_key(void) {
   vm_free_arrays(&vm);
   vm_free_labels(&vm);
 
-  test_assert(out.len == 4 && memcmp(out.data, "gato", 4) == 0,
+  test_assert((out.len == 4 && memcmp(out.data, "gato", 4) == 0) != 0,
               "capture-key table lookup returns 'gato' for 'cat'");
 
   snobol_buf_free(&out);
@@ -739,7 +741,7 @@ static void test_legacy_emit_expr(void) {
   vm_free_labels(&vm);
 
   test_assert(
-      out.len == 5 && memcmp(out.data, "HELLO", 5) == 0,
+      (out.len == 5 && memcmp(out.data, "HELLO", 5) == 0) != 0,
       "legacy OP_EMIT_EXPR discriminant 1 uppercases 'hello' to 'HELLO'");
 
   snobol_buf_free(&out);
@@ -750,17 +752,17 @@ static void test_legacy_emit_expr(void) {
 #include "../../core/include/snobol/compiler.h"
 #include "../../core/include/snobol/vm.h"
 
-extern void test_suite(const char *name);
-extern void test_assert(bool condition, const char *message);
 
 static uint8_t *cov_compile_tpl(const char *tpl, size_t *out_len, int *out_rc) {
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_template_to_bytecode(tpl, strlen(tpl), &bc, &bc_len);
-  if (out_rc)
+  if (out_rc) {
     *out_rc = rc;
-  if (out_len)
+  }
+  if (out_len) {
     *out_len = bc_len;
+  }
   return bc;
 }
 
@@ -773,60 +775,60 @@ void test_cov_tpl_substitutions(void) {
 
   /* Capture refs: $v1 and ${v1}. */
   bc = cov_compile_tpl("$v1", &bc_len, &rc);
-  test_assert(bc && rc == 0 && bc_len > 0, "$v1 compiles");
+  test_assert((bc && rc == 0 && bc_len > 0) != 0, "$v1 compiles");
   compiler_free(bc);
   bc = cov_compile_tpl("${v1}", &bc_len, &rc);
-  test_assert(bc && rc == 0, "${v1} compiles");
+  test_assert((bc && rc == 0) != 0, "${v1} compiles");
   compiler_free(bc);
 
   /* Braced formats. */
   bc = cov_compile_tpl("${v1.upper()}", &bc_len, &rc);
-  test_assert(bc && rc == 0, "${v1.upper()} compiles");
+  test_assert((bc && rc == 0) != 0, "${v1.upper()} compiles");
   compiler_free(bc);
   bc = cov_compile_tpl("${v1.lower()}", &bc_len, &rc);
-  test_assert(bc && rc == 0, "${v1.lower()} compiles");
+  test_assert((bc && rc == 0) != 0, "${v1.lower()} compiles");
   compiler_free(bc);
   bc = cov_compile_tpl("${v1.length()}", &bc_len, &rc);
-  test_assert(bc && rc == 0, "${v1.length()} compiles");
+  test_assert((bc && rc == 0) != 0, "${v1.length()} compiles");
   compiler_free(bc);
   bc = cov_compile_tpl("${v1.lpad(5,'-')}", &bc_len, &rc);
-  test_assert(bc && rc == 0, "${v1.lpad(5,'-')} compiles");
+  test_assert((bc && rc == 0) != 0, "${v1.lpad(5,'-')} compiles");
   compiler_free(bc);
   bc = cov_compile_tpl("${v1.rpad(3,'*')}", &bc_len, &rc);
-  test_assert(bc && rc == 0, "${v1.rpad(3,'*')} compiles");
+  test_assert((bc && rc == 0) != 0, "${v1.rpad(3,'*')} compiles");
   compiler_free(bc);
   bc = cov_compile_tpl("${v1.rpad(10)}", &bc_len, &rc);
-  test_assert(bc && rc == 0, "${v1.rpad(10)} (no fill) compiles");
+  test_assert((bc && rc == 0) != 0, "${v1.rpad(10)} (no fill) compiles");
   compiler_free(bc);
 
   /* Unknown braced format falls back to a plain capture emit. */
   bc = cov_compile_tpl("${v1.bogus()}", &bc_len, &rc);
-  test_assert(bc && rc == 0, "${v1.bogus()} falls back to capture");
+  test_assert((bc && rc == 0) != 0, "${v1.bogus()} falls back to capture");
   compiler_free(bc);
 
   /* Unclosed brace falls back to a literal '$'. */
   bc = cov_compile_tpl("${v1", &bc_len, &rc);
-  test_assert(bc && rc == 0, "unclosed brace falls back");
+  test_assert((bc && rc == 0) != 0, "unclosed brace falls back");
   compiler_free(bc);
 
   /* Literal '$' at the end of the template. */
   bc = cov_compile_tpl("x$", &bc_len, &rc);
-  test_assert(bc && rc == 0, "trailing $ compiles");
+  test_assert((bc && rc == 0) != 0, "trailing $ compiles");
   compiler_free(bc);
 
   /* '$v' without digits → literal '$'. */
   bc = cov_compile_tpl("$v", &bc_len, &rc);
-  test_assert(bc && rc == 0, "$v without digits falls back");
+  test_assert((bc && rc == 0) != 0, "$v without digits falls back");
   compiler_free(bc);
 
   /* '$' followed by non-v/brace → literal '$'. */
   bc = cov_compile_tpl("$9", &bc_len, &rc);
-  test_assert(bc && rc == 0, "$9 falls back to literal");
+  test_assert((bc && rc == 0) != 0, "$9 falls back to literal");
   compiler_free(bc);
 
   /* Plain literal segments. */
   bc = cov_compile_tpl("plain text", &bc_len, &rc);
-  test_assert(bc && rc == 0, "plain text compiles");
+  test_assert((bc && rc == 0) != 0, "plain text compiles");
   compiler_free(bc);
 }
 
@@ -840,15 +842,15 @@ void test_cov_tpl_tables(void) {
 
   /* Literal key: $v1[tbl['key']]. */
   bc = cov_compile_tpl("$v1[tbl['key']]", &bc_len, &rc);
-  test_assert(bc && rc == 0, "table literal key compiles");
+  test_assert((bc && rc == 0) != 0, "table literal key compiles");
   compiler_free(bc);
 
   /* Capture key: $v1[tbl[v1]] and $v1[tbl[2]]. */
   bc = cov_compile_tpl("$v1[tbl[v1]]", &bc_len, &rc);
-  test_assert(bc && rc == 0, "table capture key compiles");
+  test_assert((bc && rc == 0) != 0, "table capture key compiles");
   compiler_free(bc);
   bc = cov_compile_tpl("$v1[tbl[2]]", &bc_len, &rc);
-  test_assert(bc && rc == 0, "table digit key compiles");
+  test_assert((bc && rc == 0) != 0, "table digit key compiles");
   compiler_free(bc);
 
   /* Error fallbacks: every bad shape emits a literal '$'. */
@@ -861,7 +863,7 @@ void test_cov_tpl_tables(void) {
                          "$v1[tbl[x]"};       /* non-digit unquoted key */
     for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
       bc = cov_compile_tpl(bad[i], &bc_len, &rc);
-      test_assert(bc && rc == 0, "malformed table ref falls back");
+      test_assert((bc && rc == 0) != 0, "malformed table ref falls back");
       compiler_free(bc);
     }
   }
@@ -878,14 +880,14 @@ void test_cov_tpl_tables(void) {
     ti += 6;
     tpl[ti] = '\0';
     bc = cov_compile_tpl(tpl, &bc_len, &rc);
-    test_assert(bc == NULL && rc == -1, "overlong table name rejected");
+    test_assert((bc == NULL && rc == -1) != 0, "overlong table name rejected");
     compiler_free(bc);
   }
 
   /* bind_tables: resolve literal + capture key tables and report unknown. */
   {
     bc = cov_compile_tpl("$v1[tbl['key']] $v1[tbl[v1]]", &bc_len, &rc);
-    test_assert(bc && rc == 0, "multi-table template compiles");
+    test_assert((bc && rc == 0) != 0, "multi-table template compiles");
     if (bc) {
       const char *names[] = {"tbl"};
       const uint16_t ids[] = {7};
@@ -897,7 +899,7 @@ void test_cov_tpl_tables(void) {
       uint8_t *bc2 =
           cov_compile_tpl("$v1[tbl['key']] $v1[tbl[v1]]", &bc_len, &rc);
       test_assert(bc2 != NULL, "second template compiles");
-      res = snobol_template_bind_tables(bc2, bc_len, NULL, NULL, 0);
+      res = snobol_template_bind_tables(bc2, bc_len, nullptr, nullptr, 0);
       test_assert(res == -1, "unbound table reported");
       compiler_free(bc2);
     }
@@ -905,7 +907,8 @@ void test_cov_tpl_tables(void) {
 
   /* bind_tables guards and the full opcode walk. */
   {
-    test_assert(snobol_template_bind_tables(NULL, 0, NULL, NULL, 0) == 0,
+    test_assert(snobol_template_bind_tables(nullptr, 0, nullptr, nullptr, 0) ==
+                    0,
                 "bind(NULL) no-op");
 
     /* Crafted template bytecode walking every bindable opcode form. */
@@ -1113,7 +1116,7 @@ static void test_documented_table_syntax(void) {
 
   /* $colors['sky']: bare name + literal key */
   {
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     const char *tpl = "$colors['sky']";
     int rc = compile_template_to_bytecode(tpl, strlen(tpl), &bc, &bc_len);
@@ -1126,8 +1129,9 @@ static void test_documented_table_syntax(void) {
           if (tid == SNBL_TABLE_ID_UNBOUND) {
             /* key_type at i+3, name_len at i+4, name bytes after */
             if (bc[i + 3] == 0 && bc[i + 4] == 6 &&
-                memcmp(bc + i + 5, "colors", 6) == 0)
+                memcmp(bc + i + 5, "colors", 6) == 0) {
               found = true;
+            }
           }
         }
       }
@@ -1139,7 +1143,7 @@ static void test_documented_table_syntax(void) {
 
   /* $STATE[$v0]: bare name + capture-register key (documented $ form) */
   {
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     const char *tpl = "$STATE[$v0]";
     int rc = compile_template_to_bytecode(tpl, strlen(tpl), &bc, &bc_len);
@@ -1152,8 +1156,9 @@ static void test_documented_table_syntax(void) {
           if (tid == SNBL_TABLE_ID_UNBOUND) {
             /* key_type=1 (capture), name_len=5 'STATE', key_reg=0 */
             if (bc[i + 3] == 1 && bc[i + 4] == 5 &&
-                memcmp(bc + i + 5, "STATE", 5) == 0 && bc[i + 10] == 0)
+                memcmp(bc + i + 5, "STATE", 5) == 0 && bc[i + 10] == 0) {
               found = true;
+            }
           }
         }
       }
@@ -1165,7 +1170,7 @@ static void test_documented_table_syntax(void) {
 
   /* Identifier not followed by '[' stays literal text: no OP_EMIT_TABLE. */
   {
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     const char *tpl = "$version";
     int rc = compile_template_to_bytecode(tpl, strlen(tpl), &bc, &bc_len);
@@ -1178,14 +1183,14 @@ static void test_documented_table_syntax(void) {
           break;
         }
       }
-      test_assert(!found, "bare identifier without '[' stays literal");
+      test_assert((!found) != 0, "bare identifier without '[' stays literal");
       compiler_free(bc);
     }
   }
 
   /* Malformed table ref falls back to a literal '$' (no OP_EMIT_TABLE). */
   {
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     const char *tpl = "$colors['sky'";
     int rc = compile_template_to_bytecode(tpl, strlen(tpl), &bc, &bc_len);
@@ -1198,7 +1203,7 @@ static void test_documented_table_syntax(void) {
           break;
         }
       }
-      test_assert(!found, "malformed table ref falls back to literal");
+      test_assert((!found) != 0, "malformed table ref falls back to literal");
       compiler_free(bc);
     }
   }
@@ -1209,12 +1214,13 @@ static void test_documented_table_syntax(void) {
     tpl[0] = '$';
     memset(tpl + 1, 'x', 256);
     memcpy(tpl + 257, "['k']", 5);
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     int rc = compile_template_to_bytecode(tpl, 262, &bc, &bc_len);
     test_assert(rc != 0, "overlong bare table name fails compilation");
-    if (bc)
+    if (bc) {
       compiler_free(bc);
+    }
   }
 }
 

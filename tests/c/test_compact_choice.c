@@ -52,19 +52,21 @@ static VM make_vm(const uint8_t *bc, size_t bc_len, const char *subject) {
 
 static bool cap_equals(const VM *vm, uint8_t reg, const char *subject,
                        const char *expected) {
-  if (reg >= MAX_CAPS)
+  if (reg >= MAX_CAPS) {
     return false;
+  }
   size_t a = vm->cap_start[reg];
   size_t b = vm->cap_end[reg];
 
   if (expected == NULL) {
-    return a == 0 && b == 0;
+    return (a == 0 && b == 0) != 0;
   }
 
-  if (b < a)
+  if (b < a) {
     return false;
+  }
   size_t n = b - a;
-  return strlen(expected) == n && memcmp(subject + a, expected, n) == 0;
+  return (strlen(expected) == n && memcmp(subject + a, expected, n) == 0) != 0;
 }
 
 /* ── Bytecode builder helpers ───────────────────────────────────────────── */
@@ -152,7 +154,8 @@ static void test_write_log_tracking(void) {
   WriteLogEntry entries[4];
   vm_write_log_copy_entries(&vm, entries, 4);
   // Entries order: cap0 then cap1 (based on insertion order in circular buffer)
-  bool found0 = false, found1 = false;
+  bool found0 = false;
+  bool found1 = false;
   for (size_t i = 0; i < count; i++) {
     if (entries[i].cap_index == 0) {
       found0 = true;
@@ -164,7 +167,7 @@ static void test_write_log_tracking(void) {
       test_assert(entries[i].old_end == (size_t)-1, "cap1 old_end unset");
     }
   }
-  test_assert(found0 && found1, "Both entries found in copy");
+  test_assert((found0 && found1) != 0, "Both entries found in copy");
 
   vm_write_log_free(&vm);
 }
@@ -194,7 +197,7 @@ static void test_compact_choice_size_calculation(void) {
   // CompactChoiceHeader + trailing uint32, so the footprint is that plus the
   // two size words.
   size_t expected_total =
-      sizeof(CompactChoiceHeader) + sizeof(uint32_t) + 2 * sizeof(uint32_t);
+      sizeof(CompactChoiceHeader) + sizeof(uint32_t) + (2 * sizeof(uint32_t));
 
   // Simulate push by calling vm_push_choice.
   uint8_t dummy_bc[1] = {OP_ACCEPT};
@@ -323,11 +326,11 @@ static void test_memory_reduction_with_many_choices(void) {
   // [leading size word][payload][trailing size word], so the per-record
   // footprint = payload + 2*sizeof(uint32_t).
   // Legacy records: sizeof(struct choice) payload.
-  size_t legacy_per = sizeof(struct choice) + 2 * sizeof(uint32_t);
+  size_t legacy_per = sizeof(struct choice) + (2 * sizeof(uint32_t));
   size_t legacy_expected = N * legacy_per;
   // Compact records: header + trailing uint32_t, plus 2 size words total.
   size_t compact_per =
-      sizeof(CompactChoiceHeader) + sizeof(uint32_t) + 2 * sizeof(uint32_t);
+      sizeof(CompactChoiceHeader) + sizeof(uint32_t) + (2 * sizeof(uint32_t));
   size_t compact_expected = N * compact_per;
 
   printf("  [info] legacy_total=%zu legacy_expected=%zu\n", legacy_total,
@@ -385,10 +388,10 @@ static void test_choice_statistics_api(void) {
   size_t avg_size = vm_choice_record_average_size(&vm);
   test_assert(avg_size > 0, "Average record size should be > 0");
   size_t expected_compact =
-      sizeof(CompactChoiceHeader) + sizeof(uint32_t) + 2 * sizeof(uint32_t);
+      sizeof(CompactChoiceHeader) + sizeof(uint32_t) + (2 * sizeof(uint32_t));
   printf("  [info] avg_size=%zu expected≈%zu\n", avg_size, expected_compact);
-  test_assert(avg_size >= expected_compact - 1 &&
-                  avg_size <= expected_compact + 1,
+  test_assert((avg_size >= expected_compact - 1 &&
+               avg_size <= expected_compact + 1) != 0,
               "Average size matches compact header-only record");
 }
 
@@ -423,10 +426,11 @@ static void test_env_var_cached_once(void) {
 
   /* Flip the environment. A cached implementation keeps the mode from first
    * init; the old per-match getenv would flip it to the new value here. */
-  if (first_compact)
+  if (first_compact) {
     setenv("SNOBOL_LEGACY_CHOICE", "1", 1);
-  else
+  } else {
     unsetenv("SNOBOL_LEGACY_CHOICE");
+  }
   VM vm_second = make_vm(b.bc, b.lit_pool, "b");
   bool ok_second = vm_run(&vm_second);
   bool second_compact = vm_second.use_compact_choice;

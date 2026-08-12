@@ -9,7 +9,7 @@ extern "C" {
  * __STDC_VERSION__ == 202311L for C23; anything lower (or undefined) means the
  * compiler does not recognise 'nullptr' or 'constexpr' as keywords in C mode.
  */
-#if !defined(__cplusplus)
+#ifndef __cplusplus
 #if !defined(__STDC_VERSION__) || (__STDC_VERSION__ < 202311L)
 #ifndef nullptr
 #define nullptr NULL

@@ -28,11 +28,12 @@ static bool run_deep_alt_failure(size_t depth) {
   // Estimate BC size.
   size_t per =
       1 + 4 + 4 /*split*/ + (1 + 4 + 4 + 1) /*lit inline*/ + 1 /*fail*/;
-  size_t bc_cap = depth * per + 1;
+  size_t bc_cap = (depth * per) + 1;
 
   uint8_t *bc = malloc(bc_cap);
-  if (!bc)
+  if (!bc) {
     return false;
+  }
 
   size_t ip = 0;
 

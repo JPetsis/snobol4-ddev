@@ -26,8 +26,9 @@ static void assert_same_match(snobol_match_t *got, snobol_match_t *ref,
   char msg[128];
   snprintf(msg, sizeof(msg), "%s: success flag matches", label);
   test_assert(snobol_match_success(got) == snobol_match_success(ref), msg);
-  if (!snobol_match_success(got))
+  if (!snobol_match_success(got)) {
     return;
+  }
 
   snprintf(msg, sizeof(msg), "%s: position matches", label);
   test_assert(snobol_match_get_position(got) == snobol_match_get_position(ref),
@@ -39,7 +40,8 @@ static void assert_same_match(snobol_match_t *got, snobol_match_t *ref,
   test_assert(got->var_count == ref->var_count, msg);
 
   for (int i = 0; i < got->var_count; i++) {
-    size_t gl = 0, rl = 0;
+    size_t gl = 0;
+    size_t rl = 0;
     char name[8];
     /* Capture registers are 0-based; the accessor maps the bare number to
      * the register index directly. */
@@ -49,8 +51,9 @@ static void assert_same_match(snobol_match_t *got, snobol_match_t *ref,
     snprintf(msg, sizeof(msg), "%s: var %d length matches", label, i);
     test_assert(gl == rl, msg);
     snprintf(msg, sizeof(msg), "%s: var %d bytes match", label, i);
-    if (gl == rl && gl > 0 && gv && rv)
+    if (gl == rl && gl > 0 && gv && rv) {
       test_assert(memcmp(gv, rv, gl) == 0, msg);
+    }
   }
 }
 
@@ -58,7 +61,7 @@ static void diff_patterns(const char *label, const char *pattern, size_t plen,
                           const char *subject, size_t slen) {
   (void)plen;
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *pat =
       snobol_pattern_compile(ctx, pattern, strlen(pattern), &err);
   char cmsg[256];
@@ -91,8 +94,9 @@ static void diff_patterns(const char *label, const char *pattern, size_t plen,
     }
   }
 
-  if (ref)
+  if (ref) {
     snobol_match_free(ref);
+  }
   snobol_pattern_search_state_destroy(state);
   snobol_pattern_free(pat);
   free(err);
@@ -123,7 +127,7 @@ void test_reuse_search_suite(void) {
   /* Buffer hoist regression: 1000 searches on same state must all succeed */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *p =
         snobol_pattern_compile(ctx, "'hello' SPAN(' ')", 17, &err);
     if (p) {
@@ -134,8 +138,9 @@ void test_reuse_search_suite(void) {
         for (int i = 0; i < 1000; i++) {
           snobol_match_t *m =
               snobol_pattern_search_ex(state, "hello world", 11, 0);
-          if (!m || !m->success)
+          if (!m || !m->success) {
             all_ok = false;
+          }
         }
         test_assert(all_ok, "buffer hoist: 1000 searches succeed");
         snobol_pattern_search_state_destroy(state);

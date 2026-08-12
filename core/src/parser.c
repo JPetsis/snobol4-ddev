@@ -72,8 +72,9 @@ snobol_parser_t *snobol_parser_create(void) {
 
 static void set_error(snobol_parser_t *parser, const char *msg, size_t line,
                       size_t col) {
-  if (!parser || !msg)
+  if (!parser || !msg) {
     return;
+  }
 
   parser->error.has_error = true;
   parser->error.line = line;
@@ -120,8 +121,9 @@ static bool expect(snobol_parser_t *parser, snobol_lexer_t *lexer,
 
 ast_node_t *snobol_parser_parse(snobol_parser_t *parser,
                                 snobol_lexer_t *lexer) {
-  if (!parser || !lexer)
+  if (!parser || !lexer) {
     return nullptr;
+  }
 
   /* Clear any previous error */
   parser->error.has_error = false;
@@ -201,8 +203,9 @@ static ast_node_t *parse_statement(snobol_parser_t *parser,
       }
       if (parser->seen_label_count < parser->seen_label_capacity) {
         char *copy = (char *)malloc(strlen(label_name) + 1);
-        if (copy)
+        if (copy) {
           strcpy(copy, label_name);
+        }
         parser->seen_labels[parser->seen_label_count++] = copy;
       }
 
@@ -224,8 +227,9 @@ static ast_node_t *parse_statement(snobol_parser_t *parser,
 
   /* Parse the pattern expression */
   ast_node_t *pattern = parse_alternation(parser, lexer);
-  if (!pattern)
+  if (!pattern) {
     return nullptr;
+  }
 
   /* Check for goto: ':' '(' IDENT ')' */
   tok = peek(lexer);
@@ -284,8 +288,9 @@ static ast_node_t *parse_statement(snobol_parser_t *parser,
 static ast_node_t *parse_alternation(snobol_parser_t *parser,
                                      snobol_lexer_t *lexer) {
   ast_node_t *left = parse_concatenation(parser, lexer);
-  if (!left)
+  if (!left) {
     return nullptr;
+  }
 
   while (match(lexer, TOKEN_PIPE)) {
     advance(lexer); /* Consume '|' */
@@ -317,7 +322,7 @@ static ast_node_t *parse_concatenation(snobol_parser_t *parser,
         (tok.type == TOKEN_LIT || tok.type == TOKEN_CHARCLASS ||
          tok.type == TOKEN_LPAREN || tok.type == TOKEN_ANCHOR_START ||
          tok.type == TOKEN_ANCHOR_END || tok.type == TOKEN_AT ||
-         tok.type == TOKEN_IDENT);
+         tok.type == TOKEN_IDENT) != 0;
 
     /* Check for function calls */
     if (tok.type == TOKEN_IDENT) {
@@ -384,8 +389,9 @@ static ast_node_t *parse_concatenation(snobol_parser_t *parser,
 static ast_node_t *parse_repetition(snobol_parser_t *parser,
                                     snobol_lexer_t *lexer) {
   ast_node_t *primary = parse_primary(parser, lexer);
-  if (!primary)
+  if (!primary) {
     return nullptr;
+  }
 
   token_t tok = peek(lexer);
 
@@ -440,8 +446,9 @@ static ast_node_t *parse_primary(snobol_parser_t *parser,
       advance(lexer);
       {
         ast_node_t *inner = parse_alternation(parser, lexer);
-        if (!inner)
+        if (!inner) {
           return nullptr;
+        }
 
         if (!expect(parser, lexer, TOKEN_RPAREN)) {
           snobol_ast_free(inner);
@@ -496,8 +503,9 @@ static ast_node_t *parse_primary(snobol_parser_t *parser,
         int reg = parser->capture_reg_counter++;
 
         ast_node_t *sub = parse_primary(parser, lexer);
-        if (!sub)
+        if (!sub) {
           return nullptr;
+        }
 
         return snobol_ast_create_cap(reg, sub);
       }
@@ -718,8 +726,9 @@ static ast_node_t *parse_dynamic_eval(snobol_parser_t *parser,
 
   /* Parse the inner pattern expression */
   ast_node_t *expr = parse_alternation(parser, lexer);
-  if (!expr)
+  if (!expr) {
     return nullptr;
+  }
 
   if (!expect(parser, lexer, TOKEN_RPAREN)) {
     snobol_ast_free(expr);
@@ -737,30 +746,36 @@ static ast_node_t *parse_dynamic_eval(snobol_parser_t *parser,
 }
 
 bool snobol_parser_has_error(snobol_parser_t *parser) {
-  if (!parser)
+  if (!parser) {
     return false;
+  }
   return parser->error.has_error;
 }
 
 const char *snobol_parser_get_error(snobol_parser_t *parser) {
-  if (!parser || !parser->error.has_error)
+  if (!parser || !parser->error.has_error) {
     return nullptr;
+  }
   return parser->error.message;
 }
 
 void snobol_parser_get_error_location(snobol_parser_t *parser, size_t *line,
                                       size_t *column) {
-  if (!parser)
+  if (!parser) {
     return;
-  if (line)
+  }
+  if (line) {
     *line = parser->error.line;
-  if (column)
+  }
+  if (column) {
     *column = parser->error.column;
+  }
 }
 
 void snobol_parser_clear_error(snobol_parser_t *parser) {
-  if (!parser)
+  if (!parser) {
     return;
+  }
   parser->error.has_error = false;
   parser->error.message[0] = '\0';
   parser->error.line = 0;

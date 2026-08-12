@@ -75,8 +75,9 @@ typedef struct {
  */
 static inline int utf8_peek_next(const char *s, size_t len, size_t pos,
                                  uint32_t *out_cp, int *out_bytes) {
-  if (pos >= len)
+  if (pos >= len) {
     return 0;
+  }
   unsigned char c = (unsigned char)s[pos];
   if (c < 0x80) {
     *out_cp = c;
@@ -84,23 +85,26 @@ static inline int utf8_peek_next(const char *s, size_t len, size_t pos,
     return 1;
   }
   if ((c & 0xE0) == 0xC0) {
-    if (pos + 1 >= len)
+    if (pos + 1 >= len) {
       return 0;
+    }
     *out_cp = ((c & 0x1F) << 6) | ((unsigned char)s[pos + 1] & 0x3F);
     *out_bytes = 2;
     return 1;
   }
   if ((c & 0xF0) == 0xE0) {
-    if (pos + 2 >= len)
+    if (pos + 2 >= len) {
       return 0;
+    }
     *out_cp = ((c & 0x0F) << 12) | (((unsigned char)s[pos + 1] & 0x3F) << 6) |
               ((unsigned char)s[pos + 2] & 0x3F);
     *out_bytes = 3;
     return 1;
   }
   if ((c & 0xF8) == 0xF0) {
-    if (pos + 3 >= len)
+    if (pos + 3 >= len) {
       return 0;
+    }
     *out_cp = ((c & 0x07) << 18) | (((unsigned char)s[pos + 1] & 0x3F) << 12) |
               (((unsigned char)s[pos + 2] & 0x3F) << 6) |
               ((unsigned char)s[pos + 3] & 0x3F);
@@ -677,10 +681,12 @@ bool range_contains(const uint8_t *ranges_ptr, size_t count, uint32_t cp);
 /** @brief Test bit @p c in a 128-bit ASCII bitmap. Returns false for c > 127.
  */
 static inline bool bitmap_test(const uint64_t map[2], uint8_t c) {
-  if (c > 127)
+  if (c > 127) {
     return false;
-  if (c < 64)
+  }
+  if (c < 64) {
     return (map[0] & (1ULL << c)) != 0;
+  }
   return (map[1] & (1ULL << (c - 64))) != 0;
 }
 

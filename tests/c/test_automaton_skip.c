@@ -18,9 +18,9 @@
 #include <string.h>
 #include <stdint.h>
 
-#if defined(_WIN32)
+#ifdef _WIN32
 #include <windows.h>
-#elif defined(__APPLE__)
+#elifdef __APPLE__
 #include <mach/mach_time.h>
 #include <mach/mach_time.h>
 #else
@@ -33,15 +33,16 @@ extern void test_suite(const char *name);
 extern void test_assert(bool condition, const char *message);
 
 static int64_t now_ns(void) {
-#if defined(_WIN32)
+#ifdef _WIN32
   LARGE_INTEGER freq, cnt;
   QueryPerformanceFrequency(&freq);
   QueryPerformanceCounter(&cnt);
   return (int64_t)(cnt.QuadPart * 1000000000LL / freq.QuadPart);
-#elif defined(__APPLE__)
+#elifdef __APPLE__
   static mach_timebase_info_data_t info = {0};
-  if (info.denom == 0)
+  if (info.denom == 0) {
     mach_timebase_info(&info);
+  }
   uint64_t raw = mach_absolute_time();
   return (int64_t)(raw * info.numer / info.denom);
 #else
@@ -53,10 +54,10 @@ static int64_t now_ns(void) {
 
 static snobol_match_t *search(const char *pat, const char *subject) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p = snobol_pattern_compile(ctx, pat, strlen(pat), &err);
   free(err);
-  snobol_match_t *m = NULL;
+  snobol_match_t *m = nullptr;
   if (p) {
     m = snobol_pattern_search(p, subject, strlen(subject));
     snobol_pattern_free(p);
@@ -68,8 +69,9 @@ static snobol_match_t *search(const char *pat, const char *subject) {
 /* A subject of N 'a' bytes (never contains the pattern's first byte). */
 static char *make_long(size_t n) {
   char *s = (char *)malloc(n + 1);
-  if (!s)
-    return NULL;
+  if (!s) {
+    return nullptr;
+  }
   memset(s, 'a', n);
   s[n] = '\0';
   return s;
@@ -80,7 +82,7 @@ static void test_correctness(void) {
 
   /* Bushy alt-literal with shared prefix "fo". */
   snobol_match_t *m = search("('foo' | 'fop' | 'fox')", "xxfopxx");
-  test_assert(m != NULL && snobol_match_success(m), "match succeeds");
+  test_assert((m != NULL && snobol_match_success(m)) != 0, "match succeeds");
   if (m) {
     test_assert(snobol_match_get_position(m) == 2, "match at offset 2 ('fop')");
     test_assert(snobol_match_get_length(m) == 3, "match length 3");
@@ -89,7 +91,7 @@ static void test_correctness(void) {
 
   /* First alternative wins when both could match. */
   snobol_match_t *m2 = search("('foo' | 'fop')", "zzfoo");
-  test_assert(m2 != NULL && snobol_match_success(m2), "match succeeds");
+  test_assert((m2 != NULL && snobol_match_success(m2)) != 0, "match succeeds");
   if (m2) {
     test_assert(snobol_match_get_position(m2) == 2,
                 "match at offset 2 ('foo')");
@@ -98,7 +100,8 @@ static void test_correctness(void) {
 
   /* No match when subject has no 'f'. */
   snobol_match_t *m3 = search("('foo' | 'fop')", "barbar");
-  test_assert(m3 != NULL && !snobol_match_success(m3), "no match on 'barbar'");
+  test_assert((m3 != NULL && !snobol_match_success(m3)) != 0,
+              "no match on 'barbar'");
   snobol_match_free(m3);
 }
 
@@ -110,15 +113,16 @@ static void test_linear_time(void) {
   size_t n = 2000000;
   char *subj = make_long(n);
   test_assert(subj != NULL, "long subject allocated");
-  if (!subj)
+  if (!subj) {
     return;
+  }
 
   int64_t t0 = now_ns();
   snobol_match_t *m = search("('foo' | 'fop' | 'fox')", subj);
   int64_t t1 = now_ns();
 
   double ms = (double)(t1 - t0) / 1.0e6;
-  test_assert(m != NULL && !snobol_match_success(m),
+  test_assert((m != NULL && !snobol_match_success(m)) != 0,
               "no match on long 'a' run");
   /* Linear scan of 2 MB should finish in well under a second. */
   test_assert(ms < 1000.0, "long failing subject scanned in < 1s (linear)");

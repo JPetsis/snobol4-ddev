@@ -76,14 +76,16 @@ static void match_store_capture(snobol_match_t *m, const char *subject, int i,
 snobol_context_t *snobol_context_create(void) {
   snobol_context_t *ctx =
       (snobol_context_t *)snobol_malloc(sizeof(snobol_context_t));
-  if (ctx)
+  if (ctx) {
     ctx->_reserved = 0;
+  }
   return ctx;
 }
 
 void snobol_context_destroy(snobol_context_t *ctx) {
-  if (ctx)
+  if (ctx) {
     snobol_free(ctx);
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -93,12 +95,14 @@ void snobol_context_destroy(snobol_context_t *ctx) {
 
 /** Copy a static message into the caller's malloc'd error out-param. */
 static void set_error_out(char **error, const char *msg) {
-  if (!error)
+  if (!error) {
     return;
+  }
   size_t mlen = strlen(msg) + 1;
   *error = (char *)malloc(mlen);
-  if (*error)
+  if (*error) {
     memcpy(*error, msg, mlen);
+  }
 }
 
 /**
@@ -115,7 +119,7 @@ static snobol_pattern_t *pattern_finalize(uint8_t *bc, size_t bc_len,
   if (!pat) {
     compiler_free(bc);
     set_error_out(error, "out of memory");
-    return NULL;
+    return nullptr;
   }
   memset(pat, 0, sizeof(snobol_pattern_t));
   pat->bc = bc;
@@ -135,8 +139,9 @@ static snobol_pattern_t *pattern_finalize(uint8_t *bc, size_t bc_len,
  */
 static snobol_pattern_t *do_compile(const char *source, size_t len,
                                     bool case_insensitive, char **error) {
-  if (error)
-    *error = NULL;
+  if (error) {
+    *error = nullptr;
+  }
 
   snobol_lexer_t *lexer = snobol_lexer_create(source, len);
   snobol_parser_t *parser = snobol_parser_create();
@@ -147,26 +152,28 @@ static snobol_pattern_t *do_compile(const char *source, size_t len,
    * use the heap.  Falls back to calloc when the arena is exhausted. */
   snobol_arena_t arena;
   void *arena_buf = snobol_malloc(SNOBOL_ARENA_DEFAULT_CAPACITY);
-  if (arena_buf)
+  if (arena_buf) {
     snobol_arena_init(&arena, arena_buf, SNOBOL_ARENA_DEFAULT_CAPACITY);
-  else
+  } else {
     snobol_arena_init(&arena, NULL, 0);
+  }
   snobol_ast_set_arena(&arena);
 
   ast_node_t *ast = snobol_parser_parse(parser, lexer);
 
-  snobol_pattern_t *result = NULL;
+  snobol_pattern_t *result = nullptr;
 
   if (!ast || snobol_parser_has_error(parser)) {
     const char *msg = snobol_parser_get_error(parser);
-    if (!msg)
+    if (!msg) {
       msg = "unknown parse error";
+    }
     set_error_out(error, msg);
     snobol_ast_free(ast);
     goto cleanup;
   }
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(ast, case_insensitive, &bc, &bc_len);
   snobol_ast_free(ast);
@@ -205,7 +212,7 @@ snobol_pattern_t *snobol_pattern_compile(snobol_context_t *ctx,
 }
 
 const uint8_t *snobol_pattern_get_bc(const snobol_pattern_t *pattern) {
-  return pattern ? pattern->bc : NULL;
+  return pattern ? pattern->bc : nullptr;
 }
 
 size_t snobol_pattern_get_bc_len(const snobol_pattern_t *pattern) {
@@ -215,13 +222,14 @@ size_t snobol_pattern_get_bc_len(const snobol_pattern_t *pattern) {
 /* ---- Internal accessors (used by search.c) ---- */
 
 snobol_dfa_t *snobol_pattern_get_automaton(const snobol_pattern_t *pattern) {
-  return pattern ? pattern->automaton : NULL;
+  return pattern ? pattern->automaton : nullptr;
 }
 
 void snobol_pattern_set_automaton(snobol_pattern_t *pattern,
                                   snobol_dfa_t *dfa) {
-  if (pattern)
+  if (pattern) {
     pattern->automaton = dfa;
+  }
 }
 
 /* ---------------------------------------------------------------------------
@@ -238,7 +246,7 @@ void snobol_pattern_set_automaton(snobol_pattern_t *pattern,
 /* Return the cached Tier-5 trie, or NULL when none has been built yet. */
 snobol_auto_trie_t *snobol_pattern_get_trie_cache(
     const snobol_pattern_t *pattern) {
-  return pattern ? pattern->trie_cache : NULL;
+  return pattern ? pattern->trie_cache : nullptr;
 }
 
 /* Store (or clear, with @p trie == NULL) the cached Tier-5 trie and update the
@@ -253,31 +261,36 @@ void snobol_pattern_set_trie_cache(snobol_pattern_t *pattern,
 
 const snobol_search_meta_t *snobol_pattern_get_meta(
     const snobol_pattern_t *pattern) {
-  return pattern ? &pattern->meta : NULL;
+  return pattern ? &pattern->meta : nullptr;
 }
 
 const snobol_range_meta_t *snobol_pattern_get_range_meta(
     const snobol_pattern_t *pattern, size_t *count) {
-  if (count)
+  if (count) {
     *count = pattern ? pattern->range_meta_count : 0;
-  return pattern ? pattern->range_meta : NULL;
+  }
+  return pattern ? pattern->range_meta : nullptr;
 }
 
 bool snobol_pattern_automaton_available(const snobol_pattern_t *pattern) {
-  return pattern && pattern->automaton &&
-         pattern->automaton->num_states < SNOBOL_DFA_MAX_STATES;
+  return (pattern && pattern->automaton &&
+          pattern->automaton->num_states < SNOBOL_DFA_MAX_STATES) != 0;
 }
 
 void snobol_pattern_free(snobol_pattern_t *pattern) {
-  if (!pattern)
+  if (!pattern) {
     return;
+  }
   compiler_free(pattern->bc);
-  if (pattern->range_meta)
+  if (pattern->range_meta) {
     snobol_free(pattern->range_meta);
-  if (pattern->automaton)
+  }
+  if (pattern->automaton) {
     snobol_dfa_free(pattern->automaton);
-  if (pattern->trie_cache)
+  }
+  if (pattern->trie_cache) {
     snobol_auto_trie_free(pattern->trie_cache);
+  }
   snobol_search_meta_free(&pattern->meta);
   snobol_free(pattern);
 }
@@ -291,16 +304,18 @@ snobol_literal_match_t snobol_pattern_match_literal(snobol_pattern_t *pattern,
                                                     const char *subject,
                                                     size_t len) {
   snobol_literal_match_t result = {false, 0, 0};
-  if (!pattern || !subject)
+  if (!pattern || !subject) {
     return result;
+  }
 
   /* Derive meta on first use if not already initialized */
   if (!pattern->meta_initialized) {
     snobol_search_derive_meta(pattern->bc, pattern->bc_len, &pattern->meta);
     pattern->meta_initialized = true;
   }
-  if (!pattern->meta.is_literal_only)
+  if (!pattern->meta.is_literal_only) {
     return result;
+  }
 
   /* Extract the literal from bytecode: skip leading zero-width ops */
   const uint8_t *bc = pattern->bc;
@@ -318,8 +333,9 @@ snobol_literal_match_t snobol_pattern_match_literal(snobol_pattern_t *pattern,
     }
     break;
   }
-  if (ip + 9 > bc_len || bc[ip] != OP_LIT)
+  if (ip + 9 > bc_len || bc[ip] != OP_LIT) {
     return result;
+  }
 
   uint32_t lit_off = ((uint32_t)bc[ip + 1] << 24) |
                      ((uint32_t)bc[ip + 2] << 16) |
@@ -327,8 +343,9 @@ snobol_literal_match_t snobol_pattern_match_literal(snobol_pattern_t *pattern,
   uint32_t lit_len = ((uint32_t)bc[ip + 5] << 24) |
                      ((uint32_t)bc[ip + 6] << 16) |
                      ((uint32_t)bc[ip + 7] << 8) | (uint32_t)bc[ip + 8];
-  if (lit_off > bc_len || lit_off + lit_len > bc_len || lit_len == 0)
+  if (lit_off > bc_len || lit_off + lit_len > bc_len || lit_len == 0) {
     return result;
+  }
 
   const char *lit = (const char *)(bc + lit_off);
   if (len >= lit_len && memcmp(subject, lit, lit_len) == 0) {
@@ -341,16 +358,18 @@ snobol_literal_match_t snobol_pattern_match_literal(snobol_pattern_t *pattern,
 
 snobol_match_t *snobol_pattern_match(snobol_pattern_t *pattern,
                                      const char *subject, size_t len) {
-  if (!pattern || !subject)
-    return NULL;
+  if (!pattern || !subject) {
+    return nullptr;
+  }
 
   snobol_match_t *m = (snobol_match_t *)snobol_malloc(sizeof(snobol_match_t));
-  if (!m)
-    return NULL;
+  if (!m) {
+    return nullptr;
+  }
   memset(m, 0, sizeof(snobol_match_t));
 
   /* Set up output buffer */
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {nullptr};
   snobol_buf_init(&out_buf);
 
   /* ---- Literal-only fast path: bypass VM entirely ---- */
@@ -394,20 +413,21 @@ snobol_match_t *snobol_pattern_match(snobol_pattern_t *pattern,
   vm.out = &out_buf;
 
   /* Build and cache DFA for eligible patterns (lazy: reuse cached) */
-  snobol_dfa_t *dfa = NULL;
+  snobol_dfa_t *dfa = nullptr;
   if (meta.automaton_eligible) {
     dfa = snobol_pattern_get_automaton(pattern);
     if (!dfa) {
       dfa = build_dfa(pattern->bc, pattern->bc_len, &vm);
-      if (dfa)
+      if (dfa) {
         snobol_pattern_set_automaton(pattern, dfa);
+      }
     }
   }
 
   /* Route through the cost-model tier dispatcher (anchored match). */
   snobol_search_result_t sr;
   bool ok =
-      snobol_search_exec_anchored(&vm, subject, len, &meta, dfa, &sr, NULL);
+      snobol_search_exec_anchored(&vm, subject, len, &meta, dfa, &sr, nullptr);
   m->success = ok;
   if (ok) {
     m->position = sr.match_start;
@@ -429,8 +449,9 @@ snobol_match_t *snobol_pattern_match(snobol_pattern_t *pattern,
    * window base and bound against the window length so materialization
    * reads the correct absolute span for matches away from offset 0. */
   int n = (int)vm.var_count;
-  if (n > API_MAX_VARS)
+  if (n > API_MAX_VARS) {
     n = API_MAX_VARS;
+  }
   m->var_count = n;
   /* Only touch sr.match_start when the search succeeded (it is unset on
    * failure); a failed match carries no captures anyway. */
@@ -452,8 +473,9 @@ snobol_match_t *snobol_pattern_match(snobol_pattern_t *pattern,
 
 snobol_match_t *snobol_pattern_search(snobol_pattern_t *pattern,
                                       const char *subject, size_t len) {
-  if (!pattern || !subject)
-    return NULL;
+  if (!pattern || !subject) {
+    return nullptr;
+  }
 
   /* Required-byte prefilter: BEFORE any allocation or VM setup, reject
    * subjects that lack a provably required literal.  This avoids malloc,
@@ -462,27 +484,30 @@ snobol_match_t *snobol_pattern_search(snobol_pattern_t *pattern,
     const snobol_search_meta_t *meta = &pattern->meta;
     if (meta->has_required_lit && meta->required_lit_len > 0) {
       bool found;
-      if (meta->required_lit_len == 1)
+      if (meta->required_lit_len == 1) {
         found = memchr(subject, meta->required_lit[0], len) != NULL;
-      else
+      } else {
         found = memmem(subject, len, meta->required_lit,
                        meta->required_lit_len) != NULL;
+      }
       if (!found) {
         snobol_match_t *m =
             (snobol_match_t *)snobol_malloc(sizeof(snobol_match_t));
-        if (m)
+        if (m) {
           memset(m, 0, sizeof(snobol_match_t));
+        }
         return m;
       }
     }
   }
 
   snobol_match_t *m = (snobol_match_t *)snobol_malloc(sizeof(snobol_match_t));
-  if (!m)
-    return NULL;
+  if (!m) {
+    return nullptr;
+  }
   memset(m, 0, sizeof(snobol_match_t));
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {nullptr};
   snobol_buf_init(&out_buf);
 
   VM vm;
@@ -508,18 +533,19 @@ snobol_match_t *snobol_pattern_search(snobol_pattern_t *pattern,
   }
 
   /* Build and cache DFA for eligible patterns (lazy: reuse cached) */
-  snobol_dfa_t *dfa = NULL;
+  snobol_dfa_t *dfa = nullptr;
   if (meta.automaton_eligible) {
     dfa = snobol_pattern_get_automaton(pattern);
     if (!dfa) {
       dfa = build_dfa(pattern->bc, pattern->bc_len, &vm);
-      if (dfa)
+      if (dfa) {
         snobol_pattern_set_automaton(pattern, dfa);
+      }
     }
   }
 
   snobol_search_result_t sr;
-  bool ok = snobol_search_exec(&vm, subject, len, 0, &meta, dfa, &sr, NULL);
+  bool ok = snobol_search_exec(&vm, subject, len, 0, &meta, dfa, &sr, nullptr);
   m->success = ok;
   if (ok) {
     m->position = sr.match_start;
@@ -536,8 +562,9 @@ snobol_match_t *snobol_pattern_search(snobol_pattern_t *pattern,
   }
 
   int n = (int)vm.var_count;
-  if (n > API_MAX_VARS)
+  if (n > API_MAX_VARS) {
     n = API_MAX_VARS;
+  }
   m->var_count = n;
   /* Capture offsets are relative to the match window; anchor var_subject
    * to the window base (subject + match position) so captures materialize
@@ -560,8 +587,9 @@ snobol_match_t *snobol_pattern_search(snobol_pattern_t *pattern,
 }
 
 void snobol_match_free(snobol_match_t *match) {
-  if (!match)
+  if (!match) {
     return;
+  }
   snobol_free(match->output);
   for (int i = 0; i < API_MAX_VARS; i++) {
     snobol_free(match->var_values[i]);
@@ -571,14 +599,16 @@ void snobol_match_free(snobol_match_t *match) {
 
 snobol_match_t *snobol_match_create(void) {
   snobol_match_t *m = (snobol_match_t *)snobol_malloc(sizeof(snobol_match_t));
-  if (m)
+  if (m) {
     memset(m, 0, sizeof(snobol_match_t));
+  }
   return m;
 }
 
 void snobol_match_reset(snobol_match_t *match) {
-  if (!match)
+  if (!match) {
     return;
+  }
   /* Free allocated strings before zeroing */
   snobol_free(match->output);
   for (int i = 0; i < API_MAX_VARS; i++) {
@@ -590,13 +620,14 @@ void snobol_match_reset(snobol_match_t *match) {
 
 bool snobol_pattern_search_reuse(snobol_pattern_t *pattern, const char *subject,
                                  size_t len, snobol_match_t *match_out) {
-  if (!pattern || !subject || !match_out)
+  if (!pattern || !subject || !match_out) {
     return false;
+  }
 
   /* Reset the match object for reuse */
   snobol_match_reset(match_out);
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {nullptr};
   snobol_buf_init(&out_buf);
 
   VM vm;
@@ -613,18 +644,19 @@ bool snobol_pattern_search_reuse(snobol_pattern_t *pattern, const char *subject,
   const snobol_search_meta_t *meta = &pattern->meta;
 
   /* Build and cache DFA for eligible patterns */
-  snobol_dfa_t *dfa = NULL;
+  snobol_dfa_t *dfa = nullptr;
   if (meta->automaton_eligible) {
     dfa = snobol_pattern_get_automaton(pattern);
     if (!dfa) {
       dfa = build_dfa(pattern->bc, pattern->bc_len, &vm);
-      if (dfa)
+      if (dfa) {
         snobol_pattern_set_automaton(pattern, dfa);
+      }
     }
   }
 
   snobol_search_result_t sr;
-  bool ok = snobol_search_exec(&vm, subject, len, 0, meta, dfa, &sr, NULL);
+  bool ok = snobol_search_exec(&vm, subject, len, 0, meta, dfa, &sr, nullptr);
   match_out->success = ok;
   if (ok) {
     match_out->position = sr.match_start;
@@ -641,8 +673,9 @@ bool snobol_pattern_search_reuse(snobol_pattern_t *pattern, const char *subject,
   }
 
   int n = (int)vm.var_count;
-  if (n > API_MAX_VARS)
+  if (n > API_MAX_VARS) {
     n = API_MAX_VARS;
+  }
   match_out->var_count = n;
   /* Capture offsets are relative to the match window; anchor var_subject
    * to the window base (subject + match position) so captures materialize
@@ -699,12 +732,14 @@ struct snobol_pattern_search_state {
 
 snobol_pattern_search_state_t *snobol_pattern_search_state_create(
     const uint8_t *bc, size_t bc_len) {
-  if (!bc || bc_len == 0)
-    return NULL;
+  if (!bc || bc_len == 0) {
+    return nullptr;
+  }
   snobol_pattern_search_state_t *state =
       (snobol_pattern_search_state_t *)snobol_malloc(sizeof(*state));
-  if (!state)
-    return NULL;
+  if (!state) {
+    return nullptr;
+  }
   memset(state, 0, sizeof(*state));
   state->bc = bc;
   state->bc_len = bc_len;
@@ -717,35 +752,39 @@ snobol_pattern_search_state_t *snobol_pattern_search_state_create(
 
 void snobol_pattern_search_state_set_pattern(
     snobol_pattern_search_state_t *state, snobol_pattern_t *pattern) {
-  if (state)
+  if (state) {
     state->pattern = pattern;
+  }
 }
 
 void snobol_pattern_search_state_destroy(snobol_pattern_search_state_t *state) {
-  if (!state)
+  if (!state) {
     return;
+  }
   snobol_search_meta_free(&state->meta);
-  if (state->dfa)
+  if (state->dfa) {
     snobol_dfa_free(state->dfa);
+  }
   if (state->nfa) {
     snobol_free(state->nfa);
-    state->nfa = NULL;
+    state->nfa = nullptr;
   }
   if (state->buf_inited) {
     snobol_buf_free(&state->out_buf);
   }
   vm_free_labels(&state->vm);
   snobol_search_vm_cleanup(&state->vm);
-  if (state->range_meta)
+  if (state->range_meta) {
     snobol_free(state->range_meta);
+  }
   if (state->match.output) {
     snobol_free(state->match.output);
-    state->match.output = NULL;
+    state->match.output = nullptr;
   }
   for (int i = 0; i < API_MAX_VARS; i++) {
     if (state->match.var_values[i]) {
       snobol_free(state->match.var_values[i]);
-      state->match.var_values[i] = NULL;
+      state->match.var_values[i] = nullptr;
     }
   }
   snobol_free(state);
@@ -753,8 +792,9 @@ void snobol_pattern_search_state_destroy(snobol_pattern_search_state_t *state) {
 
 void snobol_pattern_search_state_set_trie_cache(
     snobol_pattern_search_state_t *state, snobol_auto_trie_t *trie) {
-  if (state)
+  if (state) {
     state->vm.trie_cache = trie;
+  }
 }
 
 void snobol_pattern_search_state_set_eval_fn(
@@ -772,8 +812,9 @@ snobol_match_t *snobol_pattern_search_ex(snobol_pattern_search_state_t *state,
                                          const char *subject,
                                          size_t subject_len,
                                          size_t start_offset) {
-  if (!state || !subject)
-    return NULL;
+  if (!state || !subject) {
+    return nullptr;
+  }
 
   /* Lazy init: output buffer on first call, JIT context on first call.
    * The VM struct is initialised fields-only (no memset) on every
@@ -805,13 +846,13 @@ snobol_match_t *snobol_pattern_search_ex(snobol_pattern_search_state_t *state,
   /* Free any output from the previous call */
   if (state->match.output) {
     snobol_free(state->match.output);
-    state->match.output = NULL;
+    state->match.output = nullptr;
     state->match.output_len = 0;
   }
   for (int i = 0; i < API_MAX_VARS; i++) {
     if (state->match.var_values[i]) {
       snobol_free(state->match.var_values[i]);
-      state->match.var_values[i] = NULL;
+      state->match.var_values[i] = nullptr;
       state->match.var_lens[i] = 0;
     }
   }
@@ -830,7 +871,7 @@ snobol_match_t *snobol_pattern_search_ex(snobol_pattern_search_state_t *state,
    * the previous dfa=NULL argument disabled automaton acceleration in the
    * reuse path, forcing the slower SEARCH_VM/GENERAL tiers and destroying the
    * reuse API's whole reason to exist. */
-  snobol_dfa_t *dfa = NULL;
+  snobol_dfa_t *dfa = nullptr;
   if (state->meta.automaton_eligible) {
     /* Cache the DFA on the search state (not on the pattern): the PHP-side
      * pattern struct layout differs from the core snobol_pattern_t and has no
@@ -840,20 +881,22 @@ snobol_match_t *snobol_pattern_search_ex(snobol_pattern_search_state_t *state,
     dfa = state->dfa;
     if (!dfa) {
       dfa = build_dfa(state->bc, state->bc_len, &state->vm);
-      if (dfa)
+      if (dfa) {
         state->dfa = dfa;
+      }
     }
   }
 
   /* Build and cache the SIMD NFA on the state (not in tier_simd_nfa, which
    * uses stack for stateless calls).  Mirrors the DFA caching pattern. */
-  if (!state->nfa && state->meta.simd_eligible)
+  if (!state->nfa && state->meta.simd_eligible) {
     state->nfa = build_nfa_masks_alloc(state->bc, state->bc_len, &state->vm);
+  }
   state->vm.simd_nfa = state->nfa;
 
   snobol_search_result_t sr;
   bool ok = snobol_search_exec(&state->vm, subject, subject_len, start_offset,
-                               &state->meta, dfa, &sr, NULL);
+                               &state->meta, dfa, &sr, nullptr);
   state->match.success = ok;
   /* sr.match_start is already an absolute position in the subject
    * (not relative to start_offset). Do NOT add start_offset again.
@@ -873,8 +916,9 @@ snobol_match_t *snobol_pattern_search_ex(snobol_pattern_search_state_t *state,
   }
 
   int n = (int)state->vm.var_count;
-  if (n > API_MAX_VARS)
+  if (n > API_MAX_VARS) {
     n = API_MAX_VARS;
+  }
   state->match.var_count = n;
   /* The VM computes capture offsets relative to the match window (its
    * subject base is subject + match position), not to start_offset:
@@ -906,8 +950,9 @@ snobol_match_t *snobol_pattern_search_ex(snobol_pattern_search_state_t *state,
 snobol_match_t *snobol_pattern_search_ex_anchored(
     snobol_pattern_search_state_t *state, const char *subject,
     size_t subject_len) {
-  if (!state || !subject)
-    return NULL;
+  if (!state || !subject) {
+    return nullptr;
+  }
 
   /* Lazy init: output buffer on first call */
   if (!state->buf_inited) {
@@ -934,13 +979,13 @@ snobol_match_t *snobol_pattern_search_ex_anchored(
   /* Free output/captures from previous call */
   if (state->match.output) {
     snobol_free(state->match.output);
-    state->match.output = NULL;
+    state->match.output = nullptr;
     state->match.output_len = 0;
   }
   for (int i = 0; i < API_MAX_VARS; i++) {
     if (state->match.var_values[i]) {
       snobol_free(state->match.var_values[i]);
-      state->match.var_values[i] = NULL;
+      state->match.var_values[i] = nullptr;
       state->match.var_lens[i] = 0;
     }
   }
@@ -949,29 +994,32 @@ snobol_match_t *snobol_pattern_search_ex_anchored(
 
   /* Reset out_buf length (keeps capacity) */
   state->out_buf.len = 0;
-  if (state->out_buf.cap > 0 && state->out_buf.data)
+  if (state->out_buf.cap > 0 && state->out_buf.data) {
     state->out_buf.data[0] = '\0';
+  }
 
   /* Build and cache DFA for automaton-eligible patterns */
-  snobol_dfa_t *dfa = NULL;
+  snobol_dfa_t *dfa = nullptr;
   if (state->meta.automaton_eligible) {
     dfa = state->dfa;
     if (!dfa) {
       dfa = build_dfa(state->bc, state->bc_len, &state->vm);
-      if (dfa)
+      if (dfa) {
         state->dfa = dfa;
+      }
     }
   }
 
   /* Build and cache SIMD NFA */
-  if (!state->nfa && state->meta.simd_eligible)
+  if (!state->nfa && state->meta.simd_eligible) {
     state->nfa = build_nfa_masks_alloc(state->bc, state->bc_len, &state->vm);
+  }
   state->vm.simd_nfa = state->nfa;
 
   /* Anchored search — must start at offset 0 */
   snobol_search_result_t sr;
   bool ok = snobol_search_exec_anchored(&state->vm, subject, subject_len,
-                                        &state->meta, dfa, &sr, NULL);
+                                        &state->meta, dfa, &sr, nullptr);
   state->match.success = ok;
   if (ok) {
     state->match.position = sr.match_start;
@@ -988,8 +1036,9 @@ snobol_match_t *snobol_pattern_search_ex_anchored(
   }
 
   int n = (int)state->vm.var_count;
-  if (n > API_MAX_VARS)
+  if (n > API_MAX_VARS) {
     n = API_MAX_VARS;
+  }
   state->match.var_count = n;
   /* Anchored: start_offset is always 0, so captures are subject-absolute */
   for (int i = 0; i < n; i++) {
@@ -1018,12 +1067,15 @@ bool snobol_pattern_search_next(snobol_pattern_search_state_t *state,
                                 const char *subject, size_t subject_len,
                                 size_t start_offset, size_t *out_pos,
                                 size_t *out_len) {
-  if (!state || !subject || !out_pos || !out_len)
+  if (!state || !subject || !out_pos || !out_len) {
     return false;
-  if (!state->meta.is_literal_only || state->meta.required_lit_len == 0)
+  }
+  if (!state->meta.is_literal_only || state->meta.required_lit_len == 0) {
     return false;
-  if (start_offset > subject_len)
+  }
+  if (start_offset > subject_len) {
     return false;
+  }
 
   size_t remain = subject_len - start_offset;
   const void *found;
@@ -1033,8 +1085,9 @@ bool snobol_pattern_search_next(snobol_pattern_search_state_t *state,
     found = memmem(subject + start_offset, remain, state->meta.required_lit,
                    state->meta.required_lit_len);
   }
-  if (!found)
+  if (!found) {
     return false;
+  }
 
   *out_pos = (const char *)found - subject;
   *out_len = state->meta.required_lit_len;
@@ -1089,10 +1142,11 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
   vm->out = out_buf;
 
   /* Lazily build DFA for automaton-eligible patterns (once per state). */
-  snobol_dfa_t *dfa = NULL;
+  snobol_dfa_t *dfa = nullptr;
   if (meta->automaton_eligible) {
-    if (!state->dfa)
+    if (!state->dfa) {
       state->dfa = build_dfa(state->bc, state->bc_len, vm);
+    }
     dfa = state->dfa;
   }
 
@@ -1118,8 +1172,8 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
    * live `cap` would never fire for rows (they would overflow past 64
    * matches). */
   bool has_caps = meta->has_capture;
-  size_t **captures = NULL;
-  size_t *row_caps = NULL;
+  size_t **captures = nullptr;
+  size_t *row_caps = nullptr;
   if (has_caps) {
     captures = (size_t **)snobol_calloc((size_t)MAX_VARS, sizeof(size_t *));
     row_caps = (size_t *)snobol_calloc((size_t)MAX_VARS, sizeof(size_t));
@@ -1128,10 +1182,12 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
       snobol_free(lengths);
       snobol_free(output_lens);
       snobol_free(outbuf_data);
-      if (captures)
+      if (captures) {
         snobol_free(captures);
-      if (row_caps)
+      }
+      if (row_caps) {
         snobol_free(row_caps);
+      }
       return false;
     }
   }
@@ -1149,9 +1205,10 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
 
     snobol_search_result_t sr;
     bool ok =
-        snobol_search_exec(vm, subject, len, offset, meta, dfa, &sr, NULL);
-    if (!ok || sr.aborted)
+        snobol_search_exec(vm, subject, len, offset, meta, dfa, &sr, nullptr);
+    if (!ok || sr.aborted) {
       break;
+    }
 
     /* Grow position/length/output_len arrays if needed */
     if (count >= cap) {
@@ -1165,8 +1222,8 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
         snobol_free(np ? np : positions);
         snobol_free(nl ? nl : lengths);
         snobol_free(no ? no : output_lens);
-        positions = lengths = NULL;
-        output_lens = NULL;
+        positions = lengths = nullptr;
+        output_lens = nullptr;
         count = 0; /* signal error to cleanup below */
         break;
       }
@@ -1189,26 +1246,31 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
      * absolute subject positions. */
     if (has_caps && captures) {
       int nv = (int)vm->var_count;
-      if (nv > (int)max_var_count)
+      if (nv > (int)max_var_count) {
         max_var_count = (size_t)nv;
-      if (nv > MAX_VARS)
+      }
+      if (nv > MAX_VARS) {
         nv = MAX_VARS;
+      }
       for (int ri = 0; ri < nv; ri++) {
         if (!captures[ri]) {
           captures[ri] = (size_t *)snobol_calloc(cap, 2 * sizeof(size_t));
-          if (!captures[ri])
+          if (!captures[ri]) {
             continue;
+          }
           row_caps[ri] = cap;
         } else if (count >= row_caps[ri]) {
           /* Row capacity is in match pairs; double it (catching up to the
            * grown result arrays) and zero the new tail. */
           size_t new_row_cap = row_caps[ri] * 2;
-          while (new_row_cap <= count)
+          while (new_row_cap <= count) {
             new_row_cap *= 2;
+          }
           size_t *new_row = (size_t *)snobol_realloc(
               captures[ri], new_row_cap * 2 * sizeof(size_t));
-          if (!new_row)
+          if (!new_row) {
             continue;
+          }
           captures[ri] = new_row;
           memset(captures[ri] + row_caps[ri] * 2, 0,
                  (new_row_cap - row_caps[ri]) * 2 * sizeof(size_t));
@@ -1217,7 +1279,7 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
         size_t vs = vm->var_start[ri];
         size_t ve = vm->var_end[ri];
         captures[ri][count * 2] = sr.match_start + vs;
-        captures[ri][count * 2 + 1] = (ve > vs) ? (ve - vs) : 0;
+        captures[ri][(count * 2) + 1] = (ve > vs) ? (ve - vs) : 0;
       }
     }
 
@@ -1227,15 +1289,18 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
     size_t out_len = out_buf->len > 0 ? out_buf->len : 0;
     size_t needed = out_pos + out_len + 1; /* data + NUL */
     if (needed > outbuf_cap) {
-      while (outbuf_cap < needed)
+      while (outbuf_cap < needed) {
         outbuf_cap *= 2;
+      }
       char *new_data = (char *)snobol_realloc(outbuf_data, outbuf_cap);
-      if (new_data)
+      if (new_data) {
         outbuf_data = new_data;
+      }
     }
     if (outbuf_data) {
-      if (out_len > 0)
+      if (out_len > 0) {
         memcpy(outbuf_data + out_pos, out_buf->data, out_len);
+      }
       outbuf_data[out_pos + out_len] = '\0';
       out_pos += out_len + 1;
       output_lens[count] = out_len;
@@ -1244,8 +1309,9 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
     }
     /* Clear output buffer for next match (keep capacity) */
     out_buf->len = 0;
-    if (out_buf->cap > 0 && out_buf->data)
+    if (out_buf->cap > 0 && out_buf->data) {
       out_buf->data[0] = '\0';
+    }
 
     count++;
 
@@ -1267,12 +1333,14 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
     snobol_free(output_lens);
     snobol_free(outbuf_data);
     if (captures) {
-      for (int i = 0; i < MAX_VARS; i++)
+      for (int i = 0; i < MAX_VARS; i++) {
         snobol_free(captures[i]);
+      }
       snobol_free(captures);
     }
-    if (row_caps)
+    if (row_caps) {
       snobol_free(row_caps);
+    }
     return false;
   }
 
@@ -1281,11 +1349,12 @@ static bool batch_run(snobol_pattern_search_state_t *state, const char *subject,
   out->lengths = lengths;
   out->var_count = max_var_count;
   out->captures = captures; /* may be NULL when no captures */
-  out->outputs = (out_pos > 0) ? outbuf_data : NULL;
+  out->outputs = (out_pos > 0) ? outbuf_data : nullptr;
   out->output_lens = output_lens;
 
-  if (row_caps)
+  if (row_caps) {
     snobol_free(row_caps);
+  }
 
   return true;
 }
@@ -1297,13 +1366,15 @@ bool snobol_pattern_search_batch(const uint8_t *bc, size_t bc_len,
   /* Zero the output struct so partial failure cleanup is safe */
   memset(out, 0, sizeof(*out));
 
-  if (!bc || !subject || !meta)
+  if (!bc || !subject || !meta) {
     return false;
+  }
 
   /* Non-search-VM-eligible patterns (EVAL, ASSIGN, DYNAMIC) must fall back
    * to per-call loop — each match's side effects affect the next. */
-  if (!snobol_meta_search_vm_eligible(meta))
+  if (!snobol_meta_search_vm_eligible(meta)) {
     return false;
+  }
 
   /* Eligible patterns keep eligible == true even on zero matches, so callers
    * can distinguish "done, no matches" from "not batchable, fall back". */
@@ -1315,8 +1386,9 @@ bool snobol_pattern_search_batch(const uint8_t *bc, size_t bc_len,
    * amortise that cost across calls. */
   snobol_pattern_search_state_t *st =
       snobol_pattern_search_state_create(bc, bc_len);
-  if (!st)
+  if (!st) {
     return false;
+  }
   bool ok = batch_run(st, subject, len, out);
   snobol_pattern_search_state_destroy(st);
   return ok;
@@ -1328,27 +1400,31 @@ bool snobol_pattern_search_batch_ex(snobol_pattern_search_state_t *state,
   /* Zero the output struct so partial failure cleanup is safe */
   memset(out, 0, sizeof(*out));
 
-  if (!state || !subject)
+  if (!state || !subject) {
     return false;
+  }
 
   /* Non-search-VM-eligible patterns must fall back to the per-call loop. */
-  if (!snobol_meta_search_vm_eligible(&state->meta))
+  if (!snobol_meta_search_vm_eligible(&state->meta)) {
     return false;
+  }
 
   out->eligible = true;
   return batch_run(state, subject, len, out);
 }
 
 void snobol_batch_result_free(snobol_batch_result_t *out) {
-  if (!out)
+  if (!out) {
     return;
+  }
   snobol_free(out->positions);
   snobol_free(out->lengths);
   snobol_free(out->output_lens);
   snobol_free(out->outputs);
   if (out->captures) {
-    for (size_t i = 0; i < MAX_VARS; i++)
+    for (size_t i = 0; i < MAX_VARS; i++) {
       snobol_free(out->captures[i]);
+    }
     snobol_free(out->captures);
   }
   memset(out, 0, sizeof(*out));
@@ -1360,38 +1436,43 @@ void snobol_batch_result_free(snobol_batch_result_t *out) {
  */
 
 bool snobol_match_success(snobol_match_t *match) {
-  return match && match->success;
+  return (match && match->success) != 0;
 }
 
 const char *snobol_match_get_output(snobol_match_t *match, size_t *len) {
   if (!match || !match->success) {
-    if (len)
+    if (len) {
       *len = 0;
-    return NULL;
+    }
+    return nullptr;
   }
-  if (len)
+  if (len) {
     *len = match->output_len;
+  }
   return match->output ? match->output : "";
 }
 
 size_t snobol_match_get_position(const snobol_match_t *match) {
-  if (!match || !match->success)
+  if (!match || !match->success) {
     return 0;
+  }
   return match->position;
 }
 
 size_t snobol_match_get_length(const snobol_match_t *match) {
-  if (!match || !match->success)
+  if (!match || !match->success) {
     return 0;
+  }
   return match->length;
 }
 
 const char *snobol_match_get_variable(snobol_match_t *match, const char *name,
                                       size_t *len) {
   if (!match || !match->success || !name) {
-    if (len)
+    if (len) {
       *len = 0;
-    return NULL;
+    }
+    return nullptr;
   }
   /* Variable name is the capture register number, either as a bare decimal
    * integer ("0", "1", …) or with a "v" prefix ("v0", "v1", …) to match the
@@ -1399,20 +1480,23 @@ const char *snobol_match_get_variable(snobol_match_t *match, const char *name,
    * var_start[r], so the (optionally v-prefixed) number maps directly to the
    * array index. */
   const char *p = name;
-  if (p[0] == 'v')
+  if (p[0] == 'v') {
     p++;
+  }
   char *end;
   long idx = strtol(p, &end, 10);
   if (end == p || idx < 0 || idx > API_MAX_VARS) {
-    if (len)
+    if (len) {
       *len = 0;
-    return NULL;
+    }
+    return nullptr;
   }
   int i = (int)idx;
   if (i >= match->var_count) {
-    if (len)
+    if (len) {
       *len = 0;
-    return NULL;
+    }
+    return nullptr;
   }
   /* Materialize lazily on first access: copy the (offset, length) register
    * into an owned NUL-terminated string.  An unmaterialized register has
@@ -1422,20 +1506,23 @@ const char *snobol_match_get_variable(snobol_match_t *match, const char *name,
     size_t vlen = match->var_len[i];
     char *buf = (char *)snobol_malloc(vlen + 1);
     if (buf) {
-      if (vlen > 0)
+      if (vlen > 0) {
         memcpy(buf, match->var_subject + match->var_off[i], vlen);
+      }
       buf[vlen] = '\0';
       match->var_values[i] = buf;
       match->var_lens[i] = vlen;
     }
   }
   if (!match->var_values[i]) {
-    if (len)
+    if (len) {
       *len = 0;
-    return NULL;
+    }
+    return nullptr;
   }
-  if (len)
+  if (len) {
     *len = match->var_lens[i];
+  }
   return match->var_values[i];
 }
 
@@ -1449,12 +1536,13 @@ const char *snobol_match_get_variable(snobol_match_t *match, const char *name,
  * var_values[i] with var_len[i] > 0 signals "present, not yet materialized". */
 static void match_store_capture(snobol_match_t *m, const char *subject, int i,
                                 size_t vs, size_t ve, size_t subject_len) {
-  if (ve <= vs || ve > subject_len)
+  if (ve <= vs || ve > subject_len) {
     return;
+  }
   m->var_subject = subject;
   m->var_off[i] = vs;
   m->var_len[i] = ve - vs;
-  m->var_values[i] = NULL; /* materialize on demand */
+  m->var_values[i] = nullptr; /* materialize on demand */
   m->var_lens[i] = 0;
 }
 
@@ -1465,15 +1553,16 @@ snobol_match_result_t *snobol_match(const char *pattern, size_t pat_len,
                                     uint32_t flags) {
   snobol_match_result_t *result =
       (snobol_match_result_t *)snobol_malloc(sizeof(snobol_match_result_t));
-  if (!result)
-    return NULL;
+  if (!result) {
+    return nullptr;
+  }
   memset(result, 0, sizeof(snobol_match_result_t));
 
   /* Compile pattern */
   bool case_insensitive = (flags & SNOBOL_FLAG_CASE_INSENSITIVE) != 0;
   snobol_context_t *ctx =
-      NULL; /* not needed for compile, but required by API */
-  char *compile_error = NULL;
+      nullptr; /* not needed for compile, but required by API */
+  char *compile_error = nullptr;
   snobol_pattern_t *pat =
       do_compile(pattern, pat_len, case_insensitive, &compile_error);
 
@@ -1482,14 +1571,15 @@ snobol_match_result_t *snobol_match(const char *pattern, size_t pat_len,
       result->error = compile_error; /* transfer ownership */
     } else {
       result->error = snobol_malloc(16);
-      if (result->error)
+      if (result->error) {
         memcpy(result->error, "unknown error", 14);
+      }
     }
     return result;
   }
 
   /* Set up output buffer */
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {nullptr};
   snobol_buf_init(&out_buf);
 
   /* Initialise VM */
@@ -1517,8 +1607,9 @@ snobol_match_result_t *snobol_match(const char *pattern, size_t pat_len,
 
   /* Copy named variables */
   int n = (int)vm.var_count;
-  if (n > MATCH_MAX_CAPTURES)
+  if (n > MATCH_MAX_CAPTURES) {
     n = MATCH_MAX_CAPTURES;
+  }
   result->capture_count = n;
 
   if (n > 0) {
@@ -1550,8 +1641,9 @@ snobol_match_result_t *snobol_match(const char *pattern, size_t pat_len,
 }
 
 void snobol_match_result_free(snobol_match_result_t *result) {
-  if (!result)
+  if (!result) {
     return;
+  }
   snobol_free(result->error);
   snobol_free(result->output);
   if (result->captures) {
@@ -1576,14 +1668,16 @@ struct snobol_pattern_build {
 snobol_pattern_build_t *snobol_pattern_build_create(void) {
   snobol_pattern_build_t *b =
       (snobol_pattern_build_t *)snobol_malloc(sizeof(snobol_pattern_build_t));
-  if (b)
+  if (b) {
     b->_reserved = 0;
+  }
   return b;
 }
 
 void snobol_pattern_build_destroy(snobol_pattern_build_t *build) {
-  if (build)
+  if (build) {
     snobol_free(build);
+  }
 }
 
 ast_node_t *snobol_pattern_build_lit(snobol_pattern_build_t *build,
@@ -1656,8 +1750,9 @@ ast_node_t *snobol_pattern_build_label(snobol_pattern_build_t *build,
   (void)build;
   /* snobol_ast_create_label copies the name; free our copy here. */
   char *name_copy = (char *)snobol_malloc(strlen(name) + 1);
-  if (name_copy)
+  if (name_copy) {
     strcpy(name_copy, name);
+  }
   ast_node_t *node = snobol_ast_create_label(name_copy, target);
   free(name_copy);
   return node;
@@ -1739,19 +1834,20 @@ snobol_pattern_t *snobol_pattern_build_compile(snobol_context_t *ctx,
                                                ast_node_t *root, uint32_t flags,
                                                char **error) {
   (void)ctx; /* context owns the pattern conceptually; no registry yet */
-  if (error)
-    *error = NULL;
+  if (error) {
+    *error = nullptr;
+  }
 
   bool case_insensitive = (flags & SNOBOL_FLAG_CASE_INSENSITIVE) != 0;
   /* Unknown flag bits are intentionally ignored (forward-compatible). */
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(root, case_insensitive, &bc, &bc_len);
   snobol_ast_free(root); /* AST ownership consumed on both outcomes */
 
   if (rc != 0) {
     set_error_out(error, "compilation failed");
-    return NULL;
+    return nullptr;
   }
 
   return pattern_finalize(bc, bc_len, case_insensitive, error);

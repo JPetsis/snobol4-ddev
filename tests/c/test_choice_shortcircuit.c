@@ -45,7 +45,9 @@ static void test_short_circuit_empty_copies(void) {
   uint8_t bc[256];
   memset(bc, 0, sizeof(bc));
   size_t ip = 0;
-  uint32_t lit_a_off = 240, lit_b_off = 241, lit_c_off = 242;
+  uint32_t lit_a_off = 240;
+  uint32_t lit_b_off = 241;
+  uint32_t lit_c_off = 242;
   bc[lit_a_off] = 'a';
   bc[lit_b_off] = 'b';
   bc[lit_c_off] = 'c';
@@ -65,7 +67,9 @@ static void test_short_circuit_empty_copies(void) {
   emit_u32(bc, &ip, 1);
   size_t b_jmp_ref = emit_jump_op(bc, &ip, OP_JMP);
   size_t join_ip = ip;
-  uint32_t va = (uint32_t)a_ip, vb = (uint32_t)b_ip, vj = (uint32_t)join_ip;
+  uint32_t va = (uint32_t)a_ip;
+  uint32_t vb = (uint32_t)b_ip;
+  uint32_t vj = (uint32_t)join_ip;
   emit_u32(bc, &a_tgt_ref, va);
   emit_u32(bc, &b_tgt_ref, vb);
   emit_u32(bc, &a_jmp_ref, vj);
@@ -90,7 +94,7 @@ static void test_short_circuit_empty_copies(void) {
   vm.s = "ac";
   vm.len = 2;
   bool ok = vm_exec(&vm);
-  test_assert(ok == true, "('a'|'b')'c' matches 'ac'");
+  test_assert(ok, "('a'|'b')'c' matches 'ac'");
   test_assert(vm.max_counter_used == 0,
               "non-REPEAT pattern has no loop counters (short-circuited)");
   test_assert(vm.choice_push_count >= 1,
@@ -110,7 +114,7 @@ static void test_short_circuit_empty_copies(void) {
   vm.s = "xc";
   vm.len = 2;
   ok = vm_exec(&vm);
-  test_assert(ok == false, "('a'|'b')'c' rejects 'xc'");
+  test_assert(!ok, "('a'|'b')'c' rejects 'xc'");
   free(vm.trail);
   vm_arena_destroy(vm.choices_arena);
 }

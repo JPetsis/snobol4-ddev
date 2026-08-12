@@ -703,21 +703,25 @@ static bool template_emit_table_lookup(CodeBuf *cb, const char *tpl, size_t len,
                                        size_t *ip, size_t start_of_dollar,
                                        const char *table_name,
                                        size_t table_name_len) {
-  bool quoted = (*ip < len && tpl[*ip] == '\'');
+  bool quoted = (*ip < len && tpl[*ip] == '\'') != 0;
   if (quoted) {
     (*ip)++; /* skip opening quote */
     size_t key_start = *ip;
-    while (*ip < len && tpl[*ip] != '\'')
+    while (*ip < len && tpl[*ip] != '\'') {
       (*ip)++;
-    if (*ip >= len)
+    }
+    if (*ip >= len) {
       goto emit_literal; /* unclosed quote */
+    }
     size_t key_len = *ip - key_start;
     (*ip)++; /* skip closing quote */
-    if (*ip >= len || tpl[*ip] != ']')
+    if (*ip >= len || tpl[*ip] != ']') {
       goto emit_literal;
+    }
     (*ip)++; /* skip ']' */
-    if (*ip < len && tpl[*ip] == ']')
+    if (*ip < len && tpl[*ip] == ']') {
       (*ip)++; /* consume outer ']' if present */
+    }
 
     cb_emit_u8(cb, OP_EMIT_TABLE);
     cb_emit_u16(cb, (uint16_t)SNBL_TABLE_ID_UNBOUND);
@@ -731,22 +735,28 @@ static bool template_emit_table_lookup(CodeBuf *cb, const char *tpl, size_t len,
 
   /* Capture-derived key: accept vN, $vN (documented $TABLE[$v0] form), or
    * bare digit(s). */
-  if (*ip < len && tpl[*ip] == '$')
+  if (*ip < len && tpl[*ip] == '$') {
     (*ip)++;
-  bool has_v_prefix = (*ip < len && tpl[*ip] == 'v');
-  if (has_v_prefix)
+  }
+  bool has_v_prefix = (*ip < len && tpl[*ip] == 'v') != 0;
+  if (has_v_prefix) {
     (*ip)++; /* skip optional 'v' */
+  }
   size_t key_reg_start = *ip;
-  while (*ip < len && tpl[*ip] >= '0' && tpl[*ip] <= '9')
+  while (*ip < len && tpl[*ip] >= '0' && tpl[*ip] <= '9') {
     (*ip)++;
-  if (*ip == key_reg_start || *ip >= len || tpl[*ip] != ']')
+  }
+  if (*ip == key_reg_start || *ip >= len || tpl[*ip] != ']') {
     goto emit_literal;
+  }
   size_t key_reg = 0;
-  for (size_t ki = key_reg_start; ki < *ip; ki++)
-    key_reg = key_reg * 10 + (uint8_t)(tpl[ki] - '0');
+  for (size_t ki = key_reg_start; ki < *ip; ki++) {
+    key_reg = (key_reg * 10) + (uint8_t)(tpl[ki] - '0');
+  }
   (*ip)++; /* skip inner ']' */
-  if (*ip < len && tpl[*ip] == ']')
+  if (*ip < len && tpl[*ip] == ']') {
     (*ip)++; /* consume outer ']' if present */
+  }
 
   cb_emit_u8(cb, OP_EMIT_TABLE);
   cb_emit_u16(cb, (uint16_t)SNBL_TABLE_ID_UNBOUND);
@@ -787,15 +797,16 @@ int compile_template_to_bytecode(const char *tpl, size_t len, uint8_t **out_bc,
       }
 
       bool braced = (tpl[i] == '{');
-      if (braced)
+      if (braced) {
         i++;
+      }
 
       if (i < len && tpl[i] == 'v') {
         i++;
         uint8_t reg = 0;
         bool has_digits = false;
         while (i < len && tpl[i] >= '0' && tpl[i] <= '9') {
-          reg = reg * 10 + (tpl[i] - '0');
+          reg = (reg * 10) + (tpl[i] - '0');
           i++;
           has_digits = true;
         }
@@ -837,7 +848,7 @@ int compile_template_to_bytecode(const char *tpl, size_t len, uint8_t **out_bc,
                 if (i < len && tpl[i] >= '1' && tpl[i] <= '9') {
                   uint16_t w = 0;
                   while (i < len && tpl[i] >= '0' && tpl[i] <= '9') {
-                    w = (uint16_t)(w * 10 + (tpl[i] - '0'));
+                    w = (uint16_t)((w * 10) + (tpl[i] - '0'));
                     i++;
                   }
                   /* optional fill char: ,'c' */
@@ -848,8 +859,9 @@ int compile_template_to_bytecode(const char *tpl, size_t len, uint8_t **out_bc,
                       if (i < len) {
                         fmt_fill = (uint8_t)tpl[i];
                         i++;
-                        if (i < len && tpl[i] == '\'')
+                        if (i < len && tpl[i] == '\'') {
                           i++;
+                        }
                       }
                     }
                   }
@@ -959,8 +971,9 @@ int compile_template_to_bytecode(const char *tpl, size_t len, uint8_t **out_bc,
     } else {
       // scan literal segment
       size_t start = i;
-      while (i < len && tpl[i] != '$')
+      while (i < len && tpl[i] != '$') {
         i++;
+      }
       size_t seglen = i - start;
       cb_emit_u8(&cb, OP_EMIT_LITERAL);
       size_t off = cb_pos(&cb) + 4 + 4;
@@ -988,8 +1001,9 @@ int compile_template_to_bytecode(const char *tpl, size_t len, uint8_t **out_bc,
 
 int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
                                 const uint16_t *ids, size_t n) {
-  if (!bc || bc_len == 0)
+  if (!bc || bc_len == 0) {
     return 0;
+  }
   /* Allow n==0: still scan so we can detect and report any unbound table IDs */
 
   int result = 0;
@@ -1003,8 +1017,9 @@ int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
 
       case OP_EMIT_LITERAL: {
         /* off:u32(4) + len:u32(4) + data[len] */
-        if (ip + 8 > bc_len)
+        if (ip + 8 > bc_len) {
           return result;
+        }
         uint32_t lit_len = ((uint32_t)bc[ip + 4] << 24) |
                            ((uint32_t)bc[ip + 5] << 16) |
                            ((uint32_t)bc[ip + 6] << 8) | (uint32_t)bc[ip + 7];
@@ -1022,8 +1037,9 @@ int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
 
       case OP_EMIT_FORMAT: {
         /* reg:u8, format_type:u8 [+ width:u16, fill:u8 for LPAD/RPAD] */
-        if (ip + 2 > bc_len)
+        if (ip + 2 > bc_len) {
           return result;
+        }
         uint8_t fmt = bc[ip + 1];
         ip += 2;
         if (fmt == SNBL_FMT_LPAD || fmt == SNBL_FMT_RPAD) {
@@ -1033,8 +1049,9 @@ int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
       }
 
       case OP_LIT: {
-        if (ip + 8 > bc_len)
+        if (ip + 8 > bc_len) {
           return result;
+        }
         uint32_t len = ((uint32_t)bc[ip + 4] << 24) |
                        ((uint32_t)bc[ip + 5] << 16) |
                        ((uint32_t)bc[ip + 6] << 8) | (uint32_t)bc[ip + 7];
@@ -1090,14 +1107,16 @@ int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
       case OP_EMIT_TABLE: {
         /* table_id:u16, key_type:u8, name_len:u8, name_bytes[name_len], <key
        * payload> */
-        if (ip + 4 > bc_len)
+        if (ip + 4 > bc_len) {
           return result;
+        }
         uint16_t tid = ((uint16_t)bc[ip] << 8) | bc[ip + 1];
         uint8_t key_type = bc[ip + 2];
         uint8_t nm_len = bc[ip + 3];
 
-        if (ip + 4 + nm_len > bc_len)
+        if (ip + 4 + nm_len > bc_len) {
           return result;
+        }
 
         if (tid == (uint16_t)SNBL_TABLE_ID_UNBOUND) {
           const char *name_ptr = (const char *)bc + ip + 4;
@@ -1111,8 +1130,9 @@ int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
               break;
             }
           }
-          if (!resolved)
+          if (!resolved) {
             result = -1;
+          }
         }
 
         ip += 2 + 1 + 1 +
@@ -1121,8 +1141,9 @@ int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
         /* skip key payload */
         if (key_type == 0) {
           /* literal key: key_len:u16, key_bytes[key_len] */
-          if (ip + 2 > bc_len)
+          if (ip + 2 > bc_len) {
             return result;
+          }
           uint16_t key_len = ((uint16_t)bc[ip] << 8) | bc[ip + 1];
           ip += 2 + key_len;
         } else if (key_type == 1) {
@@ -1135,13 +1156,15 @@ int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
       case OP_TABLE_GET:
       case OP_TABLE_SET: {
         /* table_id:u16, reg:u8, reg:u8, name_len:u8, name_bytes[name_len] */
-        if (ip + 4 > bc_len)
+        if (ip + 4 > bc_len) {
           return result;
+        }
         uint16_t tid = ((uint16_t)bc[ip] << 8) | bc[ip + 1];
         uint8_t nm_len = bc[ip + 4];
 
-        if (ip + 5 + nm_len > bc_len)
+        if (ip + 5 + nm_len > bc_len) {
           return result;
+        }
 
         if (tid == (uint16_t)SNBL_TABLE_ID_UNBOUND) {
           const char *name_ptr = (const char *)bc + ip + 5;
@@ -1158,8 +1181,9 @@ int snobol_template_bind_tables(uint8_t *bc, size_t bc_len, const char **names,
           SNOBOL_LOG("snobol_template_bind_tables: tid=0xFFFF nm_len=%d "
                      "name='%.*s' resolved=%d",
                      (int)nm_len, (int)nm_len, name_ptr, (int)resolved);
-          if (!resolved)
+          if (!resolved) {
             result = -1;
+          }
         }
         ip += 5 + nm_len;
         break;

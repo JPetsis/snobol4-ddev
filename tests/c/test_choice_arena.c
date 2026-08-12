@@ -25,8 +25,9 @@ static void emit_u32(uint8_t *bc, size_t *ip, uint32_t v) {
 static void test_arena_unit(void) {
   ChoiceArena *a = vm_arena_create();
   test_assert(a != NULL, "arena create succeeds");
-  if (!a)
+  if (!a) {
     return;
+  }
 
   /* Push many records whose payload is a sequence number; force multiple
    * pages (each page is 4096 bytes; records are ~24 bytes -> >150 records
@@ -37,12 +38,13 @@ static void test_arena_unit(void) {
    * a per-record footprint of aligned_payload + 2*sizeof(uint32_t) + 8.
    * For a 4-byte payload, aligned_payload = 8, so footprint = 24. */
   size_t aligned_payload = (sizeof(uint32_t) + 7) & ~(size_t)7;
-  size_t per_rec = aligned_payload + 2 * sizeof(uint32_t) + 8;
+  size_t per_rec = aligned_payload + (2 * sizeof(uint32_t)) + 8;
   for (int i = 0; i < N; i++) {
     uint32_t *p = (uint32_t *)vm_arena_alloc(a, sizeof(uint32_t));
     test_assert(p != NULL, "arena alloc succeeds");
-    if (!p)
+    if (!p) {
       break;
+    }
     *p = (uint32_t)i;
   }
   test_assert(a->total_used == (size_t)N * per_rec,
@@ -69,14 +71,16 @@ static void test_arena_unit(void) {
 static void test_arena_reset(void) {
   ChoiceArena *a = vm_arena_create();
   test_assert(a != NULL, "arena create succeeds");
-  if (!a)
+  if (!a) {
     return;
+  }
 
   for (int i = 0; i < 3000; i++) {
     uint8_t *p = vm_arena_alloc(a, 8);
     test_assert(p != NULL, "arena alloc succeeds");
-    if (!p)
+    if (!p) {
       break;
+    }
   }
   test_assert(a->total_used > 0, "arena has live records");
   vm_arena_reset(a);
@@ -166,17 +170,19 @@ static void test_arena_deep_vm_backtrack(void) {
   vm.keep_choices = true; /* keep the arena so we can inspect peak usage */
 
   bool result = vm_exec(&vm);
-  test_assert(result == true, "deep nested-arbno matches subject");
+  test_assert(result, "deep nested-arbno matches subject");
   test_assert(vm.choices_arena != NULL, "arena was allocated");
   test_assert(vm.choices_arena->peak_used >= (size_t)(N * 16),
               "arena handled deep multi-page choice stack");
 
   vm_arena_destroy(vm.choices_arena);
   /* keep_choices skipped trail/write_log teardown inside vm_run; free here. */
-  if (vm.trail)
+  if (vm.trail) {
     vm_trail_free(&vm);
-  if (vm.write_log)
+  }
+  if (vm.write_log) {
     vm_write_log_free(&vm);
+  }
   free(subject);
 }
 
@@ -200,8 +206,9 @@ void test_cov_misc_choice_arena(void) {
   /* Small records stay in the head page. */
   bool all_ok = true;
   for (int i = 0; i < 50; i++) {
-    if (!vm_arena_alloc(arena, 32))
+    if (!vm_arena_alloc(arena, 32)) {
       all_ok = false;
+    }
   }
   test_assert(all_ok, "small records allocated");
 
@@ -210,21 +217,22 @@ void test_cov_misc_choice_arena(void) {
   test_assert(big != NULL, "oversized record allocates a new page");
 
   /* Pop everything back, including the chained page. */
-  for (int i = 0; i < 51; i++)
+  for (int i = 0; i < 51; i++) {
     vm_arena_pop_last(arena);
+  }
   test_assert(arena->total_used == 0, "arena drained");
 
   /* Reset with a chained page: reset frees the tail page. */
   vm_arena_alloc(arena, CHOICE_ARENA_PAGE_SIZE + 64);
   vm_arena_reset(arena);
-  test_assert(arena->total_used == 0 && arena->cur == arena->head,
+  test_assert((arena->total_used == 0 && arena->cur == arena->head) != 0,
               "reset returns to the head page");
 
   vm_arena_destroy(arena);
-  vm_arena_destroy(NULL);
-  vm_arena_reset(NULL);
-  test_assert(vm_arena_alloc(NULL, 8) == NULL, "alloc(NULL)");
-  vm_arena_pop_last(NULL);
+  vm_arena_destroy(nullptr);
+  vm_arena_reset(nullptr);
+  test_assert(vm_arena_alloc(nullptr, 8) == NULL, "alloc(NULL)");
+  vm_arena_pop_last(nullptr);
   test_assert(true, "arena NULL guards");
 
   /* VM-level choice stats. */
@@ -249,7 +257,7 @@ void test_cov_misc_choice_arena(void) {
   test_assert(vm_choice_stack_memory_usage(&vm) > 0, "usage > 0");
   test_assert(vm_choice_record_average_size(&vm) > 0, "avg > 0");
   test_assert(vm_pop_choice(&vm), "pop 2");
-  test_assert(!vm_pop_choice(&vm), "pop empty fails");
+  test_assert((!vm_pop_choice(&vm)) != 0, "pop empty fails");
 
   /* Legacy full-snapshot mode with populated captures. */
   vm.use_compact_choice = false;
@@ -268,7 +276,7 @@ void test_cov_misc_choice_arena(void) {
   vm.var_count = 3;
   vm_write_log_init(&vm);
   snobol_vm_reset(&vm);
-  test_assert(vm.var_count == 0 && vm.pos == 0 && vm.max_cap_used == 0,
+  test_assert((vm.var_count == 0 && vm.pos == 0 && vm.max_cap_used == 0) != 0,
               "reset clears VM state");
 
   vm_trail_free(&vm);

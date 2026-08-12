@@ -63,18 +63,21 @@ static inline void snobol_arena_init(snobol_arena_t *arena, void *buffer,
  */
 static inline void *snobol_arena_alloc(snobol_arena_t *arena, size_t size,
                                        size_t align) {
-  if (!arena->base)
+  if (!arena->base) {
     return NULL;
+  }
   uintptr_t raw = (uintptr_t)arena->ptr;
   uintptr_t aligned = (raw + (align > 0 ? align - 1 : 0)) &
                       ~((uintptr_t)(align > 0 ? align - 1 : 0));
   size_t used = (size_t)(aligned - (uintptr_t)arena->base);
-  if (size > arena->capacity || used + size > arena->capacity)
+  if (size > arena->capacity || used + size > arena->capacity) {
     return NULL;
+  }
   void *p = (void *)aligned;
   arena->ptr = (uint8_t *)(aligned + size);
-  if ((size_t)(arena->ptr - arena->base) > arena->peak)
+  if ((size_t)(arena->ptr - arena->base) > arena->peak) {
     arena->peak = (size_t)(arena->ptr - arena->base);
+  }
   return p;
 }
 

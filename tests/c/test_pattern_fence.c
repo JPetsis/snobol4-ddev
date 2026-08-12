@@ -20,7 +20,8 @@ void test_pattern_fence_suite(void) {
     /* Pattern: alt(fence(), fail()) - SPLIT creates choice, FENCE cuts it */
     ast_node_t *ast = snobol_ast_create_alt(snobol_ast_create_fence(),
                                             snobol_ast_create_fail());
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "test", 4, &match_len, &cap_count);
     test_assert(ok, "FENCE: match succeeds on SPLIT-then-FENCE path");
     snobol_ast_free(ast);
@@ -30,7 +31,8 @@ void test_pattern_fence_suite(void) {
   {
     /* Pattern: cap(0, rem()) */
     ast_node_t *ast = snobol_ast_create_cap(0, snobol_ast_create_rem());
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "hello", 5, &match_len, &cap_count);
     test_assert(ok, "REM: matches entire subject");
     test_assert(match_len == 5, "REM: pos advanced to end");
@@ -45,7 +47,8 @@ void test_pattern_fence_suite(void) {
     parts[1] = snobol_ast_create_rpos(3);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
     const char *subj = "hello world";
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, subj, 11, &match_len, &cap_count);
     test_assert(ok, "RPOS(3): succeeds at pos 8 of 'hello world'");
     snobol_ast_free(ast);
@@ -56,7 +59,7 @@ void test_pattern_fence_suite(void) {
     parts[1] = snobol_ast_create_rpos(3);
     ast = snobol_ast_create_concat(parts, 2);
     ok = run_ast_pattern(ast, subj, 11, &match_len, &cap_count);
-    test_assert(!ok, "RPOS(3): fails when pos != 8");
+    test_assert((!ok) != 0, "RPOS(3): fails when pos != 8");
     snobol_ast_free(ast);
   }
 
@@ -64,7 +67,8 @@ void test_pattern_fence_suite(void) {
   {
     /* RTAB(2) on "hello world" (len=11): advance to pos=9 */
     ast_node_t *ast = snobol_ast_create_cap(0, snobol_ast_create_rtab(2));
-    int match_len = 0, cap_count = 0;
+    int match_len = 0;
+    int cap_count = 0;
     bool ok = run_ast_pattern(ast, "hello world", 11, &match_len, &cap_count);
     test_assert(ok, "RTAB(2): succeeds on 'hello world'");
     test_assert(match_len == 9, "RTAB(2): pos advanced to 9 (11-2=9)");

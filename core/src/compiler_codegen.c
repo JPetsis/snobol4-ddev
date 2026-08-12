@@ -25,11 +25,13 @@ static bool label_has_error_c = false;
 
 static void free_label_table_c(void) {
   for (uint16_t i = 0; i < label_table_count_c; i++) {
-    if (label_table_c[i].name)
+    if (label_table_c[i].name) {
       snobol_free(label_table_c[i].name);
+    }
   }
-  if (label_table_c)
+  if (label_table_c) {
     snobol_free(label_table_c);
+  }
   label_table_c = nullptr;
   label_table_count_c = 0;
   label_table_capacity_c = 0;
@@ -50,16 +52,18 @@ static int find_label_c(const char *name) {
 /* Get or create label entry. Returns index (==id), or -1 on error. */
 static int get_or_create_label_c(const char *name) {
   int idx = find_label_c(name);
-  if (idx >= 0)
+  if (idx >= 0) {
     return idx;
+  }
 
   if (label_table_count_c >= label_table_capacity_c) {
     uint16_t new_cap =
         label_table_capacity_c ? (uint16_t)(label_table_capacity_c * 2) : 8;
     LabelEntry *new_tbl =
         snobol_realloc(label_table_c, new_cap * sizeof(LabelEntry));
-    if (!new_tbl)
+    if (!new_tbl) {
       return -1;
+    }
     label_table_c = new_tbl;
     label_table_capacity_c = new_cap;
   }
@@ -83,7 +87,7 @@ static int get_or_create_label_c(const char *name) {
  * old format where charclass_count was the last u32. */
 static void emit_label_table(CodeBuf *c) {
   for (uint16_t i = 0; i < label_table_count_c; i++) {
-    cb_emit_u32(c, label_table_c[i].defined ? label_table_c[i].offset : 0);
+    cb_emit_u32(c, (int)label_table_c[i].defined ? label_table_c[i].offset : 0);
   }
   cb_emit_u32(c, (uint32_t)label_table_count_c);
   cb_emit_u32(c, SNOBOL_LABEL_TABLE_MAGIC);
@@ -109,8 +113,9 @@ static int emit_lit_case_insensitive_c(CodeBuf *c, const char *s, size_t len) {
     int cp_bytes;
     if (!utf8_peek_next(s, len, pos, &cp, &cp_bytes)) {
       /* Invalid / truncated byte — emit as raw literal */
-      if (emit_lit_bytes(c, s + pos, 1) != 0)
+      if (emit_lit_bytes(c, s + pos, 1) != 0) {
         return -1;
+      }
       pos++;
       continue;
     }
@@ -182,8 +187,9 @@ static int emit_table_access_c(const char *table, ast_node_t *key, CodeBuf *c) {
    */
   cb_emit_u8(c, OP_CAP_START);
   cb_emit_u8(c, 0);
-  if (emit_node_c(key, c) != 0)
+  if (emit_node_c(key, c) != 0) {
     return -1;
+  }
   cb_emit_u8(c, OP_CAP_END);
   cb_emit_u8(c, 0);
 
@@ -202,16 +208,18 @@ static int emit_table_update_c(const char *table, ast_node_t *key,
   /* Capture key into reg 0 */
   cb_emit_u8(c, OP_CAP_START);
   cb_emit_u8(c, 0);
-  if (emit_node_c(key, c) != 0)
+  if (emit_node_c(key, c) != 0) {
     return -1;
+  }
   cb_emit_u8(c, OP_CAP_END);
   cb_emit_u8(c, 0);
 
   /* Capture value into reg 1 */
   cb_emit_u8(c, OP_CAP_START);
   cb_emit_u8(c, 1);
-  if (emit_node_c(value, c) != 0)
+  if (emit_node_c(value, c) != 0) {
     return -1;
+  }
   cb_emit_u8(c, OP_CAP_END);
   cb_emit_u8(c, 1);
 
@@ -368,8 +376,9 @@ int compile_ast_to_bytecode_c(ast_node_t *ast, bool case_insensitive,
                         : nullptr;
   int idx = 0;
   for (CCEntry *it = charclass_head; it != nullptr; it = it->next) {
-    if (offsets)
+    if (offsets) {
       offsets[idx++] = cb_pos(&cb);
+    }
     cb_emit_u16(&cb, it->range_count);
     cb_emit_u16(&cb, it->case_insensitive);
     for (size_t i = 0; i < it->range_count; ++i) {
@@ -424,8 +433,9 @@ static int emit_alt_c(ast_node_t *left, ast_node_t *right, CodeBuf *c) {
 
   /* Left alternative */
   size_t left_start = cb_pos(c);
-  if (emit_node_c(left, c) != 0)
+  if (emit_node_c(left, c) != 0) {
     return -1;
+  }
 
   /* Jump past right alternative */
   size_t jmp_where = cb_pos(c);
@@ -435,8 +445,9 @@ static int emit_alt_c(ast_node_t *left, ast_node_t *right, CodeBuf *c) {
 
   /* Right alternative */
   size_t right_start = cb_pos(c);
-  if (emit_node_c(right, c) != 0)
+  if (emit_node_c(right, c) != 0) {
     return -1;
+  }
 
   /* Fill in placeholders */
   size_t end_pos = cb_pos(c);
@@ -476,10 +487,12 @@ static int emit_arbno_c(ast_node_t *sub, CodeBuf *c) {
     break;
   }
 
-  if (!sub)
+  if (!sub) {
     return -1;
-  if (next_loop_id >= MAX_LOOPS)
+  }
+  if (next_loop_id >= MAX_LOOPS) {
     return -1;
+  }
 
   /* Zero-width-loop bounding (W2b): an unbounded arbno over a nullable
    * sub-pattern can create O(n^2)/exponential choice-point blowup. The VM now
@@ -503,8 +516,9 @@ static int emit_arbno_c(ast_node_t *sub, CodeBuf *c) {
   cb_emit_u32(c, 0); /* placeholder for skip_target */
 
   size_t body_start = cb_pos(c);
-  if (emit_node_c(sub, c) != 0)
+  if (emit_node_c(sub, c) != 0) {
     return -1;
+  }
 
   cb_emit_u8(c, OP_REPEAT_STEP);
   cb_emit_u8(c, loop_id);
@@ -527,8 +541,9 @@ static int emit_cap_c(ast_node_t *reg_node, ast_node_t *sub, CodeBuf *c) {
   cb_emit_u8(c, OP_CAP_START);
   cb_emit_u8(c, (uint8_t)reg_node->data.len.n);
 
-  if (emit_node_c(sub, c) != 0)
+  if (emit_node_c(sub, c) != 0) {
     return -1;
+  }
 
   cb_emit_u8(c, OP_CAP_END);
   cb_emit_u8(c, (uint8_t)reg_node->data.len.n);
@@ -537,10 +552,12 @@ static int emit_cap_c(ast_node_t *reg_node, ast_node_t *sub, CodeBuf *c) {
 
 static int emit_repeat_c(ast_node_t *sub, ast_node_t *min_node,
                          ast_node_t *max_node, CodeBuf *c) {
-  if (!sub)
+  if (!sub) {
     return -1;
-  if (next_loop_id >= MAX_LOOPS)
+  }
+  if (next_loop_id >= MAX_LOOPS) {
     return -1;
+  }
 
   uint8_t loop_id = next_loop_id++;
   uint32_t min = (uint32_t)min_node->data.len.n;
@@ -569,8 +586,9 @@ static int emit_repeat_c(ast_node_t *sub, ast_node_t *min_node,
   cb_emit_u32(c, 0); /* placeholder */
 
   size_t body_start = cb_pos(c);
-  if (emit_node_c(sub, c) != 0)
+  if (emit_node_c(sub, c) != 0) {
     return -1;
+  }
 
   cb_emit_u8(c, OP_REPEAT_STEP);
   cb_emit_u8(c, loop_id);
@@ -592,8 +610,9 @@ static int emit_repeat_c(ast_node_t *sub, ast_node_t *min_node,
  * Emit bytecode for a C AST node
  */
 static int emit_node_c(ast_node_t *node, CodeBuf *c) {
-  if (!node)
+  if (!node) {
     return -1;
+  }
 
   switch (node->type) {
     case AST_LITERAL:
@@ -644,8 +663,9 @@ static int emit_node_c(ast_node_t *node, CodeBuf *c) {
       cb_emit_u8(c, OP_CAP_START);
       cb_emit_u8(c, (uint8_t)node->data.cap.reg);
 
-      if (emit_node_c(node->data.cap.sub, c) != 0)
+      if (emit_node_c(node->data.cap.sub, c) != 0) {
         return -1;
+      }
 
       cb_emit_u8(c, OP_CAP_END);
       cb_emit_u8(c, (uint8_t)node->data.cap.reg);
@@ -699,8 +719,9 @@ static int emit_node_c(ast_node_t *node, CodeBuf *c) {
     case AST_LABEL: {
       /* Emit OP_LABEL opcode, register offset, detect duplicates */
       const char *name = node->data.label.name;
-      if (!name)
+      if (!name) {
         return -1;
+      }
 
       /* Duplicate label check */
       int existing = find_label_c(name);
@@ -713,8 +734,9 @@ static int emit_node_c(ast_node_t *node, CodeBuf *c) {
       }
 
       int idx = get_or_create_label_c(name);
-      if (idx < 0)
+      if (idx < 0) {
         return -1;
+      }
 
       /* Emit OP_LABEL with numeric label ID */
       cb_emit_u8(c, OP_LABEL);
@@ -735,12 +757,14 @@ static int emit_node_c(ast_node_t *node, CodeBuf *c) {
     case AST_GOTO: {
       /* Emit OP_GOTO for goto statement */
       const char *label_name = node->data.goto_stmt.label;
-      if (!label_name)
+      if (!label_name) {
         return -1;
+      }
 
       int idx = get_or_create_label_c(label_name);
-      if (idx < 0)
+      if (idx < 0) {
         return -1;
+      }
 
       label_table_c[idx].referenced = true;
 

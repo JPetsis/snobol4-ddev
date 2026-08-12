@@ -30,7 +30,7 @@ static void set_register(snobol_match_t *m, int i, const char *subject,
   m->var_subject = subject;
   m->var_off[i] = off;
   m->var_len[i] = len;
-  m->var_values[i] = NULL;
+  m->var_values[i] = nullptr;
   m->var_lens[i] = 0;
 }
 
@@ -40,8 +40,9 @@ static void test_lazy_correct(void) {
 
   snobol_match_t *m = snobol_match_create();
   test_assert(m != NULL, "match allocated");
-  if (!m)
+  if (!m) {
     return;
+  }
   m->success = true;
   m->var_count = 3;
 
@@ -50,17 +51,17 @@ static void test_lazy_correct(void) {
   set_register(m, 2, subject, 6, 5); /* "world" -> variable "2" */
 
   /* Both unmaterialized before any read. */
-  test_assert(m->var_values[1] == NULL && m->var_values[2] == NULL,
+  test_assert((m->var_values[1] == NULL && m->var_values[2] == NULL) != 0,
               "registers unmaterialized before read");
 
   size_t len = 0;
   const char *v1 = snobol_match_get_variable(m, "1", &len);
-  test_assert(v1 != NULL && len == 5 && memcmp(v1, "hello", 5) == 0,
+  test_assert((v1 != NULL && len == 5 && memcmp(v1, "hello", 5) == 0) != 0,
               "variable '1' materializes to 'hello'");
   test_assert(m->var_values[1] != NULL, "register 1 now materialized");
 
   const char *v2 = snobol_match_get_variable(m, "2", &len);
-  test_assert(v2 != NULL && len == 5 && memcmp(v2, "world", 5) == 0,
+  test_assert((v2 != NULL && len == 5 && memcmp(v2, "world", 5) == 0) != 0,
               "variable '2' materializes to 'world'");
 
   /* Re-read returns the same cached owned copy. */
@@ -76,8 +77,9 @@ static void test_unread_untouched(void) {
 
   snobol_match_t *m = snobol_match_create();
   test_assert(m != NULL, "match allocated");
-  if (!m)
+  if (!m) {
     return;
+  }
   m->success = true;
   m->var_count = 3;
 
@@ -88,7 +90,7 @@ static void test_unread_untouched(void) {
   /* Read only register 1. */
   size_t len = 0;
   const char *v1 = snobol_match_get_variable(m, "1", &len);
-  test_assert(v1 != NULL && len == 3 && memcmp(v1, "abc", 3) == 0,
+  test_assert((v1 != NULL && len == 3 && memcmp(v1, "abc", 3) == 0) != 0,
               "register 1 reads correctly");
 
   test_assert(m->var_values[1] != NULL, "register 1 materialized");
@@ -104,8 +106,9 @@ static void test_empty(void) {
 
   snobol_match_t *m = snobol_match_create();
   test_assert(m != NULL, "match allocated");
-  if (!m)
+  if (!m) {
     return;
+  }
   m->success = true;
   m->var_count = 2;
 
@@ -114,7 +117,7 @@ static void test_empty(void) {
 
   size_t len = 0;
   const char *v = snobol_match_get_variable(m, "1", &len);
-  test_assert(v != NULL && len == 0 && v[0] == '\0',
+  test_assert((v != NULL && len == 0 && v[0] == '\0') != 0,
               "zero-width register reads as empty string");
 
   snobol_match_free(m);
@@ -126,14 +129,15 @@ static void test_absent(void) {
 
   snobol_match_t *m = snobol_match_create();
   test_assert(m != NULL, "match allocated");
-  if (!m)
+  if (!m) {
     return;
+  }
   m->success = true;
   m->var_count = 0;
 
   size_t len = 0;
   const char *v = snobol_match_get_variable(m, "1", &len);
-  test_assert(v == NULL && len == 0, "absent variable is NULL");
+  test_assert((v == NULL && len == 0) != 0, "absent variable is NULL");
 
   snobol_match_free(m);
 }
@@ -144,21 +148,22 @@ static void test_engine_capture(void) {
 
   snobol_context_t *ctx = snobol_context_create();
   test_assert(ctx != NULL, "context allocated");
-  if (!ctx)
+  if (!ctx) {
     return;
+  }
 
-  char *err = NULL;
+  char *err = nullptr;
   /* "@r1" captures whatever the pattern matched (here "world"). */
   snobol_pattern_t *pat =
       snobol_pattern_compile(ctx, "'hello ' @r1 'world'", 20, &err);
-  test_assert(pat != NULL && err == NULL, "pattern compiled");
+  test_assert((pat != NULL && err == NULL) != 0, "pattern compiled");
   if (!pat) {
     snobol_context_destroy(ctx);
     return;
   }
 
   snobol_match_t *m = snobol_pattern_match(pat, "hello world", 11);
-  test_assert(m != NULL && m->success, "match succeeded");
+  test_assert((m != NULL && m->success) != 0, "match succeeded");
   if (!m || !m->success) {
     snobol_pattern_free(pat);
     snobol_context_destroy(ctx);
@@ -168,7 +173,7 @@ static void test_engine_capture(void) {
   size_t len = 0;
   /* @r1 allocates the first register (0) under sequential allocation. */
   const char *v = snobol_match_get_variable(m, "0", &len);
-  test_assert(v != NULL && len == 5 && memcmp(v, "world", 5) == 0,
+  test_assert((v != NULL && len == 5 && memcmp(v, "world", 5) == 0) != 0,
               "variable '0' reads engine capture 'world'");
 
   snobol_match_free(m);

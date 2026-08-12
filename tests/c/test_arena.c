@@ -31,10 +31,12 @@ static ast_node_t *parse_with_arena(const char *src, snobol_arena_t *arena,
   snobol_parser_t *parser = snobol_parser_create();
   snobol_ast_set_arena(arena);
   ast_node_t *ast = snobol_parser_parse(parser, lexer);
-  if (out_lexer)
+  if (out_lexer) {
     *out_lexer = lexer;
-  if (out_parser)
+  }
+  if (out_parser) {
     *out_parser = parser;
+  }
   return ast;
 }
 
@@ -46,8 +48,8 @@ void test_arena_allocation(void) {
   snobol_arena_t arena;
   snobol_arena_init(&arena, buf, SNOBOL_ARENA_DEFAULT_CAPACITY);
 
-  snobol_lexer_t *lexer = NULL;
-  snobol_parser_t *parser = NULL;
+  snobol_lexer_t *lexer = nullptr;
+  snobol_parser_t *parser = nullptr;
   const char *src = "'hello' 'world' | ('a' 'b')";
   ast_node_t *ast = parse_with_arena(src, &arena, &lexer, &parser);
 
@@ -70,10 +72,10 @@ void test_arena_allocation(void) {
 void test_arena_default_fallback(void) {
   test_suite("Arena: default heap allocator when no arena bound");
 
-  snobol_lexer_t *lexer = NULL;
-  snobol_parser_t *parser = NULL;
+  snobol_lexer_t *lexer = nullptr;
+  snobol_parser_t *parser = nullptr;
   const char *src = "'x' 'y' 'z'";
-  ast_node_t *ast = parse_with_arena(src, NULL, &lexer, &parser);
+  ast_node_t *ast = parse_with_arena(src, nullptr, &lexer, &parser);
 
   test_assert(ast != NULL, "parse succeeds with no arena bound");
   snobol_ast_free(ast); /* must be safe: nodes were heap-allocated */
@@ -88,7 +90,7 @@ void test_arena_public_compile(void) {
   test_suite("Arena: snobol_pattern_compile uses internal arena");
 
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   const char *src = "('foo' | 'bar') ('baz'+ 'qux')";
   snobol_pattern_t *pat =
       snobol_pattern_compile_ex(ctx, src, strlen(src), 0, &err);

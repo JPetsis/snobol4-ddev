@@ -37,11 +37,13 @@ static void pb_init(PbCodeBuf *c) {
 }
 
 static void pb_ensure(PbCodeBuf *c, size_t need) {
-  if (c->len + need <= c->cap)
+  if (c->len + need <= c->cap) {
     return;
+  }
   size_t newcap = c->cap ? c->cap * 2 : 256;
-  while (c->len + need > newcap)
+  while (c->len + need > newcap) {
     newcap *= 2;
+  }
   c->buf = (uint8_t *)snobol_realloc(c->buf, newcap);
   c->cap = newcap;
 }
@@ -85,8 +87,9 @@ static void pb_emit_u32(PbCodeBuf *c, uint32_t v) {
 bool snobol_breakx_prescan(const char *subject, size_t subject_len,
                            const uint8_t *ranges_ptr, size_t range_count,
                            size_t **out_positions, size_t *out_count) {
-  if (!subject || !out_positions || !out_count)
+  if (!subject || !out_positions || !out_count) {
     return false;
+  }
 
   /* Pre-compute ASCII bitmap for fast path */
   uint64_t ascii_map[2] = {0, 0};
@@ -96,8 +99,9 @@ bool snobol_breakx_prescan(const char *subject, size_t subject_len,
   /* Collect positions */
   size_t capacity = 16;
   size_t *positions = (size_t *)snobol_malloc(capacity * sizeof(size_t));
-  if (!positions)
+  if (!positions) {
     return false;
+  }
   size_t count = 0;
 
   size_t pos = 0;
@@ -170,8 +174,9 @@ bool snobol_breakx_prescan(const char *subject, size_t subject_len,
  * @return          true on success
  */
 bool snobol_emit_arb(uint8_t **out_buf, size_t *out_len) {
-  if (!out_buf || !out_len)
+  if (!out_buf || !out_len) {
     return false;
+  }
 
   PbCodeBuf c;
   pb_init(&c);
@@ -203,7 +208,7 @@ bool snobol_emit_arb(uint8_t **out_buf, size_t *out_len) {
   pb_emit_u8(&c, (uint8_t)OP_REPEAT_INIT);
   pb_emit_u8(&c, 0);            /* loop_id */
   pb_emit_u32(&c, 0);           /* min = 0 */
-  pb_emit_u32(&c, 0xFFFFFFFFu); /* max = unlimited */
+  pb_emit_u32(&c, 0xFFFFFFFFU); /* max = unlimited */
   pb_emit_u32(&c, after_off);   /* skip_target: jump over body when min=0 */
 
   /* OP_LEN 1 (body) */

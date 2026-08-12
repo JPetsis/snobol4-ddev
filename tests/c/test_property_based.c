@@ -12,7 +12,7 @@ extern void test_assert(bool condition, const char *message);
 static size_t prng_state = 42;
 
 static unsigned char prng_byte(void) {
-  prng_state = prng_state * 6364136223846793005ULL + 1442695040888963407ULL;
+  prng_state = (prng_state * 6364136223846793005ULL) + 1442695040888963407ULL;
   return (unsigned char)(prng_state >> 32);
 }
 
@@ -31,10 +31,11 @@ enum { MAX_PAT_LEN = 128, MAX_SUB_LEN = 128 };
 static bool match_idempotent(const char *pat_str, size_t pat_len,
                              const char *sub, size_t sub_len) {
   snobol_context_t *ctx = snobol_context_create();
-  if (!ctx)
+  if (!ctx) {
     return true;
+  }
 
-  char *error = NULL;
+  char *error = nullptr;
   snobol_pattern_t *pat = snobol_pattern_compile(ctx, pat_str, pat_len, &error);
   if (!pat) {
     free(error);
@@ -66,10 +67,11 @@ static bool match_idempotent(const char *pat_str, size_t pat_len,
 static bool capture_count_consistent(const char *pat_str, size_t pat_len,
                                      const char *sub, size_t sub_len) {
   snobol_context_t *ctx = snobol_context_create();
-  if (!ctx)
+  if (!ctx) {
     return true;
+  }
 
-  char *error = NULL;
+  char *error = nullptr;
   snobol_pattern_t *pat = snobol_pattern_compile(ctx, pat_str, pat_len, &error);
   if (!pat) {
     free(error);
@@ -87,7 +89,8 @@ static bool capture_count_consistent(const char *pat_str, size_t pat_len,
     return true;
   }
 
-  size_t clen1 = 0, clen2 = 0;
+  size_t clen1 = 0;
+  size_t clen2 = 0;
   const char *c1 = snobol_match_get_output(r1, &clen1);
   const char *c2 = snobol_match_get_output(r2, &clen2);
   (void)c1;
@@ -98,8 +101,8 @@ static bool capture_count_consistent(const char *pat_str, size_t pat_len,
 
   bool ok = true;
   if (s1 && s2) {
-    ok = (clen1 == clen2) &&
-         (c1 == NULL || c2 == NULL || memcmp(c1, c2, clen1) == 0);
+    ok = (((clen1 == clen2) &&
+           (c1 == NULL || c2 == NULL || memcmp(c1, c2, clen1) == 0)) != 0);
   } else if (s1 != s2) {
     ok = false;
   }
@@ -117,10 +120,11 @@ static bool substitution_roundtrip(const char *pat_str, size_t pat_len,
   (void)tpl;
   (void)tpl_len;
   snobol_context_t *ctx = snobol_context_create();
-  if (!ctx)
+  if (!ctx) {
     return true;
+  }
 
-  char *error = NULL;
+  char *error = nullptr;
   snobol_pattern_t *pat = snobol_pattern_compile(ctx, pat_str, pat_len, &error);
   if (!pat) {
     free(error);

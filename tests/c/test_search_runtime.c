@@ -47,8 +47,9 @@ static size_t build_lit_accept(uint8_t *bc, const char *s, size_t slen) {
   uint32_t offset = (uint32_t)(1 + 4 + 4);
   emit_u32_be(bc, &ip, offset);
   emit_u32_be(bc, &ip, (uint32_t)slen);
-  for (size_t i = 0; i < slen; i++)
+  for (size_t i = 0; i < slen; i++) {
     bc[ip++] = (uint8_t)s[i];
+  }
   bc[ip++] = OP_ACCEPT;
   return ip;
 }
@@ -139,9 +140,9 @@ static int run_search(const uint8_t *bc, size_t bc_len, const char *subject,
 
   snobol_search_result_t result;
   bool ok = snobol_search_exec(&vm, subject, strlen(subject), start_offset,
-                               &meta, NULL, &result, NULL);
+                               &meta, nullptr, &result, nullptr);
   snobol_search_meta_free(&meta);
-  int ret = ok ? (int)result.match_start : -1;
+  int ret = (int)ok ? (int)result.match_start : -1;
   snobol_search_vm_cleanup(&vm);
   return ret;
 }
@@ -160,9 +161,9 @@ static int run_search_end(const uint8_t *bc, size_t bc_len, const char *subject,
 
   snobol_search_result_t result;
   bool ok = snobol_search_exec(&vm, subject, strlen(subject), start_offset,
-                               &meta, NULL, &result, NULL);
+                               &meta, nullptr, &result, nullptr);
   snobol_search_meta_free(&meta);
-  int ret = ok ? (int)result.match_end : -1;
+  int ret = (int)ok ? (int)result.match_end : -1;
   snobol_search_vm_cleanup(&vm);
   return ret;
 }
@@ -191,7 +192,7 @@ static void test_derive_meta_literal(void) {
   test_assert(meta.first_byte == 'h', "first_byte == 'h'");
   test_assert(meta.always_consumes,
               "always_consumes set for non-empty literal");
-  test_assert(!meta.may_match_empty,
+  test_assert((!meta.may_match_empty) != 0,
               "may_match_empty false for non-empty literal");
 }
 
@@ -206,7 +207,7 @@ static void test_derive_meta_break(void) {
   snobol_search_meta_free(&meta);
 
   test_assert(meta.is_break_family, "is_break_family set for BREAK pattern");
-  test_assert(!meta.is_breakx, "is_breakx false for OP_BREAK");
+  test_assert((!meta.is_breakx) != 0, "is_breakx false for OP_BREAK");
   test_assert(meta.ascii_class_only,
               "ascii_class_only for single ASCII delimiter");
 }
@@ -238,7 +239,7 @@ static void test_derive_meta_span(void) {
 
   test_assert(meta.is_span_family, "is_span_family set for SPAN pattern");
   test_assert(meta.always_consumes, "always_consumes set for SPAN");
-  test_assert(!meta.may_match_empty, "may_match_empty false for SPAN");
+  test_assert((!meta.may_match_empty) != 0, "may_match_empty false for SPAN");
   test_assert(meta.ascii_class_only, "ascii_class_only for digit set");
 }
 
@@ -246,12 +247,13 @@ static void test_derive_meta_empty_bc(void) {
   test_suite("Search meta: empty bytecode");
 
   snobol_search_meta_t meta;
-  snobol_search_derive_meta(NULL, 0, &meta);
+  snobol_search_derive_meta(nullptr, 0, &meta);
   snobol_search_meta_free(&meta);
 
-  test_assert(!meta.has_literal_prefix, "no prefix for NULL bc");
-  test_assert(!meta.is_break_family, "no break_family for NULL bc");
-  test_assert(!meta.automaton_eligible, "not automaton_eligible for NULL bc");
+  test_assert((!meta.has_literal_prefix) != 0, "no prefix for NULL bc");
+  test_assert((!meta.is_break_family) != 0, "no break_family for NULL bc");
+  test_assert((!meta.automaton_eligible) != 0,
+              "not automaton_eligible for NULL bc");
 }
 
 /* ---------------------------------------------------------------------------
@@ -396,7 +398,8 @@ static void test_search_diagnostics(void) {
   snobol_search_result_t result;
   snobol_search_diag_t diag;
 
-  bool ok = snobol_search_exec(&vm, "abcz", 4, 0, &meta, NULL, &result, &diag);
+  bool ok =
+      snobol_search_exec(&vm, "abcz", 4, 0, &meta, nullptr, &result, &diag);
   test_assert(ok, "diagnostics: 'z' found in 'abcz'");
   test_assert(result.match_start == 3, "diagnostics: match_start == 3");
   test_assert(diag.candidates_tested > 0, "diagnostics: candidates_tested > 0");
@@ -486,8 +489,8 @@ static void test_automaton_search_semantics(void) {
   vm.bc_len = bc_len;
 
   snobol_search_result_t result;
-  bool ok =
-      snobol_search_exec(&vm, "xybz", 4, 0, &auto_meta, NULL, &result, NULL);
+  bool ok = snobol_search_exec(&vm, "xybz", 4, 0, &auto_meta, nullptr, &result,
+                               nullptr);
   test_assert(ok, "automaton search finds 'b' in 'xybz'");
   test_assert(result.match_start == 2, "automaton match_start == 2");
   snobol_search_vm_cleanup(&vm);
@@ -510,7 +513,7 @@ static void test_alt_literals_detection(void) {
 
   test_assert(meta.is_alt_literals,
               "alt-literals: SPLIT(LIT LIT ACCEPT ACCEPT) detected");
-  test_assert(!meta.is_single_char_alt,
+  test_assert((!meta.is_single_char_alt) != 0,
               "alt-literals: NOT single-char alt (multi-byte literals)");
 }
 
@@ -534,20 +537,23 @@ static void test_alt_literals_search_simple(void) {
   bool ok;
 
   /* Match 'abc' */
-  ok = snobol_search_exec(&vm, "xxabcxx", 7, 0, &meta, NULL, &result, NULL);
+  ok = snobol_search_exec(&vm, "xxabcxx", 7, 0, &meta, nullptr, &result,
+                          nullptr);
   test_assert(ok, "alt-literals: 'abc' found in 'xxabcxx'");
   test_assert(result.match_start == 2, "alt-literals: match_start == 2");
   test_assert(result.match_end == 5, "alt-literals: match_end == 5");
 
   /* Match 'def' */
-  ok = snobol_search_exec(&vm, "xxdefxx", 7, 0, &meta, NULL, &result, NULL);
+  ok = snobol_search_exec(&vm, "xxdefxx", 7, 0, &meta, nullptr, &result,
+                          nullptr);
   test_assert(ok, "alt-literals: 'def' found in 'xxdefxx'");
   test_assert(result.match_start == 2, "alt-literals: 'def' match_start == 2");
   test_assert(result.match_end == 5, "alt-literals: 'def' match_end == 5");
 
   /* No match */
-  ok = snobol_search_exec(&vm, "xxxxxxx", 7, 0, &meta, NULL, &result, NULL);
-  test_assert(!ok, "alt-literals: no match for 'xxxxxxx'");
+  ok = snobol_search_exec(&vm, "xxxxxxx", 7, 0, &meta, nullptr, &result,
+                          nullptr);
+  test_assert((!ok) != 0, "alt-literals: no match for 'xxxxxxx'");
   snobol_search_vm_cleanup(&vm);
 }
 
@@ -615,28 +621,28 @@ static void test_alt_literals_tier3a_path(void) {
   bool ok;
 
   /* Match 'cat' at various positions */
-  ok = snobol_search_exec(&vm, "--cat--", 7, 0, &m, NULL, &result, NULL);
+  ok = snobol_search_exec(&vm, "--cat--", 7, 0, &m, nullptr, &result, nullptr);
   test_assert(ok, "alt-literals Tier3a: 'cat' found in '--cat--'");
   test_assert(result.match_start == 2, "alt-literals Tier3a: match_start == 2");
   test_assert(result.match_end == 5, "alt-literals Tier3a: match_end == 5");
 
   /* Match 'dog' */
-  ok = snobol_search_exec(&vm, "xxdogxx", 7, 0, &m, NULL, &result, NULL);
+  ok = snobol_search_exec(&vm, "xxdogxx", 7, 0, &m, nullptr, &result, nullptr);
   test_assert(ok, "alt-literals Tier3a: 'dog' found in 'xxdogxx'");
   test_assert(result.match_start == 2,
               "alt-literals Tier3a: 'dog' match_start == 2");
 
   /* No match */
-  ok = snobol_search_exec(&vm, "xxxxxxx", 7, 0, &m, NULL, &result, NULL);
-  test_assert(!ok, "alt-literals Tier3a: no match for 'xxxxxxx'");
+  ok = snobol_search_exec(&vm, "xxxxxxx", 7, 0, &m, nullptr, &result, nullptr);
+  test_assert((!ok) != 0, "alt-literals Tier3a: no match for 'xxxxxxx'");
 
   /* Match at start */
-  ok = snobol_search_exec(&vm, "cat...", 6, 0, &m, NULL, &result, NULL);
+  ok = snobol_search_exec(&vm, "cat...", 6, 0, &m, nullptr, &result, nullptr);
   test_assert(ok, "alt-literals Tier3a: 'cat' at start");
   test_assert(result.match_start == 0, "alt-literals Tier3a: match_start == 0");
 
   /* Match at end */
-  ok = snobol_search_exec(&vm, "...dog", 6, 0, &m, NULL, &result, NULL);
+  ok = snobol_search_exec(&vm, "...dog", 6, 0, &m, nullptr, &result, nullptr);
   test_assert(ok, "alt-literals Tier3a: 'dog' at end");
   test_assert(result.match_start == 3, "alt-literals Tier3a: 'dog' at pos 3");
   snobol_search_vm_cleanup(&vm);
@@ -675,7 +681,7 @@ static void test_literal_only_meta(void) {
     snobol_search_derive_meta(bc, ip, &m);
     snobol_search_meta_free(&m);
     test_assert(
-        !m.is_literal_only,
+        (!m.is_literal_only) != 0,
         "literal-only: POS LIT ACCEPT NOT literal-only (position constraint)");
   }
 
@@ -683,7 +689,8 @@ static void test_literal_only_meta(void) {
   n = build_break_accept(bc, OP_SPLIT, "x", 1);
   snobol_search_derive_meta(bc, n, &m);
   snobol_search_meta_free(&m);
-  test_assert(!m.is_literal_only, "literal-only: SPLIT pattern NOT detected");
+  test_assert((!m.is_literal_only) != 0,
+              "literal-only: SPLIT pattern NOT detected");
 }
 
 /* ===================================================================
@@ -736,7 +743,8 @@ static void test_search_vm_eligible_meta(void) {
     bc[ip++] = OP_ACCEPT;
     snobol_search_derive_meta(bc, ip, &m);
     snobol_search_meta_free(&m);
-    test_assert(!m.search_vm_eligible, "search-vm eligible: EVAL not eligible");
+    test_assert((!m.search_vm_eligible) != 0,
+                "search-vm eligible: EVAL not eligible");
   }
 
   /* Pattern with OP_ANY (charclass) — eligible */
@@ -794,7 +802,7 @@ static void test_search_vm_eligible_meta(void) {
     bc[ip++] = OP_ACCEPT;
     snobol_search_derive_meta(bc, ip, &m);
     snobol_search_meta_free(&m);
-    test_assert(!m.search_vm_eligible,
+    test_assert((!m.search_vm_eligible) != 0,
                 "search-vm eligible: DYNAMIC not eligible");
   }
 }
@@ -824,7 +832,7 @@ static void test_search_vm_correctness(void) {
     vm.bc_len = n;
     snobol_search_result_t r;
     snobol_search_diag_t d;
-    bool ok = snobol_search_exec(&vm, "xxhelloxx", 9, 0, &m, NULL, &r, &d);
+    bool ok = snobol_search_exec(&vm, "xxhelloxx", 9, 0, &m, nullptr, &r, &d);
     test_assert(ok, "search-vm: LIT+ACCEPT found 'hello'");
     test_assert(r.match_start == 2, "search-vm: match_start == 2");
     test_assert(d.search_vm_tests == 0,
@@ -844,7 +852,8 @@ static void test_search_vm_correctness(void) {
     snobol_search_meta_t m;
     snobol_search_derive_meta(bc, n, &m);
     snobol_search_meta_free(&m);
-    test_assert(!m.is_literal_only, "search-vm: LEN+ACCEPT not literal-only");
+    test_assert((!m.is_literal_only) != 0,
+                "search-vm: LEN+ACCEPT not literal-only");
     test_assert(m.search_vm_eligible,
                 "search-vm: LEN+ACCEPT is search-vm-eligible");
 
@@ -854,7 +863,7 @@ static void test_search_vm_correctness(void) {
     vm.bc_len = n;
     snobol_search_result_t r;
     snobol_search_diag_t d;
-    bool ok = snobol_search_exec(&vm, "abcdef", 6, 0, &m, NULL, &r, &d);
+    bool ok = snobol_search_exec(&vm, "abcdef", 6, 0, &m, nullptr, &r, &d);
     test_assert(ok, "search-vm: LEN(3) matches");
     test_assert(r.match_start == 0, "search-vm: LEN(3) match_start == 0");
     test_assert(d.search_vm_tests > 0,
@@ -888,7 +897,7 @@ static void test_search_vm_correctness(void) {
     vm.bc = bc;
     vm.bc_len = n;
     /* Build range meta for charclass resolution */
-    snobol_range_meta_t *rm = NULL;
+    snobol_range_meta_t *rm = nullptr;
     size_t rm_count = 0;
     snobol_build_range_meta(bc, n, &rm, &rm_count);
     vm.range_meta = rm;
@@ -896,14 +905,15 @@ static void test_search_vm_correctness(void) {
 
     snobol_search_result_t r;
     snobol_search_diag_t d;
-    bool ok = snobol_search_exec(&vm, "abc5xyz", 7, 0, &m, NULL, &r, &d);
+    bool ok = snobol_search_exec(&vm, "abc5xyz", 7, 0, &m, nullptr, &r, &d);
     test_assert(ok, "search-vm: ANY matches digit at offset 3");
     test_assert(r.match_start == 3, "search-vm: ANY match_start == 3");
     test_assert(d.search_vm_tests == 0,
                 "search-vm: ANY handled by Tier 3 bitmap, not Tier 7");
 
-    if (rm)
+    if (rm) {
       free((void *)rm);
+    }
     snobol_search_vm_cleanup(&vm);
   }
 
@@ -931,7 +941,7 @@ static void test_search_vm_correctness(void) {
     memset(&vm, 0, sizeof(vm));
     vm.bc = bc;
     vm.bc_len = n;
-    snobol_range_meta_t *rm = NULL;
+    snobol_range_meta_t *rm = nullptr;
     size_t rm_count = 0;
     snobol_build_range_meta(bc, n, &rm, &rm_count);
     vm.range_meta = rm;
@@ -939,15 +949,16 @@ static void test_search_vm_correctness(void) {
 
     snobol_search_result_t r;
     snobol_search_diag_t d;
-    bool ok = snobol_search_exec(&vm, "1abc", 4, 0, &m, NULL, &r, &d);
+    bool ok = snobol_search_exec(&vm, "1abc", 4, 0, &m, nullptr, &r, &d);
     test_assert(ok, "search-vm: NOTANY matches non-alpha at offset 0");
     /* NOTANY may route through Tier 9 (SIMD NFA) when simd_eligible, or
      * through Tier 7 (search-VM) otherwise.  Either is correct. */
-    test_assert(d.search_vm_tests > 0 || m.simd_eligible,
+    test_assert((d.search_vm_tests > 0 || m.simd_eligible) != 0,
                 "NOTANY routed through Tier 7 or Tier 9");
 
-    if (rm)
+    if (rm) {
       free((void *)rm);
+    }
     free(vm.choices);
     snobol_search_vm_cleanup(&vm);
   }
@@ -973,7 +984,8 @@ static void test_search_vm_correctness(void) {
     snobol_search_meta_t m;
     snobol_search_derive_meta(bc, n, &m);
     snobol_search_meta_free(&m);
-    test_assert(!m.is_literal_only, "search-vm: LIT+LIT not literal-only");
+    test_assert((!m.is_literal_only) != 0,
+                "search-vm: LIT+LIT not literal-only");
     test_assert(m.has_literal_prefix, "search-vm: LIT+LIT has prefix");
     test_assert(m.search_vm_eligible,
                 "search-vm: LIT+LIT is search-vm-eligible");
@@ -984,7 +996,7 @@ static void test_search_vm_correctness(void) {
     vm.bc_len = n;
     snobol_search_result_t r;
     snobol_search_diag_t d;
-    bool ok = snobol_search_exec(&vm, "--cats", 6, 0, &m, NULL, &r, &d);
+    bool ok = snobol_search_exec(&vm, "--cats", 6, 0, &m, nullptr, &r, &d);
     test_assert(ok, "search-vm: LIT+LIT matches 'cats'");
     test_assert(d.search_vm_tests == 0,
                 "search-vm: LIT+LIT routed through Tier 3, not Tier 7");
@@ -1011,17 +1023,18 @@ static void test_literal_only_path(void) {
   vm.bc_len = n;
 
   snobol_search_result_t r;
-  bool ok = snobol_search_exec(&vm, "xxhello", 7, 0, &m, NULL, &r, NULL);
+  bool ok = snobol_search_exec(&vm, "xxhello", 7, 0, &m, nullptr, &r, nullptr);
   test_assert(ok, "literal-only path: 'hello' found in 'xxhello'");
   test_assert(r.match_start == 2, "literal-only path: match_start == 2");
   test_assert(r.match_end == 7, "literal-only path: match_end == 7");
 
   /* no-match */
-  ok = snobol_search_exec(&vm, "xxworld", 7, 0, &m, NULL, &r, NULL);
-  test_assert(!ok, "literal-only path: no match for 'world'");
+  ok = snobol_search_exec(&vm, "xxworld", 7, 0, &m, nullptr, &r, nullptr);
+  test_assert((!ok) != 0, "literal-only path: no match for 'world'");
 
   /* anchored via snobol_pattern_match */
-  snobol_pattern_t *pat = snobol_pattern_compile(NULL, "'hello'", 7, NULL);
+  snobol_pattern_t *pat =
+      snobol_pattern_compile(nullptr, "'hello'", 7, nullptr);
   test_assert(pat != NULL, "literal-only path: compile succeeds");
   snobol_match_t *mt = snobol_pattern_match(pat, "hello world", 11);
   test_assert(mt != NULL, "literal-only path: match result non-null");
@@ -1034,7 +1047,7 @@ static void test_literal_only_path(void) {
   /* anchored no-match */
   mt = snobol_pattern_match(pat, "hi world", 8);
   test_assert(mt != NULL, "literal-only path: no-match result non-null");
-  test_assert(!snobol_match_success(mt),
+  test_assert((!snobol_match_success(mt)) != 0,
               "literal-only path: anchored no-match");
   snobol_match_free(mt);
   snobol_pattern_free(pat);
@@ -1050,7 +1063,7 @@ static void test_literal_only_path(void) {
 static void test_tier_index_matches_if_branches(void) {
   /* Literal pattern: should get TIER_LITERAL */
   {
-    char *err = NULL;
+    char *err = nullptr;
     snobol_context_t *ctx = snobol_context_create();
     snobol_pattern_t *p = snobol_pattern_compile(ctx, "'hello'", 7, &err);
     test_assert(p != NULL, "tier test: literal pattern compiled");
@@ -1097,7 +1110,7 @@ static void test_tier_index_matches_if_branches(void) {
 
   /* Search-VM eligible pattern (LEN + LIT): should get TIER_SEARCH_VM */
   {
-    char *err = NULL;
+    char *err = nullptr;
     snobol_context_t *ctx = snobol_context_create();
     snobol_pattern_t *p = snobol_pattern_compile(ctx, "LEN(1) 'a'", 10, &err);
     if (p) {
@@ -1113,8 +1126,9 @@ static void test_tier_index_matches_if_branches(void) {
       /* If compile fails, test that we at least tried */
       test_assert(true, "LEN+LIT compile failed (syntax may differ)");
     }
-    if (err)
+    if (err) {
       free(err);
+    }
     snobol_context_destroy(ctx);
   }
 }
@@ -1132,7 +1146,7 @@ static void test_search_vm_reset_fields(void) {
   /* Set some fields to known non-zero values */
   svm.bc = (const uint8_t *)"test";
   svm.bc_len = 4;
-  svm.range_meta = NULL;
+  svm.range_meta = nullptr;
   svm.range_meta_count = 0;
   svm.choices = NULL;
   svm.choices_cap = 0;
@@ -1152,7 +1166,7 @@ static void test_search_vm_reset_fields(void) {
    * We verify that counters survive across calls. */
 
   /* Use a simple pattern to trigger search_reset_vm */
-  char *err = NULL;
+  char *err = nullptr;
   snobol_context_t *ctx = snobol_context_create();
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "'x'", 3, &err);
   test_assert(p != NULL, "reset field test: pattern compiled");
@@ -1173,7 +1187,7 @@ static void test_search_vm_reset_fields(void) {
   vm.counters[1] = 99;
   vm.max_counter_used = 2;
 
-  (void)snobol_search_exec(&vm, "x", 1, 0, &meta, NULL, &result, NULL);
+  (void)snobol_search_exec(&vm, "x", 1, 0, &meta, nullptr, &result, nullptr);
 
   /* After search, counters should be preserved (search_vm_t doesn't touch them) */
   test_assert(vm.counters[0] == 42, "counters[0] preserved after search");
@@ -1191,7 +1205,7 @@ static void test_search_vm_reset_fields(void) {
  * =================================================================== */
 static void test_bmh_table_alloc_free(void) {
   /* Pattern with literal prefix ≥ 2 bytes triggers BMH allocation */
-  char *err = NULL;
+  char *err = nullptr;
   snobol_context_t *ctx = snobol_context_create();
   snobol_pattern_t *p =
       snobol_pattern_compile(ctx, "'hello' 'world'", 15, &err);
@@ -1233,7 +1247,7 @@ static void test_bmh_table_alloc_free(void) {
   snobol_search_derive_meta(snobol_pattern_get_bc(p2),
                             snobol_pattern_get_bc_len(p2), &meta2);
   /* Single-char literal has prefix_len=1, which is < 2, so no BMH */
-  test_assert(!meta2.has_bmh_skip, "BMH test: single-char has no BMH");
+  test_assert((!meta2.has_bmh_skip) != 0, "BMH test: single-char has no BMH");
   test_assert(meta2.bmh_skip == NULL, "BMH test: single-char bmh_skip is NULL");
   snobol_search_meta_free(&meta2);
   snobol_pattern_free(p2);
@@ -1257,7 +1271,7 @@ static void test_dispatch_order(void) {
   test_assert(m.is_literal_only, "dispatch: literal-only meta set");
   vm.bc = bc;
   vm.bc_len = n;
-  bool ok = snobol_search_exec(&vm, "xxhello", 7, 0, &m, NULL, &r, &d);
+  bool ok = snobol_search_exec(&vm, "xxhello", 7, 0, &m, nullptr, &r, &d);
   test_assert(ok, "dispatch: literal-only match");
   test_assert(d.last_skip_reason == SNOBOL_SEARCH_SKIP_LITERAL,
               "dispatch: Tier 2 literal-only path used");
@@ -1283,10 +1297,10 @@ static void test_dispatch_order(void) {
     n = ip;
     snobol_search_derive_meta(bc, n, &m);
     test_assert(m.has_literal_prefix, "dispatch: literal prefix meta set");
-    test_assert(!m.is_literal_only, "dispatch: NOT literal-only");
+    test_assert((!m.is_literal_only) != 0, "dispatch: NOT literal-only");
     vm.bc = bc;
     vm.bc_len = n;
-    ok = snobol_search_exec(&vm, "--cats", 6, 0, &m, NULL, &r, &d);
+    ok = snobol_search_exec(&vm, "--cats", 6, 0, &m, nullptr, &r, &d);
     test_assert(ok, "dispatch: literal prefix match");
     test_assert(d.last_skip_reason == SNOBOL_SEARCH_SKIP_LITERAL,
                 "dispatch: Tier 3 literal prefix path used");
@@ -1310,7 +1324,7 @@ static void test_w1b_start_bitmap_after_zero_width(void) {
    * SPAN is the first consuming op; should get start-bitmap from SPAN's
    * character class. BMH skip is NOT set for SPAN (no literal prefix). */
   {
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "^SPAN('0-9')", 12, &err);
     test_assert(pat != NULL, "w1b: ^SPAN compiled");
@@ -1320,7 +1334,8 @@ static void test_w1b_start_bitmap_after_zero_width(void) {
       const snobol_search_meta_t *meta = snobol_pattern_get_meta(pat);
       test_assert(meta->has_start_bitmap, "w1b: ^SPAN has start_bitmap");
       test_assert(meta->is_span_family, "w1b: ^SPAN is_span_family");
-      test_assert(!meta->has_bmh_skip, "w1b: ^SPAN no bmh_skip (no literal)");
+      test_assert((!meta->has_bmh_skip) != 0,
+                  "w1b: ^SPAN no bmh_skip (no literal)");
 
       /* Run with diagnostics — should skip non-digit positions.
        * Pattern is anchored at start; 'a' is not a digit so match fails,
@@ -1329,10 +1344,11 @@ static void test_w1b_start_bitmap_after_zero_width(void) {
       memset(&vm, 0, sizeof(vm));
       snobol_search_result_t result;
       snobol_search_diag_t diag;
-      bool ok =
-          snobol_search_exec(&vm, "abc123", 6, 0, meta, NULL, &result, &diag);
+      bool ok = snobol_search_exec(&vm, "abc123", 6, 0, meta, nullptr, &result,
+                                   &diag);
       test_assert(
-          !ok, "w1b: ^SPAN does not match 'abc123' (anchored, 'a' not digit)");
+          (!ok) != 0,
+          "w1b: ^SPAN does not match 'abc123' (anchored, 'a' not digit)");
       test_assert(diag.candidates_skipped > 0,
                   "w1b: ^SPAN skips non-digit positions via bitmap");
       snobol_pattern_free(pat);
@@ -1343,7 +1359,7 @@ static void test_w1b_start_bitmap_after_zero_width(void) {
   /* Test 2: 'id:' SPAN('0-9') — LIT then SPAN.
    * LIT is the first consuming op; should get literal prefix classification. */
   {
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "'id:' SPAN('0-9')", 17, &err);
     test_assert(pat != NULL, "w1b: 'id:' SPAN compiled");
@@ -1388,7 +1404,7 @@ static void test_w1b_start_bitmap_after_zero_width(void) {
       vm.range_meta_count = range_count;
       snobol_search_result_t result;
       snobol_search_diag_t diag;
-      bool ok = snobol_search_exec(&vm, "xxid:123xx", 10, 0, meta, NULL,
+      bool ok = snobol_search_exec(&vm, "xxid:123xx", 10, 0, meta, nullptr,
                                    &result, &diag);
       test_assert(ok, "w1b: 'id:' SPAN matches via search_exec");
       test_assert(result.match_start == 2,
@@ -1405,7 +1421,7 @@ static void test_w1b_start_bitmap_after_zero_width(void) {
   /* Test 3: ^'id:' SPAN('0-9') — ANCHOR then LIT then SPAN.
    * LIT is the first consuming op after ANCHOR; should get literal prefix. */
   {
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "^'id:' SPAN('0-9')", 18, &err);
     test_assert(pat != NULL, "w1b: ^'id:' SPAN compiled");

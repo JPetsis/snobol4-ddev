@@ -119,29 +119,35 @@ static const uint32_t LOWER_MAP[256] = {
  */
 
 static uint32_t bmp_find_upper(uint32_t lower_cp) {
-  size_t lo = 0, hi = N_BMP_LOWER_TO_UPPER;
+  size_t lo = 0;
+  size_t hi = N_BMP_LOWER_TO_UPPER;
   while (lo < hi) {
-    size_t mid = lo + (hi - lo) / 2;
-    if (BMP_LOWER_TO_UPPER[mid].lower == lower_cp)
+    size_t mid = lo + ((hi - lo) / 2);
+    if (BMP_LOWER_TO_UPPER[mid].lower == lower_cp) {
       return BMP_LOWER_TO_UPPER[mid].upper;
-    if (BMP_LOWER_TO_UPPER[mid].lower < lower_cp)
+    }
+    if (BMP_LOWER_TO_UPPER[mid].lower < lower_cp) {
       lo = mid + 1;
-    else
+    } else {
       hi = mid;
+    }
   }
   return lower_cp;
 }
 
 static uint32_t bmp_find_lower(uint32_t upper_cp) {
-  size_t lo = 0, hi = N_BMP_UPPER_TO_LOWER;
+  size_t lo = 0;
+  size_t hi = N_BMP_UPPER_TO_LOWER;
   while (lo < hi) {
-    size_t mid = lo + (hi - lo) / 2;
-    if (BMP_UPPER_TO_LOWER[mid].lower == upper_cp)
+    size_t mid = lo + ((hi - lo) / 2);
+    if (BMP_UPPER_TO_LOWER[mid].lower == upper_cp) {
       return BMP_UPPER_TO_LOWER[mid].upper;
-    if (BMP_UPPER_TO_LOWER[mid].lower < upper_cp)
+    }
+    if (BMP_UPPER_TO_LOWER[mid].lower < upper_cp) {
       lo = mid + 1;
-    else
+    } else {
       hi = mid;
+    }
   }
   return upper_cp;
 }
@@ -153,7 +159,7 @@ static uint32_t bmp_find_lower(uint32_t upper_cp) {
 
 void snobol_to_upper_cp(uint32_t cp, uint32_t *out, int *out_len) {
   if (cp < 0x80) {
-    out[0] = (cp >= 0x61 && cp <= 0x7A) ? cp - 32u : cp;
+    out[0] = (cp >= 0x61 && cp <= 0x7A) ? cp - 32U : cp;
     *out_len = 1;
     return;
   }
@@ -179,7 +185,7 @@ void snobol_to_upper_cp(uint32_t cp, uint32_t *out, int *out_len) {
 
 uint32_t snobol_to_lower_cp(uint32_t cp) {
   if (cp < 0x80) {
-    return (cp >= 0x41 && cp <= 0x5A) ? cp + 32u : cp;
+    return (cp >= 0x41 && cp <= 0x5A) ? cp + 32U : cp;
   }
 
   if (cp <= 0xFF) {

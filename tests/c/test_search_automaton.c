@@ -46,8 +46,9 @@ static size_t build_lit_accept(uint8_t *bc, const char *s, size_t slen) {
   bc[ip++] = OP_LIT;
   emit_u32_be(bc, &ip, (uint32_t)(1 + 4 + 4));
   emit_u32_be(bc, &ip, (uint32_t)slen);
-  for (size_t i = 0; i < slen; i++)
+  for (size_t i = 0; i < slen; i++) {
     bc[ip++] = (uint8_t)s[i];
+  }
   bc[ip++] = OP_ACCEPT;
   return ip;
 }
@@ -104,8 +105,9 @@ static size_t build_split_lit_lit(uint8_t *bc, const char *s1, size_t len1,
   bc[ip++] = OP_LIT;
   emit_u32_be(bc, &ip, (uint32_t)(lit1_ip + 9));
   emit_u32_be(bc, &ip, (uint32_t)len1);
-  for (size_t i = 0; i < len1; i++)
+  for (size_t i = 0; i < len1; i++) {
     bc[ip++] = (uint8_t)s1[i];
+  }
   bc[ip++] = OP_ACCEPT;
   size_t after1 = ip;
 
@@ -113,8 +115,9 @@ static size_t build_split_lit_lit(uint8_t *bc, const char *s1, size_t len1,
   bc[ip++] = OP_LIT;
   emit_u32_be(bc, &ip, (uint32_t)(lit2_ip + 9));
   emit_u32_be(bc, &ip, (uint32_t)len2);
-  for (size_t i = 0; i < len2; i++)
+  for (size_t i = 0; i < len2; i++) {
     bc[ip++] = (uint8_t)s2[i];
+  }
   bc[ip++] = OP_ACCEPT;
   size_t after2 = ip;
 
@@ -230,12 +233,12 @@ static void test_dfa_build_unsupported_opcode(void) {
 
     bool found_accept = false;
     for (uint32_t s = 0; s < dfa->num_states; s++) {
-      if (dfa->accepting[s / 8] & (uint8_t)(1u << (s % 8))) {
+      if (dfa->accepting[s / 8] & (uint8_t)(1U << (s % 8))) {
         found_accept = true;
         break;
       }
     }
-    test_assert(!found_accept,
+    test_assert((!found_accept) != 0,
                 "no accepting state (LEN not in automaton instruction set)");
     snobol_dfa_free(dfa);
   }
@@ -261,7 +264,7 @@ static void test_dfa_build_split_alternation(void) {
 
     bool found_accept = false;
     for (uint32_t s = 0; s < dfa->num_states; s++) {
-      if (dfa->accepting[s / 8] & (uint8_t)(1u << (s % 8))) {
+      if (dfa->accepting[s / 8] & (uint8_t)(1U << (s % 8))) {
         found_accept = true;
         break;
       }
@@ -287,11 +290,13 @@ static void test_dfa_exec_match_offset_zero(void) {
   VM vm = make_vm(bc, bc_len);
   snobol_dfa_t *dfa = build_dfa(bc, bc_len, &vm);
   test_assert(dfa != NULL, "build_dfa succeeded");
-  if (!dfa)
+  if (!dfa) {
     return;
+  }
 
   snobol_search_result_t result;
-  bool ok = snobol_search_exec(&vm, "abcdef", 6, 0, &meta, dfa, &result, NULL);
+  bool ok =
+      snobol_search_exec(&vm, "abcdef", 6, 0, &meta, dfa, &result, nullptr);
   test_assert(ok, "match found at offset 0");
   test_assert(result.match_start == 0, "match_start == 0");
   test_assert(result.match_end == 3, "match_end == 3");
@@ -315,22 +320,23 @@ static void test_dfa_exec_match_nonzero_offset(void) {
   VM vm = make_vm(bc, bc_len);
   snobol_dfa_t *dfa = build_dfa(bc, bc_len, &vm);
   test_assert(dfa != NULL, "build_dfa succeeded");
-  if (!dfa)
+  if (!dfa) {
     return;
+  }
 
   snobol_search_result_t result;
 
-  bool ok =
-      snobol_search_exec(&vm, "----xyz----", 11, 0, &meta, dfa, &result, NULL);
+  bool ok = snobol_search_exec(&vm, "----xyz----", 11, 0, &meta, dfa, &result,
+                               nullptr);
   test_assert(ok, "match found in search mode");
   test_assert(result.match_start == 4, "match_start == 4");
   test_assert(result.match_end == 7, "match_end == 7");
 
-  ok = snobol_search_exec(&vm, "abcxyzxyz", 9, 0, &meta, dfa, &result, NULL);
+  ok = snobol_search_exec(&vm, "abcxyzxyz", 9, 0, &meta, dfa, &result, nullptr);
   test_assert(ok, "first match in 'abcxyzxyz'");
   test_assert(result.match_start == 3, "match_start == 3 (first 'xyz')");
 
-  ok = snobol_search_exec(&vm, "abcxyzxyz", 9, 4, &meta, dfa, &result, NULL);
+  ok = snobol_search_exec(&vm, "abcxyzxyz", 9, 4, &meta, dfa, &result, nullptr);
   test_assert(ok, "second match with start_offset=4");
   test_assert(result.match_start == 6, "match_start == 6 (second 'xyz')");
 
@@ -353,13 +359,15 @@ static void test_dfa_exec_no_match(void) {
   VM vm = make_vm(bc, bc_len);
   snobol_dfa_t *dfa = build_dfa(bc, bc_len, &vm);
   test_assert(dfa != NULL, "build_dfa succeeded");
-  if (!dfa)
+  if (!dfa) {
     return;
+  }
 
   snobol_search_result_t result;
-  bool ok = snobol_search_exec(&vm, "xxxxxxx", 7, 0, &meta, dfa, &result, NULL);
-  test_assert(!ok, "no match returned failure");
-  test_assert(!result.success, "result.success is false");
+  bool ok =
+      snobol_search_exec(&vm, "xxxxxxx", 7, 0, &meta, dfa, &result, nullptr);
+  test_assert((!ok) != 0, "no match returned failure");
+  test_assert((!result.success) != 0, "result.success is false");
 
   snobol_dfa_free(dfa);
   snobol_search_vm_cleanup(&vm);
@@ -378,12 +386,13 @@ static void test_non_eligible_fallback(void) {
   snobol_search_meta_t meta;
   snobol_search_derive_meta(bc, bc_len, &meta);
 
-  test_assert(!meta.automaton_eligible,
+  test_assert((!meta.automaton_eligible) != 0,
               "BREAKX pattern is NOT automaton-eligible");
 
   VM vm = make_vm(bc, bc_len);
   snobol_search_result_t result;
-  bool ok = snobol_search_exec(&vm, "a,b,c", 5, 0, &meta, NULL, &result, NULL);
+  bool ok =
+      snobol_search_exec(&vm, "a,b,c", 5, 0, &meta, nullptr, &result, nullptr);
   test_assert(ok, "BREAKX matches via accelerated BREAK path");
   /* BREAKX(',') on "a,b,c" matches the leading non-delimiter run "a":
     * start 0, end 1 (exclusive of the following ','). */
@@ -474,32 +483,33 @@ static void test_repeat_in_automaton(void) {
   VM vm = make_vm(bc, bc_len);
   snobol_dfa_t *dfa = build_dfa(bc, bc_len, &vm);
   test_assert(dfa != NULL, "build_dfa succeeded for REPEAT pattern");
-  if (!dfa)
+  if (!dfa) {
     return;
+  }
 
   snobol_search_result_t result;
 
   /* Test: "cd" matches (zero repeats) */
-  bool ok = snobol_search_exec(&vm, "cd", 2, 0, &meta, dfa, &result, NULL);
+  bool ok = snobol_search_exec(&vm, "cd", 2, 0, &meta, dfa, &result, nullptr);
   test_assert(ok, "ARB('ab') 'cd' matches 'cd' (zero repeats)");
   test_assert(result.match_start == 0, "match_start == 0");
   test_assert(result.match_end == 2, "match_end == 2");
 
   /* Test: "abcd" matches (one repeat) */
-  ok = snobol_search_exec(&vm, "abcd", 4, 0, &meta, dfa, &result, NULL);
+  ok = snobol_search_exec(&vm, "abcd", 4, 0, &meta, dfa, &result, nullptr);
   test_assert(ok, "ARB('ab') 'cd' matches 'abcd'");
   test_assert(result.match_start == 0, "match_start == 0");
   test_assert(result.match_end == 4, "match_end == 4");
 
   /* Test: "ababcd" matches (two repeats) */
-  ok = snobol_search_exec(&vm, "ababcd", 6, 0, &meta, dfa, &result, NULL);
+  ok = snobol_search_exec(&vm, "ababcd", 6, 0, &meta, dfa, &result, nullptr);
   test_assert(ok, "ARB('ab') 'cd' matches 'ababcd'");
   test_assert(result.match_start == 0, "match_start == 0");
   test_assert(result.match_end == 6, "match_end == 6");
 
   /* Test: "a" does not match (no 'cd') */
-  ok = snobol_search_exec(&vm, "a", 1, 0, &meta, dfa, &result, NULL);
-  test_assert(!ok, "ARB('ab') 'cd' does not match 'a' (no 'cd')");
+  ok = snobol_search_exec(&vm, "a", 1, 0, &meta, dfa, &result, nullptr);
+  test_assert((!ok) != 0, "ARB('ab') 'cd' does not match 'a' (no 'cd')");
 
   snobol_dfa_free(dfa);
   snobol_search_vm_cleanup(&vm);
@@ -518,20 +528,21 @@ static void test_dfa_lifecycle(void) {
   VM vm = make_vm(bc, bc_len);
   snobol_dfa_t *dfa = build_dfa(bc, bc_len, &vm);
   test_assert(dfa != NULL, "DFA allocated");
-  if (!dfa)
+  if (!dfa) {
     return;
+  }
 
   snobol_search_meta_t meta = make_automaton_meta(bc, bc_len);
   snobol_search_result_t result;
-  bool ok =
-      snobol_search_exec(&vm, "hello world", 11, 0, &meta, dfa, &result, NULL);
+  bool ok = snobol_search_exec(&vm, "hello world", 11, 0, &meta, dfa, &result,
+                               nullptr);
   test_assert(ok, "DFA-based match succeeded");
   test_assert(result.match_start == 0, "match_start == 0");
 
   snobol_dfa_free(dfa);
 
-  char *err = NULL;
-  snobol_pattern_t *pat = snobol_pattern_compile(NULL, "'hello'", 7, &err);
+  char *err = nullptr;
+  snobol_pattern_t *pat = snobol_pattern_compile(nullptr, "'hello'", 7, &err);
   test_assert(pat != NULL, "pattern 'hello' compiled");
   if (pat) {
     /* First match triggers DFA construction and caching --

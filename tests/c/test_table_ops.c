@@ -92,10 +92,10 @@ static void test_table_delete_via_set_null(void) {
   snobol_table_t *table = table_create("test");
 
   (void)table_set(table, "key", "value");
-  test_assert(table_has(table, "key") == true, "key exists");
+  test_assert(table_has(table, "key"), "key exists");
 
-  (void)table_set(table, "key", NULL);
-  test_assert(table_has(table, "key") == false, "key deleted");
+  (void)table_set(table, "key", nullptr);
+  test_assert(!table_has(table, "key"), "key deleted");
   test_assert(table_size(table) == 0, "size is 0");
 
   table_release(table);
@@ -144,7 +144,7 @@ static void test_table_empty_string_value(void) {
   snobol_table_t *table = table_create("test");
 
   (void)table_set(table, "empty", "");
-  test_assert(table_has(table, "empty") == true, "empty value exists");
+  test_assert(table_has(table, "empty"), "empty value exists");
 
   const char *result = table_get(table, "empty");
   test_assert(result != NULL, "empty value is non-NULL");
@@ -161,7 +161,8 @@ static void test_table_rapid_create_use_release(void) {
     snobol_table_t *table = table_create("temp");
 
     /* Use the table */
-    char key[32], value[32];
+    char key[32];
+    char value[32];
     snprintf(key, sizeof(key), "key_%d", i);
     snprintf(value, sizeof(value), "val_%d", i);
 
@@ -185,7 +186,8 @@ static void test_table_memory_no_leak(void) {
 
     /* Add many entries */
     for (int j = 0; j < 20; j++) {
-      char key[32], value[32];
+      char key[32];
+      char value[32];
       snprintf(key, sizeof(key), "k%d", j);
       snprintf(value, sizeof(value), "v%d", j);
       (void)table_set(table, key, value);
@@ -196,7 +198,8 @@ static void test_table_memory_no_leak(void) {
 
     /* Add different entries */
     for (int j = 0; j < 10; j++) {
-      char key[32], value[32];
+      char key[32];
+      char value[32];
       snprintf(key, sizeof(key), "new%d", j);
       snprintf(value, sizeof(value), "val%d", j);
       (void)table_set(table, key, value);

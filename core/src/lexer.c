@@ -39,12 +39,14 @@ static bool is_ident_start(char c);
 static bool is_ident_continue(char c);
 
 snobol_lexer_t *snobol_lexer_create(const char *source, size_t len) {
-  if (!source)
+  if (!source) {
     return nullptr;
+  }
 
   snobol_lexer_t *lexer = (snobol_lexer_t *)calloc(1, sizeof(snobol_lexer_t));
-  if (!lexer)
+  if (!lexer) {
     return nullptr;
+  }
 
   lexer->source = source;
   lexer->len = len;
@@ -71,11 +73,11 @@ static token_t make_token_with_text(token_type_t type, const char *text,
 }
 
 static bool is_ident_start(char c) {
-  return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_';
+  return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_') != 0;
 }
 
 static bool is_ident_continue(char c) {
-  return is_ident_start(c) || (c >= '0' && c <= '9');
+  return (is_ident_start(c) || (c >= '0' && c <= '9')) != 0;
 }
 
 static void skip_whitespace(snobol_lexer_t *lexer) {
@@ -154,8 +156,9 @@ static token_t scan_charclass(snobol_lexer_t *lexer) {
 }
 
 token_t snobol_lexer_next(snobol_lexer_t *lexer) {
-  if (!lexer)
+  if (!lexer) {
     return make_token(TOKEN_EOF);
+  }
 
   /* Return peeked token if available */
   if (lexer->has_peek) {
@@ -262,8 +265,9 @@ token_t snobol_lexer_next(snobol_lexer_t *lexer) {
 }
 
 token_t snobol_lexer_peek(snobol_lexer_t *lexer) {
-  if (!lexer)
+  if (!lexer) {
     return make_token(TOKEN_EOF);
+  }
 
   if (!lexer->has_peek) {
     lexer->peek_token = snobol_lexer_next(lexer);
@@ -274,21 +278,24 @@ token_t snobol_lexer_peek(snobol_lexer_t *lexer) {
 }
 
 size_t snobol_lexer_get_pos(snobol_lexer_t *lexer) {
-  if (!lexer)
+  if (!lexer) {
     return 0;
+  }
   return lexer->pos;
 }
 
 size_t snobol_lexer_get_line(snobol_lexer_t *lexer) {
-  if (!lexer)
+  if (!lexer) {
     return 1;
+  }
   return lexer->line;
 }
 
 snobol_lexer_state_t snobol_lexer_save(snobol_lexer_t *lexer) {
   snobol_lexer_state_t state = {0};
-  if (!lexer)
+  if (!lexer) {
     return state;
+  }
   state.pos = lexer->pos;
   state.line = lexer->line;
   state.column = lexer->column;
@@ -298,8 +305,9 @@ snobol_lexer_state_t snobol_lexer_save(snobol_lexer_t *lexer) {
 }
 
 void snobol_lexer_restore(snobol_lexer_t *lexer, snobol_lexer_state_t state) {
-  if (!lexer)
+  if (!lexer) {
     return;
+  }
   lexer->pos = state.pos;
   lexer->line = state.line;
   lexer->column = state.column;

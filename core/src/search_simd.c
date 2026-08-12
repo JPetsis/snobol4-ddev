@@ -102,8 +102,9 @@ static inline uint16_t simd_read_u16(const uint8_t *bc, size_t ip) {
  *     SIMD path UTF-8 safe
  */
 bool check_simd_eligible(const uint8_t *bc, size_t bc_len) {
-  if (!bc || bc_len < 2)
+  if (!bc || bc_len < 2) {
     return false;
+  }
 
   /* The SIMD NFA engine (`build_nfa_masks`) only supports patterns that start
    * with a single character-class op (SPAN, BREAK, ANY, NOTANY) followed by a
@@ -166,11 +167,12 @@ bool build_nfa_masks(simd_nfa_t *nfa, const uint8_t *bc, size_t bc_len,
 struct simd_nfa *build_nfa_masks_alloc(const uint8_t *bc, size_t bc_len,
                                        const VM *vm) {
   struct simd_nfa *nfa = (struct simd_nfa *)snobol_malloc(sizeof(simd_nfa_t));
-  if (!nfa)
-    return NULL;
+  if (!nfa) {
+    return nullptr;
+  }
   if (!build_nfa_masks(nfa, bc, bc_len, vm)) {
     snobol_free(nfa);
-    return NULL;
+    return nullptr;
   }
   return nfa;
 }
@@ -181,30 +183,35 @@ bool build_nfa_masks(simd_nfa_t *nfa, const uint8_t *bc, size_t bc_len,
   nfa->num_states = 0;
   nfa->start_state = 0;
 
-  if (!bc || bc_len < 2)
+  if (!bc || bc_len < 2) {
     return false;
+  }
 
   size_t ip = 0;
   uint16_t state_id = 0;
 
-  if (ip >= bc_len)
+  if (ip >= bc_len) {
     return false;
+  }
 
   uint8_t op0 = bc[ip];
   uint16_t set_id;
-  uint16_t count, ci;
+  uint16_t count;
+  uint16_t ci;
   const uint8_t *ranges;
 
   if (op0 == OP_SPAN && ip + 3 <= bc_len) {
     nfa->is_span = true;
     set_id = simd_read_u16(bc, ip + 1);
     ranges = get_ranges_ptr(vm, set_id, &count, &ci);
-    if (!ranges || count == 0)
+    if (!ranges || count == 0) {
       return false;
+    }
     /* State 0: on class byte → stay in state 0; on non-class → epsilon to
      * next instruction (state 1 = accept) */
-    if (!ranges_to_full_bitmap(ranges, count, nfa->states[0].char_mask))
+    if (!ranges_to_full_bitmap(ranges, count, nfa->states[0].char_mask)) {
       return false;
+    }
     nfa->states[0].next_state = 0; /* self-loop */
     nfa->states[0].is_split = false;
     nfa->states[0].is_accept = false;
@@ -217,12 +224,14 @@ bool build_nfa_masks(simd_nfa_t *nfa, const uint8_t *bc, size_t bc_len,
     nfa->is_break = true;
     set_id = simd_read_u16(bc, ip + 1);
     ranges = get_ranges_ptr(vm, set_id, &count, &ci);
-    if (!ranges || count == 0)
+    if (!ranges || count == 0) {
       return false;
+    }
     /* BREAK: advance on non-delimiter bytes.  Build the inverted bitmap. */
     uint64_t delim_mask[4];
-    if (!ranges_to_full_bitmap(ranges, count, delim_mask))
+    if (!ranges_to_full_bitmap(ranges, count, delim_mask)) {
       return false;
+    }
     nfa->states[0].char_mask[0] = ~delim_mask[0];
     nfa->states[0].char_mask[1] = ~delim_mask[1];
     nfa->states[0].char_mask[2] = ~delim_mask[2];
@@ -237,10 +246,12 @@ bool build_nfa_masks(simd_nfa_t *nfa, const uint8_t *bc, size_t bc_len,
     nfa->is_any = true;
     set_id = simd_read_u16(bc, ip + 1);
     ranges = get_ranges_ptr(vm, set_id, &count, &ci);
-    if (!ranges || count == 0)
+    if (!ranges || count == 0) {
       return false;
-    if (!ranges_to_full_bitmap(ranges, count, nfa->states[0].char_mask))
+    }
+    if (!ranges_to_full_bitmap(ranges, count, nfa->states[0].char_mask)) {
       return false;
+    }
     nfa->states[0].next_state = 1; /* advance to accept on match */
     nfa->states[0].is_accept = false;
     nfa->states[1].is_accept = true;
@@ -250,11 +261,13 @@ bool build_nfa_masks(simd_nfa_t *nfa, const uint8_t *bc, size_t bc_len,
     nfa->is_any = true;
     set_id = simd_read_u16(bc, ip + 1);
     ranges = get_ranges_ptr(vm, set_id, &count, &ci);
-    if (!ranges || count == 0)
+    if (!ranges || count == 0) {
       return false;
+    }
     uint64_t class_bits[4];
-    if (!ranges_to_full_bitmap(ranges, count, class_bits))
+    if (!ranges_to_full_bitmap(ranges, count, class_bits)) {
       return false;
+    }
     nfa->states[0].char_mask[0] = ~class_bits[0];
     nfa->states[0].char_mask[1] = ~class_bits[1];
     nfa->states[0].char_mask[2] = ~class_bits[2];
@@ -292,8 +305,9 @@ static bool simd_nfa_exec_scalar(const simd_nfa_t *nfa, const char *subject,
     /* Compute next state set */
     simd_nfa_state_t next = 0;
     for (uint16_t s = 0; s < nfa->num_states; s++) {
-      if (!(state & ((simd_nfa_state_t)1 << s)))
+      if (!(state & ((simd_nfa_state_t)1 << s))) {
         continue;
+      }
       if (nfa->states[s].is_accept) {
         next |= (simd_nfa_state_t)1 << s;
         continue;
@@ -305,7 +319,8 @@ static bool simd_nfa_exec_scalar(const simd_nfa_t *nfa, const char *subject,
       }
       /* Check character class membership (256-bit bitmap) */
       unsigned idx = byte >> 6;
-      bool in_class = (nfa->states[s].char_mask[idx] >> (byte & 63)) & 1ULL;
+      bool in_class =
+          ((nfa->states[s].char_mask[idx] >> (byte & 63)) & 1ULL) != 0u;
 
       if (in_class) {
         uint16_t ns = nfa->states[s].next_state;
@@ -333,8 +348,9 @@ static bool simd_nfa_exec_scalar(const simd_nfa_t *nfa, const char *subject,
     }
 
     /* If no states active, fail */
-    if (state == 0)
+    if (state == 0) {
       break;
+    }
   }
 
   /* Check if we can accept at end of subject (e.g., BREAK at position = len) */
@@ -379,8 +395,8 @@ static bool simd_nfa_exec_scalar(const simd_nfa_t *nfa, const char *subject,
    * match length is required. */
   if (nfa->is_break) {
     bool delim_hit =
-        (state == 0) && (offset != start) && (offset <= subject_len);
-    size_t end = delim_hit ? offset - 1 : offset;
+        ((state == 0) && (offset != start) && (offset <= subject_len)) != 0;
+    size_t end = (int)delim_hit ? offset - 1 : offset;
     out_result->success = true;
     out_result->match_start = start;
     out_result->match_end = end;
@@ -559,7 +575,7 @@ static bool simd_nfa_exec_neon(const simd_nfa_t *nfa, const char *subject,
   uint8_t table[256];
   for (int i = 0; i < 256; i++) {
     unsigned w = (unsigned)i >> 6;
-    table[i] = (uint8_t)((bmap[w] >> ((unsigned)i & 63u)) & 1ull);
+    table[i] = (uint8_t)((bmap[w] >> ((unsigned)i & 63U)) & 1ULL);
   }
 
   /* For ANY/NOTANY: single byte check, no SIMD benefit */
@@ -589,7 +605,7 @@ static bool simd_nfa_exec_neon(const simd_nfa_t *nfa, const char *subject,
         for (int j = 0; j < 16; j++) {
           uint8_t d = ((const uint8_t *)subject)[i + j];
           unsigned ww = (unsigned)d >> 6;
-          if (!((bmap[ww] >> ((unsigned)d & 63u)) & 1ull)) {
+          if (!((bmap[ww] >> ((unsigned)d & 63U)) & 1ULL)) {
             i += j;
             goto found_span_match;
           }
@@ -618,7 +634,7 @@ static bool simd_nfa_exec_neon(const simd_nfa_t *nfa, const char *subject,
         for (int j = 0; j < 16; j++) {
           uint8_t d = ((const uint8_t *)subject)[i + j];
           unsigned ww = (unsigned)d >> 6;
-          if (!((bmap[ww] >> ((unsigned)d & 63u)) & 1ull)) {
+          if (!((bmap[ww] >> ((unsigned)d & 63U)) & 1ULL)) {
             i += j;
             goto found_break_match;
           }
@@ -728,8 +744,9 @@ bool tier_simd_nfa(VM *vm, const char *subject, size_t subject_len,
    * legitimately fail at start_offset (e.g. SPAN over a non-class byte),
    * but skipping to later positions would violate the anchored contract. */
   if (anchored) {
-    if (diag)
+    if (diag) {
       diag->candidates_tested++;
+    }
     snobol_search_result_t tmp;
     if (SIMD_NFA_VERIFY(nfa, subject, subject_len, start_offset, &tmp)) {
       out_result->success = true;
@@ -745,8 +762,9 @@ bool tier_simd_nfa(VM *vm, const char *subject, size_t subject_len,
    * available), so the leftmost match, anchored-or-not, starts at
    * start_offset.  Verify once and return; no scan loop is needed. */
   if (nfa->is_break) {
-    if (diag)
+    if (diag) {
       diag->candidates_tested++;
+    }
     snobol_search_result_t tmp;
     if (SIMD_NFA_VERIFY(nfa, subject, subject_len, start_offset, &tmp)) {
       out_result->success = true;
@@ -769,18 +787,20 @@ bool tier_simd_nfa(VM *vm, const char *subject, size_t subject_len,
   while (offset < subject_len) {
     uint8_t c = (uint8_t)subject[offset];
     unsigned word = (unsigned)c >> 6; /* 0..3 -> index into uint64_t[4] */
-    if (!((bmap[word] >> ((unsigned)c & 63u)) & 1ull)) {
+    if (!((bmap[word] >> ((unsigned)c & 63U)) & 1ULL)) {
       /* This byte cannot start a match — advance without invoking the
        * NFA verifier. */
-      if (diag)
+      if (diag) {
         diag->candidates_skipped++;
+      }
       offset++;
       continue;
     }
 
     /* Candidate: verify at this position with the platform SIMD verifier. */
-    if (diag)
+    if (diag) {
       diag->candidates_tested++;
+    }
     snobol_search_result_t tmp;
     if (SIMD_NFA_VERIFY(nfa, subject, subject_len, offset, &tmp)) {
       out_result->success = true;

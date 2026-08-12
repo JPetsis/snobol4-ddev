@@ -33,8 +33,9 @@ extern void test_assert(bool condition, const char *message);
 static int count_opcode_in_range(const uint8_t *bc, size_t bc_len, uint8_t op) {
   int count = 0;
   for (size_t i = 0; i < bc_len; i++) {
-    if (bc[i] == op)
+    if (bc[i] == op) {
       count++;
+    }
   }
   return count;
 }
@@ -65,7 +66,7 @@ static void test_fusion_ab_has_any_no_split(void) {
   ast_node_t *right = snobol_ast_create_lit("b", 1);
   ast_node_t *alt = snobol_ast_create_alt(left, right);
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(alt, false, &bc, &bc_len);
   test_assert(rc == 0, "compile 'a'|'b' succeeds");
@@ -91,7 +92,7 @@ static void test_fusion_ab_semantics(void) {
   ast_node_t *right = snobol_ast_create_lit("b", 1);
   ast_node_t *alt = snobol_ast_create_alt(left, right);
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(alt, false, &bc, &bc_len);
   snobol_ast_free(alt);
@@ -102,7 +103,7 @@ static void test_fusion_ab_semantics(void) {
 
   test_assert(run_match(bc, bc_len, "a"), "fused 'a'|'b' matches 'a'");
   test_assert(run_match(bc, bc_len, "b"), "fused 'a'|'b' matches 'b'");
-  test_assert(!run_match(bc, bc_len, "c"), "fused 'a'|'b' rejects 'c'");
+  test_assert((!run_match(bc, bc_len, "c")) != 0, "fused 'a'|'b' rejects 'c'");
   free(bc);
 }
 
@@ -115,7 +116,7 @@ static void test_fusion_multichar_not_fused(void) {
   ast_node_t *right = snobol_ast_create_lit("c", 1);
   ast_node_t *alt = snobol_ast_create_alt(left, right);
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(alt, false, &bc, &bc_len);
   snobol_ast_free(alt);
@@ -141,7 +142,7 @@ static void test_fusion_notany_not_fused(void) {
   ast_node_t *right = snobol_ast_create_notany("b", 1);
   ast_node_t *alt = snobol_ast_create_alt(left, right);
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(alt, false, &bc, &bc_len);
   snobol_ast_free(alt);
@@ -166,7 +167,7 @@ static void test_fusion_three_way_one_any(void) {
   ast_node_t *alt3 =
       snobol_ast_create_alt(snobol_ast_create_lit("a", 1), bc_node);
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(alt3, false, &bc, &bc_len);
   snobol_ast_free(alt3);
@@ -192,7 +193,7 @@ static void test_fusion_three_way_semantics(void) {
   ast_node_t *alt3 =
       snobol_ast_create_alt(snobol_ast_create_lit("a", 1), bc_node);
 
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
   int rc = compile_ast_to_bytecode_c(alt3, false, &bc, &bc_len);
   snobol_ast_free(alt3);
@@ -204,7 +205,7 @@ static void test_fusion_three_way_semantics(void) {
   test_assert(run_match(bc, bc_len, "a"), "fused N=3 matches 'a'");
   test_assert(run_match(bc, bc_len, "b"), "fused N=3 matches 'b'");
   test_assert(run_match(bc, bc_len, "c"), "fused N=3 matches 'c'");
-  test_assert(!run_match(bc, bc_len, "d"), "fused N=3 rejects 'd'");
+  test_assert((!run_match(bc, bc_len, "d")) != 0, "fused N=3 rejects 'd'");
   free(bc);
 }
 

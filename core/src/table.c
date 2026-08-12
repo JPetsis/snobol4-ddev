@@ -151,10 +151,12 @@ void table_release(snobol_table_t *table) {
   for (size_t i = 0; i < table->capacity; i++) {
     table_entry_t *entry = &table->entries[i];
     if (entry->active) {
-      if (entry->key)
+      if (entry->key) {
         snobol_free(entry->key);
-      if (entry->value)
+      }
+      if (entry->value) {
         snobol_free(entry->value);
+      }
     }
   }
 
@@ -364,10 +366,12 @@ void table_clear(snobol_table_t *table) {
   for (size_t i = 0; i < table->capacity; i++) {
     table_entry_t *entry = &table->entries[i];
     if (entry->active) {
-      if (entry->key)
+      if (entry->key) {
         snobol_free(entry->key);
-      if (entry->value)
+      }
+      if (entry->value) {
         snobol_free(entry->value);
+      }
       entry->key = nullptr;
       entry->value = nullptr;
       entry->active = false;

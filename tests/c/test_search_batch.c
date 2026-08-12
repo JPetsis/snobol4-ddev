@@ -34,8 +34,9 @@ static void assert_batch_matches_percall(snobol_pattern_t *pat,
 
   while (state && offset <= slen && ref_count < 256) {
     snobol_match_t *m = snobol_pattern_search_ex(state, subject, slen, offset);
-    if (!m || !snobol_match_success(m))
+    if (!m || !snobol_match_success(m)) {
       break;
+    }
     ref_pos[ref_count] = snobol_match_get_position(m);
     ref_len[ref_count] = snobol_match_get_length(m);
     ref_count++;
@@ -47,15 +48,17 @@ static void assert_batch_matches_percall(snobol_pattern_t *pat,
   char msg[120];
   snprintf(msg, sizeof(msg), "%s: count %zu vs %zu", label,
            batch_ok ? batch.match_count : 0, ref_count);
-  if (batch_ok)
+  if (batch_ok) {
     test_assert(batch.match_count == ref_count, msg);
-  else
+  } else {
     test_assert(ref_count == 0, msg);
+  }
 
   /* Compare positions and lengths */
-  size_t n = batch_ok ? batch.match_count : 0;
-  if (n > ref_count)
+  size_t n = (int)batch_ok ? batch.match_count : 0;
+  if (n > ref_count) {
     n = ref_count;
+  }
   for (size_t i = 0; i < n; i++) {
     snprintf(msg, sizeof(msg), "%s: pos[%zu] %zu vs %zu", label, i,
              batch.positions[i], ref_pos[i]);
@@ -66,8 +69,9 @@ static void assert_batch_matches_percall(snobol_pattern_t *pat,
   }
 
   snobol_batch_result_free(&batch);
-  if (state)
+  if (state) {
     snobol_pattern_search_state_destroy(state);
+  }
 }
 
 void test_search_batch_suite(void) {
@@ -76,7 +80,7 @@ void test_search_batch_suite(void) {
   /* 1. Literal — multiple matches */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'abc'", 5, &err);
     test_assert(pat != NULL, "compile 'abc' succeeds");
     if (pat) {
@@ -91,12 +95,13 @@ void test_search_batch_suite(void) {
   /* 2. SPAN */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "SPAN('0-9')", 11, &err);
     test_assert(pat != NULL, "compile SPAN('0-9') succeeds");
-    if (pat)
+    if (pat) {
       assert_batch_matches_percall(pat, "abc123def456ghi", 15, "span");
+    }
     free(err);
     snobol_pattern_free(pat);
     snobol_context_destroy(ctx);
@@ -105,14 +110,15 @@ void test_search_batch_suite(void) {
   /* 3. Alternation-of-literals */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "'cat' | 'dog' | 'fox'", 21, &err);
     test_assert(pat != NULL, "compile alt-lit succeeds");
-    if (pat)
+    if (pat) {
       assert_batch_matches_percall(
           pat, "the cat went dog walking fox jumped cat over dog near fox", 51,
           "altlit");
+    }
     free(err);
     snobol_pattern_free(pat);
     snobol_context_destroy(ctx);
@@ -121,12 +127,13 @@ void test_search_batch_suite(void) {
   /* 4. BREAK + literal */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "BREAK(',') ','", 14, &err);
     test_assert(pat != NULL, "compile BREAK pattern succeeds");
-    if (pat)
+    if (pat) {
       assert_batch_matches_percall(pat, "a,b,c,d,e", 9, "break");
+    }
     free(err);
     snobol_pattern_free(pat);
     snobol_context_destroy(ctx);
@@ -135,11 +142,12 @@ void test_search_batch_suite(void) {
   /* 5. Zero-length matches */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "''", 2, &err);
     test_assert(pat != NULL, "compile '' succeeds");
-    if (pat)
+    if (pat) {
       assert_batch_matches_percall(pat, "abc", 3, "zerolen");
+    }
     free(err);
     snobol_pattern_free(pat);
     snobol_context_destroy(ctx);
@@ -148,11 +156,12 @@ void test_search_batch_suite(void) {
   /* 6. No match */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'xyz'", 5, &err);
     test_assert(pat != NULL, "compile 'xyz' succeeds");
-    if (pat)
+    if (pat) {
       assert_batch_matches_percall(pat, "abc", 3, "nomatch");
+    }
     free(err);
     snobol_pattern_free(pat);
     snobol_context_destroy(ctx);
@@ -161,7 +170,7 @@ void test_search_batch_suite(void) {
   /* 7. Batch returns false for EVAL (ineligible) */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "'x' EVAL('SIZE')", 17, &err);
     test_assert(pat != NULL, "compile EVAL pattern succeeds");
@@ -172,7 +181,7 @@ void test_search_batch_suite(void) {
       snobol_batch_result_t batch;
       memset(&batch, 0, sizeof(batch));
       bool ok = snobol_pattern_search_batch(bc, bc_len, "x", 1, meta, &batch);
-      test_assert(!ok, "batch returns false for EVAL pattern");
+      test_assert((!ok) != 0, "batch returns false for EVAL pattern");
       test_assert(batch.match_count == 0, "batch count 0 for EVAL");
       snobol_batch_result_free(&batch);
     }
@@ -185,15 +194,16 @@ void test_search_batch_suite(void) {
   {
     snobol_batch_result_t batch;
     memset(&batch, 0, sizeof(batch));
-    bool ok = snobol_pattern_search_batch(NULL, 0, "abc", 3, NULL, &batch);
-    test_assert(!ok, "batch returns false for NULL inputs");
+    bool ok =
+        snobol_pattern_search_batch(nullptr, 0, "abc", 3, nullptr, &batch);
+    test_assert((!ok) != 0, "batch returns false for NULL inputs");
     test_assert(batch.match_count == 0, "count 0 for NULL");
     snobol_batch_result_free(&batch);
   }
 
   /* 9. snobol_batch_result_free(NULL) safety */
   {
-    snobol_batch_result_free(NULL);
+    snobol_batch_result_free(nullptr);
     test_assert(true, "batch_free(NULL) is safe");
   }
 }

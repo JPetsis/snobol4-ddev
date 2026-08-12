@@ -51,15 +51,16 @@ typedef struct {
 } pike_pattern_layout;
 
 static snobol_pattern_t *pike_make_pattern(ast_node_t *root) {
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
-  if (compile_ast_to_bytecode_c(root, false, &bc, &bc_len) != 0)
-    return NULL;
+  if (compile_ast_to_bytecode_c(root, false, &bc, &bc_len) != 0) {
+    return nullptr;
+  }
   pike_pattern_layout *p =
       (pike_pattern_layout *)calloc(1, sizeof(pike_pattern_layout));
   if (!p) {
     free(bc);
-    return NULL;
+    return nullptr;
   }
   p->bc = bc;
   p->bc_len = bc_len;
@@ -71,7 +72,7 @@ static snobol_pattern_t *pike_make_pattern(ast_node_t *root) {
 
 static void pike_test_literal(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "'hello'", 7, &err);
   if (!p) {
     pike_assert(false, "literal compile");
@@ -83,7 +84,7 @@ static void pike_test_literal(void) {
   const snobol_range_meta_t *rm = snobol_pattern_get_range_meta(p, &rc);
   snobol_search_result_t r;
   bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                      "say hello world", 15, meta, rm, rc, NULL, &r);
+                      "say hello world", 15, meta, rm, rc, nullptr, &r);
   pike_assert(ok, "literal match succeeds");
   pike_assert(r.match_start == 4, "literal match_start == 4");
   pike_assert(r.match_end == 9, "literal match_end == 9");
@@ -93,7 +94,7 @@ static void pike_test_literal(void) {
 
 static void pike_test_span(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "SPAN('0-9')", 11, &err);
   if (!p) {
     pike_assert(false, "span compile");
@@ -105,7 +106,7 @@ static void pike_test_span(void) {
   const snobol_range_meta_t *rm = snobol_pattern_get_range_meta(p, &rc);
   snobol_search_result_t r;
   bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                      "abc123def", 9, meta, rm, rc, NULL, &r);
+                      "abc123def", 9, meta, rm, rc, nullptr, &r);
   pike_assert(ok, "span match succeeds");
   pike_assert(r.match_start == 3, "span match_start == 3");
   pike_assert(r.match_end == 6, "span match_end == 6");
@@ -115,7 +116,7 @@ static void pike_test_span(void) {
 
 static void pike_test_alt_capture(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p =
       snobol_pattern_compile(ctx, "(@r1('a') | @r1('b'))", 21, &err);
   if (!p) {
@@ -128,7 +129,7 @@ static void pike_test_alt_capture(void) {
   const snobol_range_meta_t *rm = snobol_pattern_get_range_meta(p, &rc);
   snobol_search_result_t r;
   bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                      "b", 1, meta, rm, rc, NULL, &r);
+                      "b", 1, meta, rm, rc, nullptr, &r);
   pike_assert(ok, "alt+cap match succeeds");
   pike_assert(r.match_start == 0, "alt+cap match_start == 0");
   pike_assert(r.match_end == 1, "alt+cap match_end == 1");
@@ -138,7 +139,7 @@ static void pike_test_alt_capture(void) {
 
 static void pike_test_notany(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p =
       snobol_pattern_compile(ctx, "NOTANY('aeiou')", 15, &err);
   if (!p) {
@@ -151,7 +152,7 @@ static void pike_test_notany(void) {
   const snobol_range_meta_t *rm = snobol_pattern_get_range_meta(p, &rc);
   snobol_search_result_t r;
   bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                      "frog", 4, meta, rm, rc, NULL, &r);
+                      "frog", 4, meta, rm, rc, nullptr, &r);
   pike_assert(ok, "notany match succeeds");
   pike_assert(r.match_start == 0, "notany match_start == 0");
   pike_assert(r.match_end == 1, "notany match_end == 1");
@@ -163,7 +164,7 @@ static void pike_test_notany(void) {
  * carries capture registers across threads and writes them back correctly. */
 static void pike_test_multi_capture_alt(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p =
       snobol_pattern_compile(ctx, "(@r1('foo') | @r1('bar'))", 25, &err);
   if (!p) {
@@ -176,7 +177,7 @@ static void pike_test_multi_capture_alt(void) {
   const snobol_range_meta_t *rm = snobol_pattern_get_range_meta(p, &rc);
   snobol_search_result_t r;
   bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                      "bar is here", 11, meta, rm, rc, NULL, &r);
+                      "bar is here", 11, meta, rm, rc, nullptr, &r);
   pike_assert(ok, "multi-cap alt match succeeds");
   pike_assert(r.match_start == 0, "multi-cap alt match_start == 0");
   pike_assert(r.match_end == 3, "multi-cap alt match_end == 3");
@@ -188,7 +189,7 @@ static void pike_test_multi_capture_alt(void) {
  * so а (U+0430) matches А (U+0410) but NOT Б (U+0411). */
 static void pike_test_ci_cyrillic(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   /* CI flag: SNOBOL_FLAG_CASE_INSENSITIVE = 1 */
   snobol_pattern_t *p =
       snobol_pattern_compile_ex(ctx, "'\xD0\xB0'", 3, 1, &err);
@@ -204,14 +205,14 @@ static void pike_test_ci_cyrillic(void) {
   snobol_search_result_t r;
   /* а (U+0430) should match А (U+0410) */
   bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                      "\xD0\x90", 2, meta, rm, rc, NULL, &r);
+                      "\xD0\x90", 2, meta, rm, rc, nullptr, &r);
   pike_assert(ok, "CI: а matches А");
 
   /* а (U+0430) should NOT match Б (U+0411) */
   r.success = false;
   ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                 "\xD0\x91", 2, meta, rm, rc, NULL, &r);
-  pike_assert(!ok, "CI: а does NOT match Б");
+                 "\xD0\x91", 2, meta, rm, rc, nullptr, &r);
+  pike_assert((!ok) != 0, "CI: а does NOT match Б");
 
   snobol_pattern_free(p);
   snobol_context_destroy(ctx);
@@ -222,7 +223,7 @@ static void pike_test_ci_cyrillic(void) {
  * Uses snobol_search_exec so the dispatch tier handles routing. */
 static void pike_test_overflow_long(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "BREAKX(' ')", 11, &err);
   if (!p) {
     pike_assert(false, "overflow long compile");
@@ -239,7 +240,8 @@ static void pike_test_overflow_long(void) {
   vm.bc = (uint8_t *)snobol_pattern_get_bc(p);
   vm.bc_len = snobol_pattern_get_bc_len(p);
   snobol_search_result_t r;
-  bool ok = snobol_search_exec(&vm, subject, 901, 0, meta, NULL, &r, NULL);
+  bool ok =
+      snobol_search_exec(&vm, subject, 901, 0, meta, nullptr, &r, nullptr);
   pike_assert(ok, "overflow long: BREAKX finds space");
   snobol_pattern_free(p);
   snobol_context_destroy(ctx);
@@ -249,7 +251,7 @@ static void pike_test_overflow_long(void) {
 /* Same pattern over short subject works normally */
 static void pike_test_overflow_short(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "BREAKX(' ')", 11, &err);
   if (!p) {
     pike_assert(false, "overflow short compile");
@@ -263,7 +265,7 @@ static void pike_test_overflow_short(void) {
   vm.bc = (uint8_t *)snobol_pattern_get_bc(p);
   vm.bc_len = snobol_pattern_get_bc_len(p);
   snobol_search_result_t r;
-  bool ok = snobol_search_exec(&vm, subject, 11, 0, meta, NULL, &r, NULL);
+  bool ok = snobol_search_exec(&vm, subject, 11, 0, meta, nullptr, &r, nullptr);
   pike_assert(ok, "overflow short: BREAKX finds space");
   pike_assert(r.match_start == 0, "overflow short: match_start == 0");
   pike_assert(r.match_end == 5, "overflow short: match_end == 5");
@@ -296,15 +298,15 @@ static void pike_test_breakx_retry(void) {
   snobol_search_result_t r;
 
   bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                      "a,b,c", 5, meta, rm, rc, NULL, &r);
+                      "a,b,c", 5, meta, rm, rc, nullptr, &r);
   pike_assert(ok, "breakx retry match succeeds");
-  pike_assert(r.match_start == 0 && r.match_end == 5,
+  pike_assert((r.match_start == 0 && r.match_end == 5) != 0,
               "breakx retry match_start == 0, match_end == 5");
 
   r.success = false;
   ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                 "a,b,x", 5, meta, rm, rc, NULL, &r);
-  pike_assert(!ok, "breakx retry no match on a,b,x");
+                 "a,b,x", 5, meta, rm, rc, nullptr, &r);
+  pike_assert((!ok) != 0, "breakx retry no match on a,b,x");
 
   snobol_pattern_free(p);
 }
@@ -349,15 +351,15 @@ static void pike_test_position_ops(void) {
     size_t rc = 0;
     const snobol_range_meta_t *rm = snobol_pattern_get_range_meta(p, &rc);
     bool ok = pike_scan(snobol_pattern_get_bc(p), snobol_pattern_get_bc_len(p),
-                        subject, 3, meta, rm, rc, NULL, &r);
+                        subject, 3, meta, rm, rc, nullptr, &r);
     if (expect[i]) {
       pike_assert(ok, "position-op positive control matches");
-      pike_assert(r.match_start == 0 && r.match_end == 3,
+      pike_assert((r.match_start == 0 && r.match_end == 3) != 0,
                   "position-op positive control spans subject");
     } else {
       char msg[64];
       snprintf(msg, sizeof(msg), "pike enforces %s", cases[i].label);
-      pike_assert(!ok, msg);
+      pike_assert((!ok) != 0, msg);
     }
     snobol_pattern_free(p);
   }

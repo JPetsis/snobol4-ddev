@@ -26,7 +26,7 @@ static void test_lexer_create_destroy(void) {
 static void test_lexer_create_null_source(void) {
   test_suite("Lexer: NULL source");
 
-  snobol_lexer_t *lexer = snobol_lexer_create(NULL, 0);
+  snobol_lexer_t *lexer = snobol_lexer_create(nullptr, 0);
   test_assert(lexer == NULL, "lexer_create with NULL returns NULL");
 }
 
@@ -236,32 +236,32 @@ static void test_lexer_single_quotes(void) {
 void test_cov_misc_lexer(void) {
   test_suite("Coverage: lexer NULL guards + tokens");
 
-  test_assert(snobol_lexer_create(NULL, 0) == NULL, "lexer_create(NULL)");
-  test_assert(snobol_lexer_next(NULL).type == TOKEN_EOF, "next(NULL)");
-  test_assert(snobol_lexer_peek(NULL).type == TOKEN_EOF, "peek(NULL)");
-  test_assert(snobol_lexer_get_pos(NULL) == 0, "get_pos(NULL)");
-  test_assert(snobol_lexer_get_line(NULL) == 1, "get_line(NULL)");
-  snobol_lexer_state_t st = snobol_lexer_save(NULL);
+  test_assert(snobol_lexer_create(nullptr, 0) == NULL, "lexer_create(NULL)");
+  test_assert(snobol_lexer_next(nullptr).type == TOKEN_EOF, "next(NULL)");
+  test_assert(snobol_lexer_peek(nullptr).type == TOKEN_EOF, "peek(NULL)");
+  test_assert(snobol_lexer_get_pos(nullptr) == 0, "get_pos(NULL)");
+  test_assert(snobol_lexer_get_line(nullptr) == 1, "get_line(NULL)");
+  snobol_lexer_state_t st = snobol_lexer_save(nullptr);
   test_assert(st.pos == 0, "save(NULL) zero state");
-  snobol_lexer_restore(NULL, st);
-  snobol_lexer_destroy(NULL);
+  snobol_lexer_restore(nullptr, st);
+  snobol_lexer_destroy(nullptr);
   test_assert(true, "lexer NULL guards");
 
   /* Token names for every single-char operator. */
   test_assert(
-      strcmp(snobol_token_name(TOKEN_STAR), "STAR") == 0 &&
-          strcmp(snobol_token_name(TOKEN_PLUS), "PLUS") == 0 &&
-          strcmp(snobol_token_name(TOKEN_QUESTION), "QUESTION") == 0 &&
-          strcmp(snobol_token_name(TOKEN_ANCHOR_START), "ANCHOR_START") == 0 &&
-          strcmp(snobol_token_name(TOKEN_ANCHOR_END), "ANCHOR_END") == 0 &&
-          strcmp(snobol_token_name(TOKEN_AT), "AT") == 0 &&
-          strcmp(snobol_token_name(TOKEN_COLON), "COLON") == 0 &&
-          strcmp(snobol_token_name(TOKEN_LBRACKET), "LBRACKET") == 0 &&
-          strcmp(snobol_token_name(TOKEN_RBRACKET), "RBRACKET") == 0 &&
-          strcmp(snobol_token_name(TOKEN_EQUALS), "EQUALS") == 0 &&
-          strcmp(snobol_token_name(TOKEN_COMMA), "COMMA") == 0 &&
-          strcmp(snobol_token_name(TOKEN_EOF), "EOF") == 0 &&
-          strcmp(snobol_token_name((token_type_t)99), "UNKNOWN") == 0,
+      (strcmp(snobol_token_name(TOKEN_STAR), "STAR") == 0 &&
+       strcmp(snobol_token_name(TOKEN_PLUS), "PLUS") == 0 &&
+       strcmp(snobol_token_name(TOKEN_QUESTION), "QUESTION") == 0 &&
+       strcmp(snobol_token_name(TOKEN_ANCHOR_START), "ANCHOR_START") == 0 &&
+       strcmp(snobol_token_name(TOKEN_ANCHOR_END), "ANCHOR_END") == 0 &&
+       strcmp(snobol_token_name(TOKEN_AT), "AT") == 0 &&
+       strcmp(snobol_token_name(TOKEN_COLON), "COLON") == 0 &&
+       strcmp(snobol_token_name(TOKEN_LBRACKET), "LBRACKET") == 0 &&
+       strcmp(snobol_token_name(TOKEN_RBRACKET), "RBRACKET") == 0 &&
+       strcmp(snobol_token_name(TOKEN_EQUALS), "EQUALS") == 0 &&
+       strcmp(snobol_token_name(TOKEN_COMMA), "COMMA") == 0 &&
+       strcmp(snobol_token_name(TOKEN_EOF), "EOF") == 0 &&
+       strcmp(snobol_token_name((token_type_t)99), "UNKNOWN") == 0) != 0,
       "operator token names resolve");
 
   /* Unterminated charclass still yields a CHARCLASS token. */

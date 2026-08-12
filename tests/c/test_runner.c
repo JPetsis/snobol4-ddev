@@ -74,12 +74,14 @@ static int suite_count = 0;
 /* ── Internal helpers ────────────────────────────────────────────────────── */
 
 static double elapsed_ms(struct timespec t0, struct timespec t1) {
-  return (t1.tv_sec - t0.tv_sec) * 1000.0 + (t1.tv_nsec - t0.tv_nsec) / 1.0e6;
+  return ((t1.tv_sec - t0.tv_sec) * 1000.0) +
+         ((t1.tv_nsec - t0.tv_nsec) / 1.0e6);
 }
 
 static void print_rule_w(char ch, int width) {
-  for (int i = 0; i < width; i++)
+  for (int i = 0; i < width; i++) {
     putchar(ch);
+  }
   putchar('\n');
 }
 
@@ -124,8 +126,9 @@ static void watchdog_log(const char *fmt, ...) {
 #else
   int fd = open("watchdog.log", O_WRONLY | O_CREAT | O_APPEND, 0600);
   FILE *fp = fd >= 0 ? fdopen(fd, "a") : nullptr;
-  if (!fp)
+  if (!fp) {
     return;
+  }
 #endif
   va_list ap;
   va_start(ap, fmt);
@@ -175,8 +178,9 @@ static void watchdog_start(void) {
   const char *env = getenv("SNOBOL_TEST_TIMEOUT_SECS");
   if (env && env[0]) {
     int v = atoi(env);
-    if (v > 0)
+    if (v > 0) {
       g_timeout_secs = v;
+    }
   }
   g_watchdog_active = 1;
 #ifdef _WIN32
@@ -352,8 +356,9 @@ static int summary_rule_w(void) {
   int name_w = 12; /* "TOTAL" + margin */
   for (int i = 0; i < suite_count; i++) {
     int len = (int)strlen(suite_results[i].name);
-    if (len > name_w)
+    if (len > name_w) {
       name_w = len;
+    }
   }
   name_w += 2;
   return name_w + 31;
@@ -459,8 +464,10 @@ int main(void) {
 
   /* Stress test */
   {
-    int _p0 = test_ctx.passed, _f0 = test_ctx.failed;
-    struct timespec _t0, _t1;
+    int _p0 = test_ctx.passed;
+    int _f0 = test_ctx.failed;
+    struct timespec _t0;
+    struct timespec _t1;
     printf("\n▸ Stress: Backtracking\n");
     SNOBOL_CLOCK_GETTIME(&_t0);
     int rc = 0;
@@ -476,14 +483,16 @@ int main(void) {
     int _sp = test_ctx.passed - _p0;
     int _sf = test_ctx.failed - _f0;
     double _ms = elapsed_ms(_t0, _t1);
-    if (_sf > 0)
+    if (_sf > 0) {
       printf("  ↳  %d passed  |  \033[31m%d failed\033[0m  |  %.2f ms\n", _sp,
              _sf, _ms);
-    else
+    } else {
       printf("  ↳  %d passed  |  0 failed  |  %.2f ms\n", _sp, _ms);
-    if (suite_count < MAX_SUITES)
+    }
+    if (suite_count < MAX_SUITES) {
       suite_results[suite_count++] =
           (SuiteResult){"Stress: Backtracking", _sp, _sf, _ms};
+    }
   }
 
 
@@ -502,12 +511,13 @@ int main(void) {
   double total_ms = 0.0;
   for (int i = 0; i < suite_count; i++) {
     SuiteResult *r = &suite_results[i];
-    if (r->failed > 0)
+    if (r->failed > 0) {
       printf("  \033[31m✗\033[0m %-*s  %7d  \033[31m%7d\033[0m  %9.2f\n",
              name_w - 2, r->name, r->passed, r->failed, r->time_ms);
-    else
+    } else {
       printf("  ✓ %-*s  %7d  %7d  %9.2f\n", name_w - 2, r->name, r->passed,
              r->failed, r->time_ms);
+    }
     total_ms += r->time_ms;
   }
 
@@ -516,13 +526,14 @@ int main(void) {
          test_ctx.failed, total_ms);
   print_rule_w('=', rule_w);
 
-  if (test_ctx.failed == 0)
+  if (test_ctx.failed == 0) {
     printf("  \033[32m✓  All %d cases / %d assertions passed\033[0m\n",
            test_ctx.case_count, test_ctx.passed);
-  else
+  } else {
     printf("  \033[31m✗  %d of %d assertions FAILED (%d cases)\033[0m\n",
            test_ctx.failed, test_ctx.passed + test_ctx.failed,
            test_ctx.case_count);
+  }
 
   print_rule_w('=', rule_w);
 

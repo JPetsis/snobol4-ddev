@@ -29,11 +29,13 @@ void cb_free(CodeBuf *c) {
   c->cap = c->len = 0;
 }
 void cb_ensure(CodeBuf *c, size_t need) {
-  if (c->len + need <= c->cap)
+  if (c->len + need <= c->cap) {
     return;
+  }
   size_t newcap = c->cap ? c->cap * 2 : 4096;
-  while (c->len + need > newcap)
+  while (c->len + need > newcap) {
     newcap *= 2;
+  }
   c->buf = snobol_realloc(c->buf, newcap);
   c->cap = newcap;
 }
@@ -65,8 +67,9 @@ void cb_emit_u32(CodeBuf *c, uint32_t v) {
   c->buf[c->len++] = v & 0xff;
 }
 void cb_emit_bytes(CodeBuf *c, const uint8_t *b, size_t n) {
-  if (n == 0)
+  if (n == 0) {
     return;
+  }
   cb_ensure(c, n);
   memcpy(c->buf + c->len, b, n);
   c->len += n;
@@ -100,24 +103,27 @@ bool compiler_case_insensitive = false;
  * @return true if the subtree can match empty (NULL input → false)
  */
 bool ast_node_nullable(const ast_node_t *node) {
-  if (!node)
+  if (!node) {
     return false;
+  }
   switch (node->type) {
     case AST_ARBNO:
     case AST_REPETITION:
       /* arbno / repeat(0, …) can match zero times → nullable. */
-      if (node->type == AST_ARBNO)
+      if (node->type == AST_ARBNO) {
         return true;
+      }
       return node->data.repetition.min == 0;
     case AST_ALT:
       /* nullable if either branch can match empty. */
-      return ast_node_nullable(node->data.alt.left) ||
-             ast_node_nullable(node->data.alt.right);
+      return (ast_node_nullable(node->data.alt.left) ||
+              ast_node_nullable(node->data.alt.right)) != 0;
     case AST_CONCAT:
       /* nullable only if EVERY part is nullable. */
       for (size_t i = 0; i < node->data.concat.count; i++) {
-        if (!ast_node_nullable(node->data.concat.parts[i]))
+        if (!ast_node_nullable(node->data.concat.parts[i])) {
           return false;
+        }
       }
       return node->data.concat.count == 0;
     case AST_CAP:
@@ -152,10 +158,12 @@ bool ast_node_nullable(const ast_node_t *node) {
  */
 void snobol_diag(const char *msg) {
   static int diag_enabled = -1;
-  if (diag_enabled < 0)
+  if (diag_enabled < 0) {
     diag_enabled = (getenv("SNOBOL_DIAG") != nullptr) ? 1 : 0;
-  if (diag_enabled)
+  }
+  if (diag_enabled) {
     fprintf(stderr, "[snobol-diag] %s\n", msg ? msg : "");
+  }
 }
 
 /**
@@ -171,8 +179,9 @@ void free_charclass_list(void) {
   CCEntry *e = charclass_head;
   while (e) {
     CCEntry *next = e->next;
-    if (e->ranges)
+    if (e->ranges) {
       snobol_free(e->ranges);
+    }
     snobol_free(e);
     e = next;
   }
@@ -194,10 +203,12 @@ void add_range(CCEntry *e, uint32_t start, uint32_t end) {
 int compare_ranges(const void *a, const void *b) {
   const CpRange *ra = (const CpRange *)a;
   const CpRange *rb = (const CpRange *)b;
-  if (ra->start < rb->start)
+  if (ra->start < rb->start) {
     return -1;
-  if (ra->start > rb->start)
+  }
+  if (ra->start > rb->start) {
     return 1;
+  }
   return 0;
 }
 
@@ -212,8 +223,9 @@ int compare_ranges(const void *a, const void *b) {
  * @param e Character-class entry whose ranges are normalized in place
  */
 void normalize_ranges(CCEntry *e) {
-  if (e->range_count == 0)
+  if (e->range_count == 0) {
     return;
+  }
   qsort(e->ranges, e->range_count, sizeof(CpRange), compare_ranges);
 
   size_t write = 0;
@@ -233,14 +245,15 @@ void normalize_ranges(CCEntry *e) {
 int add_or_get_charclass(const char *s, size_t len) {
   CCEntry *ne = snobol_malloc(sizeof(*ne));
   memset(ne, 0, sizeof(*ne));
-  ne->case_insensitive = compiler_case_insensitive ? 1 : 0;
+  ne->case_insensitive = (int)compiler_case_insensitive ? 1 : 0;
 
   size_t pos = 0;
   while (pos < len) {
     uint32_t cp;
     int cp_bytes;
-    if (!utf8_peek_next(s, len, pos, &cp, &cp_bytes))
+    if (!utf8_peek_next(s, len, pos, &cp, &cp_bytes)) {
       break;
+    }
 
     /* Check for range notation: X-Y where X < Y */
     uint32_t dash_cp;
@@ -266,12 +279,14 @@ int add_or_get_charclass(const char *s, size_t len) {
             snobol_to_upper_cp(c, up, &ulen);
             if (up[0] != c) {
               add_range(ne, up[0], up[0]);
-              if (ulen > 1)
+              if (ulen > 1) {
                 add_range(ne, up[1], up[1]);
+              }
             }
             uint32_t lo = snobol_to_lower_cp(c);
-            if (lo != c)
+            if (lo != c) {
               add_range(ne, lo, lo);
+            }
           }
         }
       }
@@ -292,12 +307,14 @@ int add_or_get_charclass(const char *s, size_t len) {
         snobol_to_upper_cp(cp, up, &ulen);
         if (up[0] != cp) {
           add_range(ne, up[0], up[0]);
-          if (ulen > 1)
+          if (ulen > 1) {
             add_range(ne, up[1], up[1]);
+          }
         }
         uint32_t lo = snobol_to_lower_cp(cp);
-        if (lo != cp)
+        if (lo != cp) {
           add_range(ne, lo, lo);
+        }
       }
     }
 
@@ -311,8 +328,9 @@ int add_or_get_charclass(const char *s, size_t len) {
     if (e->range_count == ne->range_count &&
         e->case_insensitive == ne->case_insensitive &&
         memcmp(e->ranges, ne->ranges, e->range_count * sizeof(CpRange)) == 0) {
-      if (ne->ranges)
+      if (ne->ranges) {
         snobol_free(ne->ranges);
+      }
       snobol_free(ne);
       return id;
     }
@@ -325,8 +343,9 @@ int add_or_get_charclass(const char *s, size_t len) {
     charclass_head = ne;
   } else {
     CCEntry *tail = charclass_head;
-    while (tail->next)
+    while (tail->next) {
       tail = tail->next;
+    }
     tail->next = ne;
   }
   charclass_count++;
@@ -414,8 +433,9 @@ int fuse_add_union_cc(CCEntry *ea, uint32_t cp_a, CCEntry *eb, uint32_t cp_b,
     if (e->range_count == ne->range_count &&
         e->case_insensitive == ne->case_insensitive &&
         memcmp(e->ranges, ne->ranges, ne->range_count * sizeof(CpRange)) == 0) {
-      if (ne->ranges)
+      if (ne->ranges) {
         snobol_free(ne->ranges);
+      }
       snobol_free(ne);
       return id;
     }
@@ -427,8 +447,9 @@ int fuse_add_union_cc(CCEntry *ea, uint32_t cp_a, CCEntry *eb, uint32_t cp_b,
     charclass_head = ne;
   } else {
     CCEntry *tail = charclass_head;
-    while (tail->next)
+    while (tail->next) {
       tail = tail->next;
+    }
     tail->next = ne;
   }
   charclass_count++;
@@ -449,24 +470,29 @@ typedef struct {
 /* Parse arm-a: single-char-op followed (after optional NOPs) by OP_JMP */
 static ArmInfo parse_arm_a(const uint8_t *bc, size_t bc_len, size_t a) {
   ArmInfo r = {0};
-  if (a >= bc_len)
+  if (a >= bc_len) {
     return r;
+  }
   uint8_t op = bc[a];
   size_t after_op;
   if (op == OP_LIT) {
-    if (a + 9 > bc_len)
+    if (a + 9 > bc_len) {
       return r;
+    }
     uint32_t len = fuse_read_u32(bc, a + 5);
-    if (len != 1)
+    if (len != 1) {
       return r; /* multi-char LIT: not eligible */
-    if (a + 9 >= bc_len)
+    }
+    if (a + 9 >= bc_len) {
       return r;
+    }
     r.cp = (uint32_t)bc[a + 9]; /* single ASCII byte */
     after_op = a + 10;
     r.type = 1;
   } else if (op == OP_ANY) {
-    if (a + 3 > bc_len)
+    if (a + 3 > bc_len) {
       return r;
+    }
     r.cc_id = fuse_read_u16(bc, a + 1);
     after_op = a + 3;
     r.type = 2;
@@ -474,8 +500,9 @@ static ArmInfo parse_arm_a(const uint8_t *bc, size_t bc_len, size_t a) {
     return r; /* ineligible opcode */
   }
   /* Skip NOPs between op and the required JMP */
-  while (after_op < bc_len && bc[after_op] == OP_NOP)
+  while (after_op < bc_len && bc[after_op] == OP_NOP) {
     after_op++;
+  }
   if (after_op + 5 > bc_len) {
     r.type = 0;
     return r;
@@ -491,24 +518,29 @@ static ArmInfo parse_arm_a(const uint8_t *bc, size_t bc_len, size_t a) {
 /* Parse arm-b: single-char-op that falls through to merge (no trailing JMP) */
 static ArmInfo parse_arm_b(const uint8_t *bc, size_t bc_len, size_t b) {
   ArmInfo r = {0};
-  if (b >= bc_len)
+  if (b >= bc_len) {
     return r;
+  }
   uint8_t op = bc[b];
   size_t after_op;
   if (op == OP_LIT) {
-    if (b + 9 > bc_len)
+    if (b + 9 > bc_len) {
       return r;
+    }
     uint32_t len = fuse_read_u32(bc, b + 5);
-    if (len != 1)
+    if (len != 1) {
       return r;
-    if (b + 9 >= bc_len)
+    }
+    if (b + 9 >= bc_len) {
       return r;
+    }
     r.cp = (uint32_t)bc[b + 9];
     after_op = b + 10;
     r.type = 1;
   } else if (op == OP_ANY) {
-    if (b + 3 > bc_len)
+    if (b + 3 > bc_len) {
       return r;
+    }
     r.cc_id = fuse_read_u16(bc, b + 1);
     after_op = b + 3;
     r.type = 2;
@@ -516,8 +548,9 @@ static ArmInfo parse_arm_b(const uint8_t *bc, size_t bc_len, size_t b) {
     return r;
   }
   /* Skip NOPs after the arm-b op to find the merge point */
-  while (after_op < bc_len && bc[after_op] == OP_NOP)
+  while (after_op < bc_len && bc[after_op] == OP_NOP) {
     after_op++;
+  }
   r.merge = after_op;
   return r;
 }
@@ -545,27 +578,32 @@ void snobol_bc_fuse_split_any(CodeBuf *cb) {
   size_t pos = bc_len;
   while (pos > 0) {
     pos--;
-    if (bc[pos] != OP_SPLIT)
+    if (bc[pos] != OP_SPLIT) {
       continue;
-    if (pos + 9 > bc_len)
+    }
+    if (pos + 9 > bc_len) {
       continue;
+    }
 
     size_t a = (size_t)fuse_read_u32(bc, pos + 1);
     size_t b = (size_t)fuse_read_u32(bc, pos + 5);
 
     /* Both arms must be strictly forward */
-    if (a <= pos || b <= pos || a >= bc_len || b >= bc_len)
+    if (a <= pos || b <= pos || a >= bc_len || b >= bc_len) {
       continue;
+    }
 
     ArmInfo arm_a = parse_arm_a(bc, bc_len, a);
     ArmInfo arm_b = parse_arm_b(bc, bc_len, b);
 
-    if (arm_a.type == 0 || arm_b.type == 0)
+    if (arm_a.type == 0 || arm_b.type == 0) {
       continue;
+    }
     /* Don't mix NOTANY — only LIT and ANY are fused */
     /* arm_b and arm_a are type 1 or 2: compatible */
-    if (arm_a.merge != arm_b.merge)
+    if (arm_a.merge != arm_b.merge) {
       continue;
+    }
 
     size_t merge = arm_a.merge;
 
@@ -578,15 +616,17 @@ void snobol_bc_fuse_split_any(CodeBuf *cb) {
         (ea && ea->case_insensitive) || (eb && eb->case_insensitive) ? 1 : 0;
 
     int merged_id = fuse_add_union_cc(ea, cp_a, eb, cp_b, ci);
-    if (merged_id <= 0 || merged_id > 0xFFFF)
+    if (merged_id <= 0 || merged_id > 0xFFFF) {
       continue;
+    }
 
     /* Rewrite: OP_ANY merged_id at pos, NOPs for pos+3 .. merge-1 */
     bc[pos] = (uint8_t)OP_ANY;
     bc[pos + 1] = (uint8_t)(((uint16_t)merged_id >> 8) & 0xFF);
     bc[pos + 2] = (uint8_t)((uint16_t)merged_id & 0xFF);
-    for (size_t i = pos + 3; i < merge; i++)
+    for (size_t i = pos + 3; i < merge; i++) {
       bc[i] = (uint8_t)OP_NOP;
+    }
   }
 }
 

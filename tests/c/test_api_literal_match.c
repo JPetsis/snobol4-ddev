@@ -23,7 +23,7 @@ void test_api_literal_match_suite(void) {
 
   /* 7.1: successful anchored literal match returns correct position and length */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'hello'", 7, &error);
     test_assert(pat != NULL, "literal pattern compiled");
     test_assert(error == NULL, "no compile error");
@@ -39,13 +39,13 @@ void test_api_literal_match_suite(void) {
 
   /* 7.2: non-matching subject returns failure */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'xyz'", 5, &error);
     test_assert(pat != NULL, "literal pattern compiled");
 
     snobol_literal_match_t r =
         snobol_pattern_match_literal(pat, "hello world", 11);
-    test_assert(!r.success, "'xyz' does not match 'hello world'");
+    test_assert((!r.success) != 0, "'xyz' does not match 'hello world'");
     test_assert(r.position == 0, "position is 0 on failure");
     test_assert(r.length == 0, "length is 0 on failure");
 
@@ -54,12 +54,13 @@ void test_api_literal_match_suite(void) {
 
   /* 7.3: non-literal pattern returns {false, 0, 0} with no fallback */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'a' | 'b'", 9, &error);
     test_assert(pat != NULL, "alternation pattern compiled");
 
     snobol_literal_match_t r = snobol_pattern_match_literal(pat, "b", 1);
-    test_assert(!r.success, "alternation returns failure (not literal-only)");
+    test_assert((!r.success) != 0,
+                "alternation returns failure (not literal-only)");
     test_assert(r.position == 0, "position is 0");
     test_assert(r.length == 0, "length is 0");
 
@@ -68,7 +69,7 @@ void test_api_literal_match_suite(void) {
 
   /* 7.4: no heap allocations on success (verified by ASan and by returning by value) */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'test'", 6, &error);
     test_assert(pat != NULL, "literal pattern compiled");
 
@@ -85,31 +86,32 @@ void test_api_literal_match_suite(void) {
 
   /* Additional: empty subject */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'x'", 3, &error);
     test_assert(pat != NULL, "literal pattern compiled");
 
     snobol_literal_match_t r = snobol_pattern_match_literal(pat, "", 0);
-    test_assert(!r.success, "literal does not match empty subject");
+    test_assert((!r.success) != 0, "literal does not match empty subject");
 
     snobol_pattern_free(pat);
   }
 
   /* Additional: literal longer than subject */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'hello'", 7, &error);
     test_assert(pat != NULL, "literal pattern compiled");
 
     snobol_literal_match_t r = snobol_pattern_match_literal(pat, "hi", 2);
-    test_assert(!r.success, "literal longer than subject returns failure");
+    test_assert((!r.success) != 0,
+                "literal longer than subject returns failure");
 
     snobol_pattern_free(pat);
   }
 
   /* Additional: exact match */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'exact'", 7, &error);
     test_assert(pat != NULL, "literal pattern compiled");
 
@@ -122,18 +124,18 @@ void test_api_literal_match_suite(void) {
 
   /* Additional: NULL pattern returns failure */
   {
-    snobol_literal_match_t r = snobol_pattern_match_literal(NULL, "test", 4);
-    test_assert(!r.success, "NULL pattern returns failure");
+    snobol_literal_match_t r = snobol_pattern_match_literal(nullptr, "test", 4);
+    test_assert((!r.success) != 0, "NULL pattern returns failure");
   }
 
   /* Additional: NULL subject returns failure */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'test'", 6, &error);
     test_assert(pat != NULL, "literal pattern compiled");
 
-    snobol_literal_match_t r = snobol_pattern_match_literal(pat, NULL, 0);
-    test_assert(!r.success, "NULL subject returns failure");
+    snobol_literal_match_t r = snobol_pattern_match_literal(pat, nullptr, 0);
+    test_assert((!r.success) != 0, "NULL subject returns failure");
 
     snobol_pattern_free(pat);
   }

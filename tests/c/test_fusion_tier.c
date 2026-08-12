@@ -23,19 +23,20 @@ extern void test_assert(bool condition, const char *message);
 /* Compile a pattern string and return bytecode. Caller must free. */
 static uint8_t *compile_pattern(const char *pat_str, size_t *out_bc_len) {
   snobol_context_t *ctx = snobol_context_create();
-  if (!ctx)
-    return NULL;
-  char *err = NULL;
+  if (!ctx) {
+    return nullptr;
+  }
+  char *err = nullptr;
   snobol_pattern_t *pat =
       snobol_pattern_compile(ctx, pat_str, strlen(pat_str), &err);
   if (err) {
     free(err);
     snobol_context_destroy(ctx);
-    return NULL;
+    return nullptr;
   }
   if (!pat) {
     snobol_context_destroy(ctx);
-    return NULL;
+    return nullptr;
   }
   const uint8_t *bc = snobol_pattern_get_bc(pat);
   size_t bc_len = snobol_pattern_get_bc_len(pat);
@@ -56,8 +57,9 @@ static void test_fusion_tier_assignment(void) {
   size_t bc_len = 0;
   uint8_t *bc = compile_pattern("SPAN('0-9') '-' SPAN('0-9')", &bc_len);
   test_assert(bc != NULL, "compile date-like pattern");
-  if (!bc)
+  if (!bc) {
     return;
+  }
 
   snobol_search_meta_t meta;
   snobol_search_derive_meta(bc, bc_len, &meta);
@@ -84,7 +86,8 @@ static void test_fusion_tier_non_fusible(void) {
   if (bc1) {
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc1, bc_len, &meta);
-    test_assert(!meta.fusion_eligible, "single literal is not fusion eligible");
+    test_assert((!meta.fusion_eligible) != 0,
+                "single literal is not fusion eligible");
     test_assert(meta.tier != TIER_FUSED_AUTOMATON,
                 "single literal does not get fusion tier");
     snobol_search_meta_free(&meta);
@@ -96,7 +99,8 @@ static void test_fusion_tier_non_fusible(void) {
   if (bc2) {
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc2, bc_len, &meta);
-    test_assert(!meta.fusion_eligible, "single SPAN is not fusion eligible");
+    test_assert((!meta.fusion_eligible) != 0,
+                "single SPAN is not fusion eligible");
     test_assert(meta.tier != TIER_FUSED_AUTOMATON,
                 "single SPAN does not get fusion tier");
     snobol_search_meta_free(&meta);
@@ -111,8 +115,9 @@ static void test_fusion_exec_matches_vm(void) {
   size_t bc_len = 0;
   uint8_t *bc = compile_pattern("SPAN('0-9') '-' SPAN('0-9')", &bc_len);
   test_assert(bc != NULL, "compile pattern");
-  if (!bc)
+  if (!bc) {
     return;
+  }
 
   snobol_search_meta_t meta;
   snobol_search_derive_meta(bc, bc_len, &meta);
@@ -128,14 +133,14 @@ static void test_fusion_exec_matches_vm(void) {
   size_t subject_len = strlen(subject);
 
   /* Test exec_fusion directly via tier_fusion */
-  snobol_search_result_t fused_result = {0};
+  snobol_search_result_t fused_result = {false};
   VM vm;
   memset(&vm, 0, sizeof(vm));
   vm.bc = bc;
   vm.bc_len = bc_len;
   /* Try at position 4 where "123-456" starts */
-  bool fused_ok = tier_fusion(&vm, subject, subject_len, 4, &meta, NULL,
-                              &fused_result, NULL, true);
+  bool fused_ok = tier_fusion(&vm, subject, subject_len, 4, &meta, nullptr,
+                              &fused_result, nullptr, true);
 
   test_assert(fused_ok, "fused anchored match succeeds at '123-456'");
   if (fused_ok) {
@@ -152,8 +157,9 @@ static void test_fusion_exec_failure(void) {
 
   size_t bc_len = 0;
   uint8_t *bc = compile_pattern("SPAN('0-9') '-' SPAN('0-9')", &bc_len);
-  if (!bc)
+  if (!bc) {
     return;
+  }
 
   snobol_search_meta_t meta;
   snobol_search_derive_meta(bc, bc_len, &meta);
@@ -167,15 +173,16 @@ static void test_fusion_exec_failure(void) {
   const char *subject = "no digits here";
   size_t subject_len = strlen(subject);
 
-  snobol_search_result_t result = {0};
+  snobol_search_result_t result = {false};
   VM vm;
   memset(&vm, 0, sizeof(vm));
   vm.bc = bc;
   vm.bc_len = bc_len;
-  bool ok = tier_fusion(&vm, subject, subject_len, 0, &meta, NULL, &result,
-                        NULL, true);
+  bool ok = tier_fusion(&vm, subject, subject_len, 0, &meta, nullptr, &result,
+                        nullptr, true);
 
-  test_assert(!ok, "fused match correctly fails on non-matching subject");
+  test_assert((!ok) != 0,
+              "fused match correctly fails on non-matching subject");
 
   snobol_search_meta_free(&meta);
   free(bc);
@@ -187,8 +194,9 @@ static void test_fusion_unanchored_search(void) {
 
   size_t bc_len = 0;
   uint8_t *bc = compile_pattern("SPAN('0-9') '-' SPAN('0-9')", &bc_len);
-  if (!bc)
+  if (!bc) {
     return;
+  }
 
   snobol_search_meta_t meta;
   snobol_search_derive_meta(bc, bc_len, &meta);
@@ -202,13 +210,13 @@ static void test_fusion_unanchored_search(void) {
   const char *subject = "foo 42-99 bar 7-8 baz";
   size_t subject_len = strlen(subject);
 
-  snobol_search_result_t result = {0};
+  snobol_search_result_t result = {false};
   VM vm;
   memset(&vm, 0, sizeof(vm));
   vm.bc = bc;
   vm.bc_len = bc_len;
-  bool ok = tier_fusion(&vm, subject, subject_len, 0, &meta, NULL, &result,
-                        NULL, false);
+  bool ok = tier_fusion(&vm, subject, subject_len, 0, &meta, nullptr, &result,
+                        nullptr, false);
 
   test_assert(ok, "unanchored fusion search finds a match");
   if (ok) {
@@ -246,20 +254,21 @@ static void test_fusion_various_patterns(void) {
   for (int i = 0; i < 4; i++) {
     size_t bc_len = 0;
     uint8_t *bc = compile_pattern(patterns[i], &bc_len);
-    if (!bc)
+    if (!bc) {
       continue;
+    }
 
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, bc_len, &meta);
 
     if (meta.fusion_eligible && meta.fusion) {
-      snobol_search_result_t result = {0};
+      snobol_search_result_t result = {false};
       VM vm;
       memset(&vm, 0, sizeof(vm));
       vm.bc = bc;
       vm.bc_len = bc_len;
       bool ok = tier_fusion(&vm, subjects[i], strlen(subjects[i]), 0, &meta,
-                            NULL, &result, NULL, true);
+                            nullptr, &result, nullptr, true);
       char msg[128];
       snprintf(msg, sizeof(msg), "fused match succeeds for %s", names[i]);
       test_assert(ok, msg);
@@ -279,8 +288,9 @@ static void test_fusion_alternation(void) {
   size_t bc_len = 0;
   uint8_t *bc = compile_pattern("SPAN('0-9') ('-' | '/') SPAN('0-9')", &bc_len);
   test_assert(bc != NULL, "compile alternation pattern");
-  if (!bc)
+  if (!bc) {
     return;
+  }
 
   snobol_search_meta_t meta;
   snobol_search_derive_meta(bc, bc_len, &meta);
@@ -301,13 +311,13 @@ static void test_fusion_alternation(void) {
 
     /* Test matching with '-' separator */
     const char *subject1 = "123-456";
-    snobol_search_result_t result1 = {0};
+    snobol_search_result_t result1 = {false};
     VM vm1;
     memset(&vm1, 0, sizeof(vm1));
     vm1.bc = bc;
     vm1.bc_len = bc_len;
-    bool ok1 = tier_fusion(&vm1, subject1, strlen(subject1), 0, &meta, NULL,
-                           &result1, NULL, true);
+    bool ok1 = tier_fusion(&vm1, subject1, strlen(subject1), 0, &meta, nullptr,
+                           &result1, nullptr, true);
     test_assert(ok1, "fusion match with '-' separator");
     if (ok1) {
       test_assert(result1.match_start == 0, "match starts at 0");
@@ -316,13 +326,13 @@ static void test_fusion_alternation(void) {
 
     /* Test matching with '/' separator */
     const char *subject2 = "123/456";
-    snobol_search_result_t result2 = {0};
+    snobol_search_result_t result2 = {false};
     VM vm2;
     memset(&vm2, 0, sizeof(vm2));
     vm2.bc = bc;
     vm2.bc_len = bc_len;
-    bool ok2 = tier_fusion(&vm2, subject2, strlen(subject2), 0, &meta, NULL,
-                           &result2, NULL, true);
+    bool ok2 = tier_fusion(&vm2, subject2, strlen(subject2), 0, &meta, nullptr,
+                           &result2, nullptr, true);
     test_assert(ok2, "fusion match with '/' separator");
     if (ok2) {
       test_assert(result2.match_start == 0, "match starts at 0");
@@ -331,14 +341,14 @@ static void test_fusion_alternation(void) {
 
     /* Test non-matching separator */
     const char *subject3 = "123.456";
-    snobol_search_result_t result3 = {0};
+    snobol_search_result_t result3 = {false};
     VM vm3;
     memset(&vm3, 0, sizeof(vm3));
     vm3.bc = bc;
     vm3.bc_len = bc_len;
-    bool ok3 = tier_fusion(&vm3, subject3, strlen(subject3), 0, &meta, NULL,
-                           &result3, NULL, true);
-    test_assert(!ok3, "fusion correctly rejects '.' separator");
+    bool ok3 = tier_fusion(&vm3, subject3, strlen(subject3), 0, &meta, nullptr,
+                           &result3, nullptr, true);
+    test_assert((!ok3) != 0, "fusion correctly rejects '.' separator");
   }
 
   snobol_search_meta_free(&meta);
@@ -349,15 +359,16 @@ static void test_fusion_alternation(void) {
    * This is correct behavior - only simple same-length alternations could be fused */
   bc = compile_pattern("SPAN('0-9') ('-' | '--') SPAN('0-9')", &bc_len);
   test_assert(bc != NULL, "compile multi-char alternation pattern");
-  if (!bc)
+  if (!bc) {
     return;
+  }
 
   snobol_search_meta_t meta2;
   snobol_search_derive_meta(bc, bc_len, &meta2);
 
   /* Multi-char alternations with different lengths are not fusible */
   test_assert(
-      !meta2.fusion_eligible,
+      (!meta2.fusion_eligible) != 0,
       "multi-char alternation with different lengths is NOT fusion eligible");
 
   snobol_search_meta_free(&meta2);
@@ -379,7 +390,7 @@ void test_cov_misc_fusion(void) {
   test_suite("Coverage: fusion executor paths");
 
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
 
   /* Concat chain with CHAR + LIT + NOTANY segments.  (SPLIT-led chains are
    * not fusible: the builder advances past the SPLIT by 9 bytes into branch
@@ -393,7 +404,7 @@ void test_cov_misc_fusion(void) {
     test_assert(meta->fusion_eligible, "pattern is fusion-eligible");
 
     snobol_match_t *m = snobol_pattern_search(pat, "xxaxq", 5);
-    test_assert(m && snobol_match_success(m), "fusion chain matches");
+    test_assert((m && snobol_match_success(m)) != 0, "fusion chain matches");
     if (m) {
       test_assert(snobol_match_get_position(m) == 2, "fusion match position");
       test_assert(snobol_match_get_length(m) == 3, "fusion match length");
@@ -402,17 +413,19 @@ void test_cov_misc_fusion(void) {
 
     /* Failure paths: ANY mismatch, NOTANY mismatch (digit). */
     m = snobol_pattern_search(pat, "bxq", 3);
-    test_assert(m && !snobol_match_success(m), "ANY mismatch fails");
-    if (m)
+    test_assert((m && !snobol_match_success(m)) != 0, "ANY mismatch fails");
+    if (m) {
       snobol_match_free(m);
+    }
     m = snobol_pattern_search(pat, "ax5", 3);
-    test_assert(m && !snobol_match_success(m), "NOTANY mismatch fails");
-    if (m)
+    test_assert((m && !snobol_match_success(m)) != 0, "NOTANY mismatch fails");
+    if (m) {
       snobol_match_free(m);
+    }
     snobol_pattern_free(pat);
   }
   free(err);
-  err = NULL;
+  err = nullptr;
 
   /* RUN + LIT chain. */
   src = "ANY('a') SPAN('0-9') 'x'";
@@ -422,13 +435,15 @@ void test_cov_misc_fusion(void) {
     const snobol_search_meta_t *meta = snobol_pattern_get_meta(pat);
     test_assert(meta->fusion_eligible, "run+lit chain fusible");
     snobol_match_t *m = snobol_pattern_search(pat, "a34x", 4);
-    test_assert(m && snobol_match_success(m), "run+lit chain matches");
-    if (m)
+    test_assert((m && snobol_match_success(m)) != 0, "run+lit chain matches");
+    if (m) {
       snobol_match_free(m);
+    }
     m = snobol_pattern_search(pat, "a!x", 3);
-    test_assert(m && !snobol_match_success(m), "SPAN min-1 fails");
-    if (m)
+    test_assert((m && !snobol_match_success(m)) != 0, "SPAN min-1 fails");
+    if (m) {
       snobol_match_free(m);
+    }
     snobol_pattern_free(pat);
   }
   free(err);
@@ -440,13 +455,16 @@ void test_cov_misc_fusion(void) {
   test_assert(pat != NULL, "notany dfa pattern compiles");
   if (pat) {
     snobol_match_t *m = snobol_pattern_search(pat, "abq!", 4);
-    test_assert(m && snobol_match_success(m), "NOTANY accepts non-digit");
-    if (m)
+    test_assert((m && snobol_match_success(m)) != 0,
+                "NOTANY accepts non-digit");
+    if (m) {
       snobol_match_free(m);
+    }
     m = snobol_pattern_search(pat, "ab3!", 4);
-    test_assert(m && !snobol_match_success(m), "NOTANY rejects digit");
-    if (m)
+    test_assert((m && !snobol_match_success(m)) != 0, "NOTANY rejects digit");
+    if (m) {
       snobol_match_free(m);
+    }
     snobol_pattern_free(pat);
   }
   free(err);
@@ -468,20 +486,22 @@ void test_cov_engine2_fusion_entry(void) {
   memset(&res, 0, sizeof(res));
 
   /* NULL meta → controlled failure. */
-  test_assert(!tier_fusion(&vm, "x", 1, 0, NULL, NULL, &res, NULL, false),
+  test_assert((!tier_fusion(&vm, "x", 1, 0, nullptr, nullptr, &res, nullptr,
+                            false)) != 0,
               "tier_fusion(NULL meta) fails");
-  test_assert(!res.success, "fusion failure result flagged");
+  test_assert((!res.success) != 0, "fusion failure result flagged");
 
   /* NULL subject guard. */
   snobol_search_meta_t meta;
   memset(&meta, 0, sizeof(meta));
-  test_assert(!tier_fusion(&vm, NULL, 1, 0, &meta, NULL, &res, NULL, false),
+  test_assert((!tier_fusion(&vm, nullptr, 1, 0, &meta, nullptr, &res, nullptr,
+                            false)) != 0,
               "tier_fusion(NULL subject) fails");
 
   /* Anchored execution of a real fusion pattern. */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     const char *src = "ANY('a') 'x' NOTANY('0-9')";
     snobol_pattern_t *pat =
         snobol_pattern_compile_ex(ctx, src, strlen(src), 0, &err);
@@ -495,10 +515,10 @@ void test_cov_engine2_fusion_entry(void) {
       vm.range_meta =
           (snobol_range_meta_t *)snobol_pattern_get_range_meta(pat, &rmc);
       vm.range_meta_count = rmc;
-      bool ok = tier_fusion(&vm, "axq", 3, 0, m, NULL, &res, NULL, true);
-      test_assert(ok && res.match_end == 3, "anchored fusion match");
-      ok = tier_fusion(&vm, "ax5", 3, 0, m, NULL, &res, NULL, true);
-      test_assert(!ok, "anchored fusion mismatch");
+      bool ok = tier_fusion(&vm, "axq", 3, 0, m, nullptr, &res, nullptr, true);
+      test_assert((ok && res.match_end == 3) != 0, "anchored fusion match");
+      ok = tier_fusion(&vm, "ax5", 3, 0, m, nullptr, &res, nullptr, true);
+      test_assert((!ok) != 0, "anchored fusion mismatch");
       snobol_pattern_free(pat);
     }
     free(err);
@@ -517,7 +537,7 @@ void test_cov_engine2_fusion_pass(void) {
                         "'a' | 'bc'", "'a' | NOTANY('x')"};
   for (size_t i = 0; i < sizeof(pats) / sizeof(pats[0]); i++) {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *p =
         snobol_pattern_compile_ex(ctx, pats[i], strlen(pats[i]), 0, &err);
     test_assert(p != NULL, "alt pattern compiles");
@@ -525,9 +545,10 @@ void test_cov_engine2_fusion_pass(void) {
       /* Single-char alts route to the bitmap tier; anything else falls to
        * the VM.  Both must still match correctly. */
       snobol_match_t *m = snobol_pattern_search(p, "ab", 2);
-      test_assert(m && m->success, "alternation matches");
-      if (m)
+      test_assert((m && m->success) != 0, "alternation matches");
+      if (m) {
         snobol_match_free(m);
+      }
       snobol_pattern_free(p);
     }
     free(err);
@@ -537,16 +558,17 @@ void test_cov_engine2_fusion_pass(void) {
   /* Case-insensitive single-char alternation. */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     const char *src = "'a' | 'b'";
     snobol_pattern_t *p = snobol_pattern_compile_ex(
         ctx, src, strlen(src), SNOBOL_FLAG_CASE_INSENSITIVE, &err);
     test_assert(p != NULL, "ci alt compiles");
     if (p) {
       snobol_match_t *m = snobol_pattern_search(p, "B", 1);
-      test_assert(m && m->success, "ci alternation matches");
-      if (m)
+      test_assert((m && m->success) != 0, "ci alternation matches");
+      if (m) {
         snobol_match_free(m);
+      }
       snobol_pattern_free(p);
     }
     free(err);

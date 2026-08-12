@@ -25,7 +25,7 @@ void test_break_grammar_suite(void) {
   /* BREAK(',') compiles and routes to TIER_BREAK_SCAN */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "BREAK(',')", 10, &err);
     test_assert(pat != NULL, "BREAK(',') compiles");
     if (pat) {
@@ -44,7 +44,7 @@ void test_break_grammar_suite(void) {
   /* BREAKX(',') compiles and routes to TIER_BREAK_SCAN */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "BREAKX(',')", 11, &err);
     test_assert(pat != NULL, "BREAKX(',') compiles");
@@ -64,14 +64,14 @@ void test_break_grammar_suite(void) {
   /* BREAK matches up to the delimiter (anchored): 'field1' from 'field1,field2' */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "BREAK(',')", 10, &err);
     test_assert(pat != NULL, "compile BREAK for match");
     if (pat) {
       const char *subject = "field1,field2";
       size_t slen = strlen(subject);
       snobol_match_t *m = snobol_pattern_match(pat, subject, slen);
-      test_assert(m != NULL && snobol_match_success(m),
+      test_assert((m != NULL && snobol_match_success(m)) != 0,
                   "BREAK match succeeds on 'field1,field2'");
       if (snobol_match_success(m)) {
         test_assert(snobol_match_get_position(m) == 0,
@@ -89,14 +89,14 @@ void test_break_grammar_suite(void) {
   /* BREAK search finds the leading field token */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "BREAK(',')", 10, &err);
     test_assert(pat != NULL, "compile BREAK for search");
     if (pat) {
       const char *subject = "field1,field2";
       size_t slen = strlen(subject);
       snobol_match_t *m = snobol_pattern_search(pat, subject, slen);
-      test_assert(m != NULL && snobol_match_success(m),
+      test_assert((m != NULL && snobol_match_success(m)) != 0,
                   "BREAK search succeeds");
       if (snobol_match_success(m)) {
         test_assert(snobol_match_get_position(m) == 0,
@@ -114,7 +114,7 @@ void test_break_grammar_suite(void) {
   /* BREAK() with no argument is rejected (mirrors SPAN) */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "BREAK()", 7, &err);
     test_assert(pat == NULL, "BREAK() with no argument is rejected");
     free(err);

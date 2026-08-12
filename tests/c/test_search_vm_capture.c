@@ -38,16 +38,19 @@ static VM make_vm(const uint8_t *bc, size_t bc_len, const char *subject) {
 
 static bool cap_equals(const VM *vm, uint8_t reg, const char *subject,
                        const char *expected) {
-  if (reg >= MAX_CAPS)
+  if (reg >= MAX_CAPS) {
     return false;
+  }
   size_t a = vm->cap_start[reg];
   size_t b = vm->cap_end[reg];
-  if (expected == NULL)
-    return a == 0 && b == 0;
-  if (b < a)
+  if (expected == NULL) {
+    return (a == 0 && b == 0) != 0;
+  }
+  if (b < a) {
     return false;
+  }
   size_t n = b - a;
-  return strlen(expected) == n && memcmp(subject + a, expected, n) == 0;
+  return (strlen(expected) == n && memcmp(subject + a, expected, n) == 0) != 0;
 }
 
 /* ── Test: compile pattern, run via search-VM and full VM, compare ─────── */
@@ -67,7 +70,7 @@ static void assert_captures_match(const char *pattern_str, const char *subject,
   snobol_context_t *ctx = snobol_context_create();
   test_assert(ctx != NULL, "context created");
 
-  char *error = NULL;
+  char *error = nullptr;
   snobol_pattern_t *pat =
       snobol_pattern_compile(ctx, pattern_str, strlen(pattern_str), &error);
   test_assert(pat != NULL, "pattern compiled");
@@ -80,7 +83,7 @@ static void assert_captures_match(const char *pattern_str, const char *subject,
   size_t bc_len = snobol_pattern_get_bc_len(pat);
   const snobol_search_meta_t *meta = snobol_pattern_get_meta(pat);
 
-  test_assert(bc != NULL && bc_len > 0, "bytecode available");
+  test_assert((bc != NULL && bc_len > 0) != 0, "bytecode available");
   test_assert(meta != NULL, "metadata available");
 
   /* ---- Run via snobol_search_exec (Tier 6 for eligible patterns) ---- */
@@ -90,7 +93,7 @@ static void assert_captures_match(const char *pattern_str, const char *subject,
   svm.range_meta_count = svm_rmc;
   snobol_search_result_t result;
   bool ok_svm = snobol_search_exec(&svm, subject, strlen(subject), 0, meta,
-                                   NULL, &result, NULL);
+                                   nullptr, &result, nullptr);
 
   /* ---- Run via vm_run (Tier 8, full VM) ---- */
   VM fvm = make_vm(bc, bc_len, subject);
@@ -143,12 +146,12 @@ static void assert_captures_match(const char *pattern_str, const char *subject,
 
 /* Test 1: Simple capture — @r1 gets the first allocated register (0) */
 static void test_simple_capture(void) {
-  assert_captures_match("@r1('hello')", "hello", "hello", NULL);
+  assert_captures_match("@r1('hello')", "hello", "hello", nullptr);
 }
 
 /* Test 2: Capture at start with literal prefix */
 static void test_capture_with_prefix(void) {
-  assert_captures_match("'id:' @r1('12345')", "id:12345", "12345", NULL);
+  assert_captures_match("'id:' @r1('12345')", "id:12345", "12345", nullptr);
 }
 
 /* Test 3: Two captures — registers are allocated sequentially from 0,
@@ -160,12 +163,12 @@ static void test_multiple_captures(void) {
 /* Test 4: Capture in alternation — each @name occurrence allocates a
  * register, so the second branch's capture lands in register 1. */
 static void test_capture_in_alternation(void) {
-  assert_captures_match("(@r1('a') | @r1('b'))", "b", NULL, "b");
+  assert_captures_match("(@r1('a') | @r1('b'))", "b", nullptr, "b");
 }
 
 /* Test 5: Capture after failed alternation (backtrack scenario) */
 static void test_capture_after_failed_alt(void) {
-  assert_captures_match("('aaa' | @r1('bbb'))", "bbb", "bbb", NULL);
+  assert_captures_match("('aaa' | @r1('bbb'))", "bbb", "bbb", nullptr);
 }
 
 /* Test 7: Two sequential captures — each @name occurrence allocates the next
@@ -181,7 +184,8 @@ static void test_sequential_captures(void) {
  * silently dropped the capture. The dispatcher must route it to the
  * capture-aware Tier 6 (search-VM) and record the capture. */
 static void test_capture_span_search_mode(void) {
-  assert_captures_match("@r1(SPAN('0-9'))", "1234567890", "1234567890", NULL);
+  assert_captures_match("@r1(SPAN('0-9'))", "1234567890", "1234567890",
+                        nullptr);
 }
 
 /* ── Suite entry point ────────────────────────────────────────────────── */

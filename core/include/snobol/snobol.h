@@ -57,7 +57,7 @@ extern "C" {
  * ----------------------------------------------------------------------- */
 #if defined(__GNUC__) || defined(__clang__)
 #define SNOBOL_DEPRECATED __attribute__((deprecated))
-#elif defined(_MSC_VER)
+#elifdef _MSC_VER
 #define SNOBOL_DEPRECATED __declspec(deprecated)
 #else
 #define SNOBOL_DEPRECATED

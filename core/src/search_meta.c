@@ -50,29 +50,37 @@ static bool alt_literals_share_prefix(const uint8_t *bc, size_t bc_len,
 
   while (sp > 0) {
     size_t p = stack[--sp];
-    if (p + 2 > bc_len)
+    if (p + 2 > bc_len) {
       return true;
+    }
     uint8_t op = bc[p];
     if (op == OP_LIT) {
-      if (p + 10 > bc_len)
+      if (p + 10 > bc_len) {
         return true;
+      }
       uint32_t off = search_read_u32(bc, p + 1);
       uint32_t len = search_read_u32(bc, p + 5);
-      if (off >= bc_len || off + len > bc_len)
+      if (off >= bc_len || off + len > bc_len) {
         return true;
-      if (len == 0)
+      }
+      if (len == 0) {
         return true; /* empty literal: conservative bushy */
-      if (nl < 64)
+      }
+      if (nl < 64) {
         first_bytes[nl++] = bc[off];
+      }
     } else if (op == OP_SPLIT) {
-      if (p + 9 > bc_len)
+      if (p + 9 > bc_len) {
         return true;
+      }
       uint32_t a = search_read_u32(bc, p + 1);
       uint32_t b = search_read_u32(bc, p + 5);
-      if (a >= bc_len || b >= bc_len)
+      if (a >= bc_len || b >= bc_len) {
         return true;
-      if (sp + 2 > 64)
+      }
+      if (sp + 2 > 64) {
         return true;
+      }
       stack[sp++] = b;
       stack[sp++] = a;
     } else {
@@ -80,10 +88,13 @@ static bool alt_literals_share_prefix(const uint8_t *bc, size_t bc_len,
     }
   }
 
-  for (size_t i = 0; i < nl; i++)
-    for (size_t j = i + 1; j < nl; j++)
-      if (first_bytes[i] == first_bytes[j])
+  for (size_t i = 0; i < nl; i++) {
+    for (size_t j = i + 1; j < nl; j++) {
+      if (first_bytes[i] == first_bytes[j]) {
         return true; /* shared leading byte -> bushy trie */
+      }
+    }
+  }
   return false;
 }
 
@@ -111,32 +122,39 @@ static size_t alt_literals_shared_prefix(const uint8_t *bc, size_t bc_len,
 
   while (sp > 0) {
     size_t p = stack[--sp];
-    if (p + 2 > bc_len)
+    if (p + 2 > bc_len) {
       return 0;
+    }
     uint8_t op = bc[p];
     if (op == OP_LIT) {
-      if (p + 10 > bc_len)
+      if (p + 10 > bc_len) {
         return 0;
+      }
       uint32_t off = search_read_u32(bc, p + 1);
       uint32_t len = search_read_u32(bc, p + 5);
-      if (off >= bc_len || off + len > bc_len)
+      if (off >= bc_len || off + len > bc_len) {
         return 0;
-      if (len == 0)
+      }
+      if (len == 0) {
         return 0; /* empty alternative: no useful prefix */
+      }
       if (nl < 64) {
         lits[nl] = bc + off;
         lit_lens[nl] = len;
         nl++;
       }
     } else if (op == OP_SPLIT) {
-      if (p + 9 > bc_len)
+      if (p + 9 > bc_len) {
         return 0;
+      }
       uint32_t a = search_read_u32(bc, p + 1);
       uint32_t b = search_read_u32(bc, p + 5);
-      if (a >= bc_len || b >= bc_len)
+      if (a >= bc_len || b >= bc_len) {
         return 0;
-      if (sp + 2 > 64)
+      }
+      if (sp + 2 > 64) {
         return 0;
+      }
       stack[sp++] = b;
       stack[sp++] = a;
     } else {
@@ -144,8 +162,9 @@ static size_t alt_literals_shared_prefix(const uint8_t *bc, size_t bc_len,
     }
   }
 
-  if (nl < 2)
+  if (nl < 2) {
     return 0; /* need at least two alternatives to be an alternation */
+  }
 
   /* Longest common prefix across all collected literals. */
   size_t max_len = lit_lens[0] < SNOBOL_SEARCH_MAX_PREFIX
@@ -161,8 +180,9 @@ static size_t alt_literals_shared_prefix(const uint8_t *bc, size_t bc_len,
         break;
       }
     }
-    if (!all_same)
+    if (!all_same) {
       break;
+    }
     prefix[shared++] = b;
   }
   return shared;
@@ -178,7 +198,7 @@ static size_t alt_literals_shared_prefix(const uint8_t *bc, size_t bc_len,
  */
 
 static inline void bitmap256_set(uint8_t bm[32], uint8_t b) {
-  bm[b >> 3] |= (uint8_t)(1u << (b & 7));
+  bm[b >> 3] |= (uint8_t)(1U << (b & 7));
 }
 static inline void bitmap256_set_all(uint8_t bm[32]) {
   memset(bm, 0xFF, 32);
@@ -226,7 +246,7 @@ static void compute_start_bitmap(const uint8_t *bc, size_t bc_len, size_t ip,
 
   while (ip < bc_len) {
   sbm_next:
-    if (++steps > bc_len * 8 + 256) {
+    if (++steps > (bc_len * 8) + 256) {
       bitmap256_set_all(bm);
       return;
     }
@@ -261,14 +281,17 @@ static void compute_start_bitmap(const uint8_t *bc, size_t bc_len, size_t ip,
           SBM_DONE();
         }
         uint16_t set_id = search_read_u16(bc, ip + 1);
-        uint16_t count = 0, ci = 0;
+        uint16_t count = 0;
+        uint16_t ci = 0;
         const uint8_t *rng = get_ranges_ptr(tmp_vm, set_id, &count, &ci);
         if (rng) {
           uint64_t abm[2] = {0, 0};
           ranges_to_ascii_bitmap(rng, count, abm);
-          for (int i = 0; i < 256; i++)
-            if (bitmap_test(abm, (unsigned)i))
+          for (int i = 0; i < 256; i++) {
+            if (bitmap_test(abm, (unsigned)i)) {
               bitmap256_set(bm, (uint8_t)i);
+            }
+          }
         } else {
           bitmap256_set_all(bm);
         }
@@ -281,14 +304,17 @@ static void compute_start_bitmap(const uint8_t *bc, size_t bc_len, size_t ip,
           SBM_DONE();
         }
         uint16_t set_id = search_read_u16(bc, ip + 1);
-        uint16_t count = 0, ci = 0;
+        uint16_t count = 0;
+        uint16_t ci = 0;
         const uint8_t *rng = get_ranges_ptr(tmp_vm, set_id, &count, &ci);
         if (rng) {
           uint64_t abm[2] = {0, 0};
           ranges_to_ascii_bitmap(rng, count, abm);
-          for (int i = 0; i < 256; i++)
-            if (!bitmap_test(abm, (unsigned)i))
+          for (int i = 0; i < 256; i++) {
+            if (!bitmap_test(abm, (unsigned)i)) {
               bitmap256_set(bm, (uint8_t)i);
+            }
+          }
         } else {
           bitmap256_set_all(bm);
         }
@@ -301,14 +327,17 @@ static void compute_start_bitmap(const uint8_t *bc, size_t bc_len, size_t ip,
           SBM_DONE();
         }
         uint16_t set_id = search_read_u16(bc, ip + 1);
-        uint16_t count = 0, ci = 0;
+        uint16_t count = 0;
+        uint16_t ci = 0;
         const uint8_t *rng = get_ranges_ptr(tmp_vm, set_id, &count, &ci);
         if (rng) {
           uint64_t abm[2] = {0, 0};
           ranges_to_ascii_bitmap(rng, count, abm);
-          for (int i = 0; i < 256; i++)
-            if (bitmap_test(abm, (unsigned)i))
+          for (int i = 0; i < 256; i++) {
+            if (bitmap_test(abm, (unsigned)i)) {
               bitmap256_set(bm, (uint8_t)i);
+            }
+          }
         } else {
           bitmap256_set_all(bm);
         }
@@ -343,9 +372,9 @@ static void compute_start_bitmap(const uint8_t *bc, size_t bc_len, size_t ip,
           bitmap256_set_all(bm);
           SBM_DONE();
         }
-        if (sp < 2048)
-          stack[sp++] = a; /* defer left branch */
-        else {
+        if (sp < 2048) {
+          { stack[sp++] = a; /* defer left branch */ }
+        } else {
           bitmap256_set_all(bm);
           SBM_DONE();
         }
@@ -442,8 +471,9 @@ static void compute_start_bitmap(const uint8_t *bc, size_t bc_len, size_t ip,
 
 static uint32_t SNOBOL_PURE compute_minlength(const uint8_t *bc, size_t bc_len,
                                               size_t ip, int depth) {
-  if (depth > 12)
+  if (depth > 12) {
     return 0;
+  }
 
   uint32_t len = 0;
   size_t steps = 0;
@@ -454,14 +484,16 @@ static uint32_t SNOBOL_PURE compute_minlength(const uint8_t *bc, size_t bc_len,
      * executes at most bc_len steps per invocation, so the cap only fires
      * on malformed cyclic input.  Bail conservatively (0) so the minlength
      * filter can never reject a real match. */
-    if (++steps > bc_len * 8 + 256)
+    if (++steps > (bc_len * 8) + 256) {
       return 0;
+    }
     uint8_t op = bc[ip]; /* ip points to opcode */
     switch (op) {
 
       case OP_LIT: {
-        if (ip + 9 > bc_len)
+        if (ip + 9 > bc_len) {
           return 0;
+        }
         uint32_t lit_len = search_read_u32(bc, ip + 5);
         len += lit_len;
         ip += 9 + lit_len;
@@ -471,15 +503,17 @@ static uint32_t SNOBOL_PURE compute_minlength(const uint8_t *bc, size_t bc_len,
       case OP_ANY:
       case OP_NOTANY:
         len += 1;
-        if (ip + 3 > bc_len)
+        if (ip + 3 > bc_len) {
           return len;
+        }
         ip += 3;
         continue;
 
       case OP_SPAN:
         len += 1;
-        if (ip + 3 > bc_len)
+        if (ip + 3 > bc_len) {
           return len;
+        }
         ip += 3;
         continue;
 
@@ -490,8 +524,9 @@ static uint32_t SNOBOL_PURE compute_minlength(const uint8_t *bc, size_t bc_len,
         continue;
 
       case OP_LEN: {
-        if (ip + 5 > bc_len)
+        if (ip + 5 > bc_len) {
           return len;
+        }
         uint32_t n = search_read_u32(bc, ip + 1);
         len += n;
         ip += 5;
@@ -502,8 +537,9 @@ static uint32_t SNOBOL_PURE compute_minlength(const uint8_t *bc, size_t bc_len,
       case OP_RPOS:
       case OP_TAB:
       case OP_RTAB:
-        if (ip + 5 > bc_len)
+        if (ip + 5 > bc_len) {
           return len;
+        }
         ip += 5;
         continue;
 
@@ -516,40 +552,46 @@ static uint32_t SNOBOL_PURE compute_minlength(const uint8_t *bc, size_t bc_len,
       case OP_NOP: ip += 1; continue;
 
       case OP_ASSIGN:
-        if (ip + 4 > bc_len)
+        if (ip + 4 > bc_len) {
           return len;
+        }
         ip += 4;
         continue;
 
       case OP_SPLIT: {
-        if (ip + 9 > bc_len)
+        if (ip + 9 > bc_len) {
           return len;
+        }
         uint32_t a = search_read_u32(bc, ip + 1);
         uint32_t b = search_read_u32(bc, ip + 5);
-        if (a >= bc_len || b >= bc_len)
+        if (a >= bc_len || b >= bc_len) {
           return len;
+        }
         uint32_t ma = compute_minlength(bc, bc_len, (size_t)a, depth + 1);
         uint32_t mb = compute_minlength(bc, bc_len, (size_t)b, depth + 1);
         /* Treat FAIL (UINT32_MAX) branches as infinite */
         uint32_t branch_min;
-        if (ma != UINT32_MAX && mb != UINT32_MAX)
+        if (ma != UINT32_MAX && mb != UINT32_MAX) {
           branch_min = ma < mb ? ma : mb;
-        else if (ma != UINT32_MAX)
+        } else if (ma != UINT32_MAX) {
           branch_min = ma;
-        else if (mb != UINT32_MAX)
+        } else if (mb != UINT32_MAX) {
           branch_min = mb;
-        else
+        } else {
           branch_min = 0;
+        }
         len += branch_min;
         return len;
       }
 
       case OP_JMP: {
-        if (ip + 5 > bc_len)
+        if (ip + 5 > bc_len) {
           return len;
+        }
         uint32_t target = search_read_u32(bc, ip + 1);
-        if (target >= bc_len)
+        if (target >= bc_len) {
           return len;
+        }
         ip = (size_t)target;
         continue;
       }
@@ -610,8 +652,9 @@ static uint32_t SNOBOL_PURE compute_minlength(const uint8_t *bc, size_t bc_len,
  * ---------------------------------------------------------------------------
  */
 static bool check_automaton_eligible(const uint8_t *bc, size_t bc_len) {
-  if (bc_len > 512)
+  if (bc_len > 512) {
     return false;
+  }
   size_t ip = 0;
   while (ip < bc_len) {
     uint8_t op = bc[ip++];
@@ -638,18 +681,21 @@ static bool check_automaton_eligible(const uint8_t *bc, size_t bc_len) {
       case OP_FAIL:
         return true; /* Short pattern: eligible if we hit terminal */
       case OP_JMP:
-        if (ip + 4 > bc_len)
+        if (ip + 4 > bc_len) {
           return false;
+        }
         ip += 4;
         break;
       case OP_SPLIT:
-        if (ip + 8 > bc_len)
+        if (ip + 8 > bc_len) {
           return false;
+        }
         ip += 8;
         break;
       case OP_LIT: {
-        if (ip + 8 > bc_len)
+        if (ip + 8 > bc_len) {
           return false;
+        }
         /* off(u32) len(u32) */
         uint32_t lit_len = search_read_u32(bc, ip + 4);
         ip += 8 + lit_len;
@@ -657,8 +703,9 @@ static bool check_automaton_eligible(const uint8_t *bc, size_t bc_len) {
       }
       case OP_ANY:
       case OP_NOTANY:
-        if (ip + 2 > bc_len)
+        if (ip + 2 > bc_len) {
           return false;
+        }
         ip += 2;
         break;
       /* SPAN / BREAK: excluded from the DFA.  Their exit to the next
@@ -670,8 +717,9 @@ static bool check_automaton_eligible(const uint8_t *bc, size_t bc_len) {
       case OP_SPAN:
       case OP_BREAK: return false;
       case OP_LEN:
-        if (ip + 4 > bc_len)
+        if (ip + 4 > bc_len) {
           return false;
+        }
         ip += 4;
         break;
       /* Position-dependent zero-width ops: excluded from DFA because they
@@ -691,17 +739,20 @@ static bool check_automaton_eligible(const uint8_t *bc, size_t bc_len) {
       case OP_NOP:
       case OP_ABORT:
       case OP_SUCCEED:
-        if (ip > bc_len)
+        if (ip > bc_len) {
           return false;
+        }
         break;
       case OP_REPEAT_INIT:
-        if (ip + 13 > bc_len)
+        if (ip + 13 > bc_len) {
           return false;
+        }
         ip += 13;
         break;
       case OP_REPEAT_STEP:
-        if (ip + 5 > bc_len)
+        if (ip + 5 > bc_len) {
           return false;
+        }
         ip += 5;
         break;
       default:
@@ -731,21 +782,26 @@ static bool SNOBOL_PURE alt_has_empty_branch(const uint8_t *bc, size_t bc_len) {
   stack[sp++] = 0;
   while (sp > 0) {
     size_t ip = stack[--sp];
-    if (ip + 2 > bc_len)
+    if (ip + 2 > bc_len) {
       return false;
+    }
     uint8_t op = bc[ip];
     if (op == OP_LIT) {
-      if (ip + 10 > bc_len)
+      if (ip + 10 > bc_len) {
         return false;
-      if (search_read_u32(bc, ip + 5) == 0)
+      }
+      if (search_read_u32(bc, ip + 5) == 0) {
         return true;
+      }
     } else if (op == OP_SPLIT) {
-      if (ip + 9 > bc_len)
+      if (ip + 9 > bc_len) {
         return false;
+      }
       uint32_t a = search_read_u32(bc, ip + 1);
       uint32_t b = search_read_u32(bc, ip + 5);
-      if (a >= bc_len || b >= bc_len)
+      if (a >= bc_len || b >= bc_len) {
         return false;
+      }
       stack[sp++] = b;
       stack[sp++] = a;
     } else {
@@ -757,8 +813,9 @@ static bool SNOBOL_PURE alt_has_empty_branch(const uint8_t *bc, size_t bc_len) {
 
 static bool SNOBOL_PURE check_alt_literals(const uint8_t *bc, size_t bc_len,
                                            size_t ip, size_t *lit_bytes) {
-  if (ip + 2 > bc_len)
+  if (ip + 2 > bc_len) {
     return false;
+  }
   uint8_t op = bc[ip];
 
   if (op == OP_LIT) {
@@ -767,40 +824,44 @@ static bool SNOBOL_PURE check_alt_literals(const uint8_t *bc, size_t bc_len,
      * as `LIT ... ACCEPT`, but every other alternative is `LIT ... JMP`
      * jumping to the shared ACCEPT.  Follow any trailing JMPs so both
      * shapes are accepted. */
-    if (ip + 10 > bc_len)
+    if (ip + 10 > bc_len) {
       return false;
+    }
     uint32_t lit_len = search_read_u32(bc, ip + 5);
-    if (ip + 9 + lit_len > bc_len)
+    if (ip + 9 + lit_len > bc_len) {
       return false;
+    }
     /* Pool budget: the trie needs at most 1 + sum(len_i) nodes, so bound
      * the total literal bytes to keep every build inside the fixed pool.
      * Over-budget alternations fall through to the search-VM / general
      * tiers, which are correct. */
     *lit_bytes += lit_len;
-    if (*lit_bytes > SNOBOL_AUTO_MAX_LIT_BYTES)
+    if (*lit_bytes > SNOBOL_AUTO_MAX_LIT_BYTES) {
       return false;
+    }
     size_t cur = ip + 9 + lit_len;
     size_t guard = 0;
     while (cur < bc_len && bc[cur] == OP_JMP) {
-      if (++guard > bc_len)
+      if (++guard > bc_len) {
         return false; /* cycle guard */
+      }
       cur = (size_t)search_read_u32(bc, cur + 1);
     }
-    if (cur >= bc_len || bc[cur] != OP_ACCEPT)
-      return false;
-    return true;
+    return (cur >= bc_len || bc[cur] != OP_ACCEPT) == false;
   }
 
   if (op == OP_SPLIT) {
     /* Branch node: recurse into both arms */
-    if (ip + 9 > bc_len)
+    if (ip + 9 > bc_len) {
       return false;
+    }
     uint32_t a = search_read_u32(bc, ip + 1);
     uint32_t b = search_read_u32(bc, ip + 5);
-    if (a >= bc_len || b >= bc_len)
+    if (a >= bc_len || b >= bc_len) {
       return false;
-    return check_alt_literals(bc, bc_len, a, lit_bytes) &&
-           check_alt_literals(bc, bc_len, b, lit_bytes);
+    }
+    return (check_alt_literals(bc, bc_len, a, lit_bytes) &&
+            check_alt_literals(bc, bc_len, b, lit_bytes)) != 0;
   }
 
   return false;
@@ -819,8 +880,9 @@ static bool SNOBOL_PURE check_alt_literals(const uint8_t *bc, size_t bc_len,
  * ---------------------------------------------------------------------------
  */
 static bool check_literal_only(const uint8_t *bc, size_t bc_len) {
-  if (!bc || bc_len < 2)
+  if (!bc || bc_len < 2) {
     return false;
+  }
   size_t ip = 0;
 
   /* Skip leading zero-width ops (NOP / FENCE only).  ANCHOR and the
@@ -837,15 +899,18 @@ static bool check_literal_only(const uint8_t *bc, size_t bc_len) {
   }
 
   /* Must start with LIT */
-  if (ip + 9 > bc_len)
+  if (ip + 9 > bc_len) {
     return false;
-  if (bc[ip] != OP_LIT)
+  }
+  if (bc[ip] != OP_LIT) {
     return false;
+  }
   uint32_t lit_off = search_read_u32(bc, ip + 1);
   uint32_t lit_len = search_read_u32(bc, ip + 5);
   ip += 9;
-  if (lit_off >= bc_len || lit_off + lit_len > bc_len || lit_len == 0)
+  if (lit_off >= bc_len || lit_off + lit_len > bc_len || lit_len == 0) {
     return false;
+  }
   ip += lit_len;
 
   /* Skip trailing zero-width ops (NOP / FENCE only — position-constrained
@@ -860,8 +925,9 @@ static bool check_literal_only(const uint8_t *bc, size_t bc_len) {
   }
 
   /* Must end with ACCEPT (possibly OP_ACCEPT = 0) */
-  if (ip >= bc_len)
+  if (ip >= bc_len) {
     return false;
+  }
   return bc[ip] == OP_ACCEPT;
 }
 
@@ -958,8 +1024,9 @@ static bool bc_has_capture(const uint8_t *bc, size_t bc_len) {
 }
 
 static bool check_search_vm_eligible(const uint8_t *bc, size_t bc_len) {
-  if (!bc || bc_len < 2)
+  if (!bc || bc_len < 2) {
     return false;
+  }
   size_t ip = 0;
   while (ip < bc_len) {
     uint8_t op = bc[ip++];
@@ -990,18 +1057,21 @@ static bool check_search_vm_eligible(const uint8_t *bc, size_t bc_len) {
       case OP_ABORT:
       case OP_SUCCEED: return true;
       case OP_JMP:
-        if (ip + 4 > bc_len)
+        if (ip + 4 > bc_len) {
           return false;
+        }
         ip += 4;
         break;
       case OP_SPLIT:
-        if (ip + 8 > bc_len)
+        if (ip + 8 > bc_len) {
           return false;
+        }
         ip += 8;
         break;
       case OP_LIT: {
-        if (ip + 8 > bc_len)
+        if (ip + 8 > bc_len) {
           return false;
+        }
         uint32_t lit_len = search_read_u32(bc, ip + 4);
         ip += 8 + lit_len;
         break;
@@ -1010,8 +1080,9 @@ static bool check_search_vm_eligible(const uint8_t *bc, size_t bc_len) {
       case OP_NOTANY:
       case OP_SPAN:
       case OP_BREAK:
-        if (ip + 2 > bc_len)
+        if (ip + 2 > bc_len) {
           return false;
+        }
         ip += 2;
         break;
       case OP_LEN:
@@ -1019,8 +1090,9 @@ static bool check_search_vm_eligible(const uint8_t *bc, size_t bc_len) {
       case OP_RTAB:
       case OP_POS:
       case OP_TAB:
-        if (ip + 4 > bc_len)
+        if (ip + 4 > bc_len) {
           return false;
+        }
         ip += 4;
         break;
       case OP_ANCHOR:
@@ -1029,30 +1101,35 @@ static bool check_search_vm_eligible(const uint8_t *bc, size_t bc_len) {
         /* zero-width, no operands beyond opcode */
         break;
       case OP_REPEAT_INIT:
-        if (ip + 13 > bc_len)
+        if (ip + 13 > bc_len) {
           return false;
+        }
         ip += 13;
         break;
       case OP_REPEAT_STEP:
-        if (ip + 5 > bc_len)
+        if (ip + 5 > bc_len) {
           return false;
+        }
         ip += 5;
         break;
       /* Capture-aware ops now supported by search-VM */
       case OP_CAP_START:
       case OP_CAP_END:
-        if (ip + 1 > bc_len)
+        if (ip + 1 > bc_len) {
           return false;
+        }
         ip += 1; /* uint8 register index */
         break;
       case OP_ASSIGN:
-        if (ip + 3 > bc_len)
+        if (ip + 3 > bc_len) {
           return false;
+        }
         ip += 3; /* uint16 var index + uint8 cap register */
         break;
       case OP_BREAKX:
-        if (ip + 2 > bc_len)
+        if (ip + 2 > bc_len) {
           return false;
+        }
         ip += 2; /* uint16 set_id */
         break;
       default: return false;
@@ -1077,8 +1154,9 @@ static inline void fusion_bitmap_from_ascii(uint8_t bm[32],
 }
 
 static inline void fusion_bitmap_invert(uint8_t bm[32]) {
-  for (int i = 0; i < 16; i++)
+  for (int i = 0; i < 16; i++) {
     bm[i] = (uint8_t)~bm[i];
+  }
   memset(bm + 16, 0xFF, 16);
 }
 
@@ -1112,15 +1190,18 @@ static inline void fusion_bitmap_invert(uint8_t bm[32]) {
  */
 static snobol_fusion_t *check_fusion_eligible(
     const uint8_t *bc, size_t bc_len, const snobol_search_meta_t *meta) {
-  if (!bc || bc_len < 2)
-    return NULL;
-  if (meta->has_capture)
-    return NULL;
+  if (!bc || bc_len < 2) {
+    return nullptr;
+  }
+  if (meta->has_capture) {
+    return nullptr;
+  }
 
   snobol_fusion_t *fusion =
       (snobol_fusion_t *)snobol_calloc(1, sizeof(snobol_fusion_t));
-  if (!fusion)
-    return NULL;
+  if (!fusion) {
+    return nullptr;
+  }
   fusion->count = 0;
 
   VM tmp_vm;
@@ -1144,20 +1225,21 @@ static snobol_fusion_t *check_fusion_eligible(
     if (op == OP_ANCHOR || op == OP_POS || op == OP_RPOS || op == OP_TAB ||
         op == OP_RTAB) {
       snobol_fusion_free(fusion);
-      return NULL;
+      return nullptr;
     }
 
-    if (op == OP_ACCEPT || op == OP_SUCCEED)
+    if (op == OP_ACCEPT || op == OP_SUCCEED) {
       break;
+    }
 
     if (op == OP_FAIL || op == OP_ABORT) {
       snobol_fusion_free(fusion);
-      return NULL;
+      return nullptr;
     }
 
     if (fusion->count >= MAX_FUSION_SEGMENTS) {
       snobol_fusion_free(fusion);
-      return NULL;
+      return nullptr;
     }
 
     snobol_fusion_segment_t *seg = &fusion->segs[fusion->count];
@@ -1166,13 +1248,13 @@ static snobol_fusion_t *check_fusion_eligible(
       case OP_LIT: {
         if (ip + 9 > bc_len) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint32_t lit_off = search_read_u32(bc, ip + 1);
         uint32_t lit_len = search_read_u32(bc, ip + 5);
         if (lit_off >= bc_len || lit_off + lit_len > bc_len) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         if (lit_len == 0) {
           ip += 9;
@@ -1189,19 +1271,20 @@ static snobol_fusion_t *check_fusion_eligible(
       case OP_SPAN: {
         if (ip + 3 > bc_len) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint16_t set_id = search_read_u16(bc, ip + 1);
-        uint16_t count = 0, ci = 0;
+        uint16_t count = 0;
+        uint16_t ci = 0;
         const uint8_t *ranges = get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
         if (!ranges) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint64_t abm[2] = {0, 0};
         if (!ranges_to_ascii_bitmap(ranges, count, abm)) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         seg->type = FUSION_RUN;
         fusion_bitmap_from_ascii(seg->run.bitmap, abm);
@@ -1214,19 +1297,20 @@ static snobol_fusion_t *check_fusion_eligible(
       case OP_ANY: {
         if (ip + 3 > bc_len) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint16_t set_id = search_read_u16(bc, ip + 1);
-        uint16_t count = 0, ci = 0;
+        uint16_t count = 0;
+        uint16_t ci = 0;
         const uint8_t *ranges = get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
         if (!ranges) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint64_t abm[2] = {0, 0};
         if (!ranges_to_ascii_bitmap(ranges, count, abm)) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         seg->type = FUSION_CHAR;
         fusion_bitmap_from_ascii(seg->chr.bitmap, abm);
@@ -1238,19 +1322,20 @@ static snobol_fusion_t *check_fusion_eligible(
       case OP_NOTANY: {
         if (ip + 3 > bc_len) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint16_t set_id = search_read_u16(bc, ip + 1);
-        uint16_t count = 0, ci = 0;
+        uint16_t count = 0;
+        uint16_t ci = 0;
         const uint8_t *ranges = get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
         if (!ranges) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint64_t abm[2] = {0, 0};
         if (!ranges_to_ascii_bitmap(ranges, count, abm)) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         seg->type = FUSION_CHAR;
         fusion_bitmap_from_ascii(seg->chr.bitmap, abm);
@@ -1263,19 +1348,20 @@ static snobol_fusion_t *check_fusion_eligible(
       case OP_BREAK: {
         if (ip + 3 > bc_len) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint16_t set_id = search_read_u16(bc, ip + 1);
-        uint16_t count = 0, ci = 0;
+        uint16_t count = 0;
+        uint16_t ci = 0;
         const uint8_t *ranges = get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
         if (!ranges) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint64_t abm[2] = {0, 0};
         if (!ranges_to_ascii_bitmap(ranges, count, abm)) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         seg->type = FUSION_RUN;
         fusion_bitmap_from_ascii(seg->run.bitmap, abm);
@@ -1289,13 +1375,13 @@ static snobol_fusion_t *check_fusion_eligible(
       case OP_SPLIT: {
         if (ip + 9 > bc_len) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
         uint32_t branch_a = search_read_u32(bc, ip + 1);
         uint32_t branch_b = search_read_u32(bc, ip + 5);
         if (branch_a >= bc_len || branch_b >= bc_len) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
 
         seg->type = FUSION_ALT;
@@ -1313,7 +1399,7 @@ static snobol_fusion_t *check_fusion_eligible(
                   1, MAX_FUSION_SEGMENTS * sizeof(snobol_fusion_segment_t));
           if (!alt_segs) {
             snobol_fusion_free(fusion);
-            return NULL;
+            return nullptr;
           }
 
           uint32_t alt_count = 0;
@@ -1371,7 +1457,8 @@ static snobol_fusion_t *check_fusion_eligible(
                   break;
                 }
                 uint16_t set_id = search_read_u16(bc, cur_ip + 1);
-                uint16_t count = 0, ci = 0;
+                uint16_t count = 0;
+                uint16_t ci = 0;
                 const uint8_t *ranges =
                     get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
                 if (!ranges) {
@@ -1396,7 +1483,8 @@ static snobol_fusion_t *check_fusion_eligible(
                   break;
                 }
                 uint16_t set_id = search_read_u16(bc, cur_ip + 1);
-                uint16_t count = 0, ci = 0;
+                uint16_t count = 0;
+                uint16_t ci = 0;
                 const uint8_t *ranges =
                     get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
                 if (!ranges) {
@@ -1420,7 +1508,8 @@ static snobol_fusion_t *check_fusion_eligible(
                   break;
                 }
                 uint16_t set_id = search_read_u16(bc, cur_ip + 1);
-                uint16_t count = 0, ci = 0;
+                uint16_t count = 0;
+                uint16_t ci = 0;
                 const uint8_t *ranges =
                     get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
                 if (!ranges) {
@@ -1445,7 +1534,8 @@ static snobol_fusion_t *check_fusion_eligible(
                   break;
                 }
                 uint16_t set_id = search_read_u16(bc, cur_ip + 1);
-                uint16_t count = 0, ci = 0;
+                uint16_t count = 0;
+                uint16_t ci = 0;
                 const uint8_t *ranges =
                     get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
                 if (!ranges) {
@@ -1472,7 +1562,7 @@ static snobol_fusion_t *check_fusion_eligible(
           if (!alt_valid || alt_count == 0) {
             snobol_free(alt_segs);
             snobol_fusion_free(fusion);
-            return NULL;
+            return nullptr;
           }
 
           if (seg->alt.alt_count < MAX_FUSION_ALT) {
@@ -1482,13 +1572,13 @@ static snobol_fusion_t *check_fusion_eligible(
           } else {
             snobol_free(alt_segs);
             snobol_fusion_free(fusion);
-            return NULL;
+            return nullptr;
           }
         }
 
         if (seg->alt.alt_count < 2) {
           snobol_fusion_free(fusion);
-          return NULL;
+          return nullptr;
         }
 
         ip += 9;
@@ -1496,26 +1586,28 @@ static snobol_fusion_t *check_fusion_eligible(
         break;
       }
 
-      default: snobol_fusion_free(fusion); return NULL;
+      default: snobol_fusion_free(fusion); return nullptr;
     }
   }
 
   if (fusion->count < 2) {
     snobol_fusion_free(fusion);
-    return NULL;
+    return nullptr;
   }
 
   return fusion;
 }
 
 void snobol_fusion_free(snobol_fusion_t *fusion) {
-  if (!fusion)
+  if (!fusion) {
     return;
+  }
   for (uint32_t i = 0; i < fusion->count; i++) {
     if (fusion->segs[i].type == FUSION_ALT) {
       for (uint32_t j = 0; j < fusion->segs[i].alt.alt_count; j++) {
-        if (fusion->segs[i].alt.alts[j])
+        if (fusion->segs[i].alt.alts[j]) {
           snobol_free(fusion->segs[i].alt.alts[j]);
+        }
       }
     }
   }
@@ -1541,8 +1633,9 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
   /* Zero everything */
   memset(out, 0, sizeof(*out));
 
-  if (!bc || bc_len < 2)
+  if (!bc || bc_len < 2) {
     return;
+  }
 
   /* ---- Skip any leading cap/anchor ops that don't consume input ---- */
   size_t ip = 0;
@@ -1552,15 +1645,17 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
   while (ip < bc_len) {
     uint8_t peek = bc[ip];
     if (peek == OP_ANCHOR) {
-      if (ip + 2 > bc_len)
+      if (ip + 2 > bc_len) {
         break; /* truncated opcode: bail, leave meta unclassified */
+      }
       ip += 2;
       continue;
     } /* op + type:u8 */
     if (peek == OP_POS || peek == OP_RPOS || peek == OP_TAB ||
         peek == OP_RTAB) {
-      if (ip + 5 > bc_len)
+      if (ip + 5 > bc_len) {
         break; /* truncated opcode: bail, leave meta unclassified */
+      }
       ip += 5;
       continue;
     } /* op + target:u32 */
@@ -1636,7 +1731,8 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
     memset(&tmp_vm, 0, sizeof(tmp_vm));
     tmp_vm.bc = bc;
     tmp_vm.bc_len = bc_len;
-    uint16_t count = 0, ci = 0;
+    uint16_t count = 0;
+    uint16_t ci = 0;
     const uint8_t *ranges = get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
     if (ranges) {
       out->ascii_class_only =
@@ -1668,7 +1764,8 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
     memset(&tmp_vm, 0, sizeof(tmp_vm));
     tmp_vm.bc = bc;
     tmp_vm.bc_len = bc_len;
-    uint16_t count = 0, ci = 0;
+    uint16_t count = 0;
+    uint16_t ci = 0;
     const uint8_t *ranges = get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
     if (ranges) {
       out->ascii_class_only =
@@ -1693,7 +1790,8 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
     memset(&tmp_vm, 0, sizeof(tmp_vm));
     tmp_vm.bc = bc;
     tmp_vm.bc_len = bc_len;
-    uint16_t count = 0, ci = 0;
+    uint16_t count = 0;
+    uint16_t ci = 0;
     const uint8_t *ranges = get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
     if (ranges && count > 0) {
       /* Build 4×u64 ASCII bitmap from the charclass ranges */
@@ -1722,7 +1820,8 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
     memset(&tmp_vm, 0, sizeof(tmp_vm));
     tmp_vm.bc = bc;
     tmp_vm.bc_len = bc_len;
-    uint16_t count = 0, ci = 0;
+    uint16_t count = 0;
+    uint16_t ci = 0;
     const uint8_t *ranges = get_ranges_ptr(&tmp_vm, set_id, &count, &ci);
     if (ranges && count > 0) {
       uint64_t tmp[4];
@@ -1786,8 +1885,9 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
   } while (0)
 
     CHECK_SINGLE_LIT(branch_a);
-    if (all_single)
+    if (all_single) {
       CHECK_SINGLE_LIT(branch_b);
+    }
 
 #undef CHECK_SINGLE_LIT
 
@@ -1800,14 +1900,16 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
       memset(out->candidate_bitmap, 0, sizeof(out->candidate_bitmap));
       for (size_t i = 0; i < alt_count; i++) {
         uint8_t b = alt_bytes[i];
-        if (b < 64)
+        if (b < 64) {
           out->candidate_bitmap[0] |= (1ULL << b);
-        else if (b < 128)
+        } else if (b < 128) {
           out->candidate_bitmap[1] |= (1ULL << (b - 64));
+        }
       }
       out->has_first_byte = (alt_count == 1);
-      if (out->has_first_byte)
+      if (out->has_first_byte) {
         out->first_byte = alt_bytes[0];
+      }
       out->always_consumes = true;
       out->may_match_empty = false;
     }
@@ -1822,17 +1924,20 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
   if (op0 == OP_SPLIT && bc_len >= 10) {
     size_t bc_remain = bc_len > 2048 ? 2048 : bc_len;
     size_t lit_bytes = 0;
-    out->is_alt_literals = check_alt_literals(bc, bc_remain, 0, &lit_bytes) &&
-                           lit_bytes <= SNOBOL_AUTO_MAX_LIT_BYTES;
+    out->is_alt_literals = ((check_alt_literals(bc, bc_remain, 0, &lit_bytes) &&
+                             lit_bytes <= SNOBOL_AUTO_MAX_LIT_BYTES) != 0);
     /* An empty branch makes the alternation match empty at any position. */
-    if (out->is_alt_literals && alt_has_empty_branch(bc, bc_remain))
+    if (out->is_alt_literals && alt_has_empty_branch(bc, bc_remain)) {
       out->may_match_empty = true;
+    }
     /* Flat vs bushy: flat alternatives share no prefix and gain nothing
      * from the trie, so they are routed to TIER_GENERAL (which already has
      * start-bitmap + BMH + minlength acceleration).  This eliminates the
      * 125x regression on flat alternation patterns. */
-    if (out->is_alt_literals)
-      out->is_alt_literals_flat = !alt_literals_share_prefix(bc, bc_remain, 0);
+    if (out->is_alt_literals) {
+      out->is_alt_literals_flat =
+          ((!alt_literals_share_prefix(bc, bc_remain, 0)) != 0);
+    }
 
     /* P5: a shared leading prefix across the alternatives lets the per-offset
      * trial loop (TIER_GENERAL / TIER_AUTOMATON) skip failing positions by more
@@ -1911,51 +2016,71 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
      * ANY position, so the start-bitmap filter must not reject candidates
      * (e.g. an empty alternation branch matches subjects whose bytes are
      * not in any literal's start set). */
-    if (out->may_match_empty)
+    if (out->may_match_empty) {
       bitmap256_set_all(out->start_bitmap);
+    }
   }
   out->minlength = compute_minlength(bc, bc_len, 0, 0);
 
   /* ---- Pack boolean flags into flags bitfield ---- */
   out->flags = 0;
-  if (out->has_literal_prefix)
+  if (out->has_literal_prefix) {
     out->flags |= META_HAS_LITERAL_PREFIX;
-  if (out->has_first_byte)
+  }
+  if (out->has_first_byte) {
     out->flags |= META_HAS_FIRST_BYTE;
-  if (out->has_candidate_bitmap)
+  }
+  if (out->has_candidate_bitmap) {
     out->flags |= META_HAS_CANDIDATE_BITMAP;
-  if (out->may_match_empty)
+  }
+  if (out->may_match_empty) {
     out->flags |= META_MAY_MATCH_EMPTY;
-  if (out->always_consumes)
+  }
+  if (out->always_consumes) {
     out->flags |= META_ALWAYS_CONSUMES;
-  if (out->is_single_char_alt)
+  }
+  if (out->is_single_char_alt) {
     out->flags |= META_IS_SINGLE_CHAR_ALT;
-  if (out->is_break_family)
+  }
+  if (out->is_break_family) {
     out->flags |= META_IS_BREAK_FAMILY;
-  if (out->is_span_family)
+  }
+  if (out->is_span_family) {
     out->flags |= META_IS_SPAN_FAMILY;
-  if (out->is_breakx)
+  }
+  if (out->is_breakx) {
     out->flags |= META_IS_BREAKX;
-  if (out->ascii_class_only)
+  }
+  if (out->ascii_class_only) {
     out->flags |= META_ASCII_CLASS_ONLY;
-  if (out->has_start_bitmap)
+  }
+  if (out->has_start_bitmap) {
     out->flags |= META_HAS_START_BITMAP;
-  if (out->automaton_eligible)
+  }
+  if (out->automaton_eligible) {
     out->flags |= META_AUTOMATON_ELIGIBLE;
-  if (out->is_alt_literals)
+  }
+  if (out->is_alt_literals) {
     out->flags |= META_IS_ALT_LITERALS;
-  if (out->is_alt_literals_flat)
+  }
+  if (out->is_alt_literals_flat) {
     out->flags |= META_IS_ALT_LITERALS_FLAT;
-  if (out->has_bmh_skip)
+  }
+  if (out->has_bmh_skip) {
     out->flags |= META_HAS_BMH_SKIP;
-  if (out->is_literal_only)
+  }
+  if (out->is_literal_only) {
     out->flags |= META_IS_LITERAL_ONLY;
-  if (out->search_vm_eligible)
+  }
+  if (out->search_vm_eligible) {
     out->flags |= META_SEARCH_VM_ELIGIBLE;
-  if (out->simd_eligible)
+  }
+  if (out->simd_eligible) {
     out->flags |= META_SIMD_ELIGIBLE;
-  if (out->fusion_eligible)
+  }
+  if (out->fusion_eligible) {
     out->flags |= META_FUSION_ELIGIBLE;
+  }
 
   /* ---- Capture-aware tier gating ----
    * Only TIER_SEARCH_VM (6) and TIER_GENERAL (8) record captures.  Every other
@@ -1982,31 +2107,32 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
   }
 
   /* ---- Compute tier index from flags ---- */
-  if (out->is_break_family && out->ascii_class_only)
+  if (out->is_break_family && out->ascii_class_only) {
     out->tier = TIER_BREAK_SCAN;
-  else if (out->is_span_family && out->ascii_class_only)
+  } else if (out->is_span_family && out->ascii_class_only) {
     out->tier = TIER_SPAN_SCAN;
-  else if (out->is_literal_only)
+  } else if (out->is_literal_only) {
     out->tier = TIER_LITERAL;
-  else if (out->has_literal_prefix && out->literal_prefix_len > 0)
+  } else if (out->has_literal_prefix && out->literal_prefix_len > 0) {
     out->tier = TIER_PREFIX;
-  else if (out->has_candidate_bitmap && out->is_single_char_alt)
+  } else if (out->has_candidate_bitmap && out->is_single_char_alt) {
     out->tier = TIER_BITMAP;
-  else if (out->is_alt_literals && !out->is_alt_literals_flat)
+  } else if (out->is_alt_literals && !out->is_alt_literals_flat) {
     out->tier = TIER_ALT_LIT;
-  else if (
-      out->is_alt_literals) /* flat: trie (no minlength accel, but correct) */
+  } else if (
+      out->is_alt_literals) { /* flat: trie (no minlength accel, but correct) */
     out->tier = TIER_ALT_LIT;
-  else if (out->fusion_eligible)
+  } else if (out->fusion_eligible) {
     out->tier = TIER_FUSED_AUTOMATON;
-  else if (out->simd_eligible)
+  } else if (out->simd_eligible) {
     out->tier = TIER_SIMD_NFA;
-  else if (out->search_vm_eligible)
+  } else if (out->search_vm_eligible) {
     out->tier = TIER_SEARCH_VM;
-  else if (out->automaton_eligible)
+  } else if (out->automaton_eligible) {
     out->tier = TIER_AUTOMATON;
-  else
+  } else {
     out->tier = TIER_GENERAL;
+  }
 
   /* ---- Required-byte pre-filter: find the last literal in the bytecode.
    * Forward scan: track the last OP_LIT encountered; if we see OP_SPLIT
@@ -2035,8 +2161,9 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
        * the first ACCEPT/SUCCEED are unreachable (e.g. charclass metadata
        * or other trailing data that can mimic literal instructions) and
        * must not contribute a "required" literal. */
-      if (op == OP_ACCEPT || op == OP_SUCCEED || op == OP_ABORT)
+      if (op == OP_ACCEPT || op == OP_SUCCEED || op == OP_ABORT) {
         break;
+      }
       if (op == OP_LIT && scan + 9 <= bc_len) {
         last_lit_off = scan;
         uint32_t lit_off = search_read_u32(bc, scan + 1);
@@ -2051,8 +2178,9 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
            * previous literal, or when it sits inside a min==0 loop body.
            * An EMPTY literal does not replace last_lit, so it must not
            * change the bypass state of the record it leaves in place. */
-          lit_bypassed = split_seen_before_lit || split_branch_bypass ||
-                         (skippable_loop_end > 0 && scan < skippable_loop_end);
+          lit_bypassed =
+              ((split_seen_before_lit || split_branch_bypass ||
+                (skippable_loop_end > 0 && scan < skippable_loop_end)) != 0);
         }
         scan += 9 + (size_t)lit_len;
         continue;
@@ -2086,14 +2214,16 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
             uint32_t b_off = check[bi];
             /* Skip past the branch's first instruction (if LIT = 9+lit_len,
              * if JMP = 5, otherwise assume 1) */
-            if (b_off >= bc_len)
+            if (b_off >= bc_len) {
               continue;
+            }
             uint8_t b_op = bc[b_off];
             size_t b_skip = 1;
-            if (b_op == OP_LIT && b_off + 9 <= bc_len)
+            if (b_op == OP_LIT && b_off + 9 <= bc_len) {
               b_skip = 9 + (size_t)search_read_u32(bc, b_off + 5);
-            else if (b_op == OP_JMP)
+            } else if (b_op == OP_JMP) {
               b_skip = 5;
+            }
             size_t jmp_off = b_off + b_skip;
             if (jmp_off + 5 <= bc_len && bc[jmp_off] == OP_JMP) {
               uint32_t jt = search_read_u32(bc, jmp_off + 1);
@@ -2108,9 +2238,9 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
       }
       /* Advance by opcode size */
       size_t adv = 1;
-      if (op == OP_SPLIT)
-        adv = 9;
-      else if (op == OP_REPEAT_INIT) {
+      if (op == OP_SPLIT) {
+        { adv = 9; }
+      } else if (op == OP_REPEAT_INIT) {
         adv = 14;
         /* min==0 repetition: the skip edge (zero iterations) bypasses the
          * whole loop body, so literals inside [scan, skip_target) are not
@@ -2123,21 +2253,23 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
             skippable_loop_end = skip;
           }
         }
-      } else if (op == OP_REPEAT_STEP)
-        adv = 6;
-      else if (op == OP_JMP || op == OP_LEN || op == OP_POS || op == OP_RPOS ||
-               op == OP_TAB || op == OP_RTAB)
-        adv = 5;
-      else if (op == OP_ANCHOR || op == OP_CAP_START || op == OP_CAP_END)
-        adv = 2;
-      else if (op == OP_ANY || op == OP_NOTANY || op == OP_SPAN ||
-               op == OP_BREAK || op == OP_BREAKX)
-        adv = 3;
-      else if (op == OP_ASSIGN)
-        adv = 4;
+      } else if (op == OP_REPEAT_STEP) {
+        { adv = 6; }
+      } else if (op == OP_JMP || op == OP_LEN || op == OP_POS ||
+                 op == OP_RPOS || op == OP_TAB || op == OP_RTAB) {
+        { adv = 5; }
+      } else if (op == OP_ANCHOR || op == OP_CAP_START || op == OP_CAP_END) {
+        { adv = 2; }
+      } else if (op == OP_ANY || op == OP_NOTANY || op == OP_SPAN ||
+                 op == OP_BREAK || op == OP_BREAKX) {
+        { adv = 3; }
+      } else if (op == OP_ASSIGN) {
+        { adv = 4; }
+      }
       scan += adv;
-      if (adv == 0 || scan > bc_len)
+      if (adv == 0 || scan > bc_len) {
         break;
+      }
     }
     /* Set required literal when it was found and is NOT bypassed by any
      * SPLIT branch (no alternative ending).  Also skip alt-literals
@@ -2175,21 +2307,23 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
 }
 
 void snobol_search_meta_free(snobol_search_meta_t *meta) {
-  if (!meta)
+  if (!meta) {
     return;
+  }
   if (meta->bmh_skip) {
     snobol_free(meta->bmh_skip);
-    meta->bmh_skip = NULL;
+    meta->bmh_skip = nullptr;
   }
   if (meta->fusion) {
     snobol_fusion_free(meta->fusion);
-    meta->fusion = NULL;
+    meta->fusion = nullptr;
   }
 }
 
 void snobol_search_vm_cleanup(VM *vm) {
-  if (!vm)
+  if (!vm) {
     return;
+  }
   if (vm->pike_thread_buf) {
     snobol_free(vm->pike_thread_buf);
     vm->pike_thread_buf = NULL;
@@ -2200,7 +2334,7 @@ void snobol_search_vm_cleanup(VM *vm) {
   }
   if (vm->choices_arena) {
     vm_arena_destroy(vm->choices_arena);
-    vm->choices_arena = NULL;
+    vm->choices_arena = nullptr;
   }
   vm_trail_free(vm);
   vm_write_log_free(vm);
@@ -2270,20 +2404,23 @@ snobol_search_tier_t select_tier_by_cost(const snobol_search_meta_t *meta,
       case TIER_BREAK_SCAN:
         /* BREAK/BREAKX relocate the match to the first break byte — only valid
        * for scanning; excluded when anchored (fixed offset). */
-        eligible = !anchored && meta->is_break_family && meta->ascii_class_only;
+        eligible = ((!anchored && meta->is_break_family &&
+                     meta->ascii_class_only) != 0);
         break;
       case TIER_SPAN_SCAN:
-        eligible = !anchored && meta->is_span_family && meta->ascii_class_only;
+        eligible = ((!anchored && meta->is_span_family &&
+                     meta->ascii_class_only) != 0);
         break;
       case TIER_LITERAL: eligible = meta->is_literal_only; break;
       case TIER_PREFIX:
         /* memmem/memchr prefix scan relocates the match — only valid for
        * scanning; excluded when anchored. */
-        eligible = !anchored && meta->has_literal_prefix &&
-                   meta->literal_prefix_len > 0;
+        eligible = ((!anchored && meta->has_literal_prefix &&
+                     meta->literal_prefix_len > 0) != 0);
         break;
       case TIER_BITMAP:
-        eligible = meta->has_candidate_bitmap && meta->is_single_char_alt;
+        eligible =
+            ((meta->has_candidate_bitmap && meta->is_single_char_alt) != 0);
         break;
       case TIER_ALT_LIT:
         /* Both bushy and flat alt-literals use the trie. */
@@ -2291,21 +2428,22 @@ snobol_search_tier_t select_tier_by_cost(const snobol_search_meta_t *meta,
         break;
       case TIER_SEARCH_VM:
         /* Alt-literals never use the search VM: flat and bushy -> ALT_LIT. */
-        eligible = meta->search_vm_eligible && !meta->is_alt_literals;
+        eligible = ((meta->search_vm_eligible && !meta->is_alt_literals) != 0);
         break;
       case TIER_SIMD_NFA:
-        eligible = meta->simd_eligible && meta->ascii_class_only;
+        eligible = ((meta->simd_eligible && meta->ascii_class_only) != 0);
         break;
       case TIER_FUSED_AUTOMATON:
-        eligible = meta->fusion_eligible && !meta->has_literal_prefix;
+        eligible = ((meta->fusion_eligible && !meta->has_literal_prefix) != 0);
         break;
       case TIER_GENERAL:
         eligible = true; /* always available as fallback */
         break;
       default: eligible = false; break;
     }
-    if (!eligible)
+    if (!eligible) {
       continue;
+    }
 
     int32_t cost =
         c->setup_ns + (int32_t)(subject_len / (size_t)c->per_byte_div);

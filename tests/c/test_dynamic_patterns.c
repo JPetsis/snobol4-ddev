@@ -56,7 +56,7 @@ static void test_dynamic_pattern_create_free(void) {
   test_assert(pattern->bc != NULL, "bytecode pointer is stored");
   test_assert(pattern->bc_len == 8, "bytecode length is stored");
   test_assert(pattern->refcount == 1, "initial refcount is 1");
-  test_assert(pattern->is_valid == true, "pattern is valid");
+  test_assert(pattern->is_valid, "pattern is valid");
   test_assert(pattern->source != NULL, "source is copied");
   test_assert(strcmp(pattern->source, "test pattern") == 0,
               "source content matches");
@@ -71,10 +71,10 @@ static void test_dynamic_pattern_create_null_source(void) {
   size_t bc_len;
   uint8_t *bc = create_mock_bytecode(&bc_len);
 
-  dynamic_pattern_t *pattern = dynamic_pattern_create(NULL, bc, bc_len);
+  dynamic_pattern_t *pattern = dynamic_pattern_create(nullptr, bc, bc_len);
   test_assert(pattern != NULL, "create with NULL source succeeds");
   test_assert(pattern->source == NULL, "source is NULL");
-  test_assert(pattern->is_valid == true, "pattern is still valid");
+  test_assert(pattern->is_valid, "pattern is still valid");
 
   dynamic_pattern_release(pattern);
 }
@@ -82,9 +82,9 @@ static void test_dynamic_pattern_create_null_source(void) {
 static void test_dynamic_pattern_create_invalid(void) {
   test_suite("Dynamic Pattern: create with NULL bytecode");
 
-  dynamic_pattern_t *pattern = dynamic_pattern_create("test", NULL, 0);
+  dynamic_pattern_t *pattern = dynamic_pattern_create("test", nullptr, 0);
   test_assert(pattern != NULL, "create with NULL bytecode succeeds");
-  test_assert(pattern->is_valid == false, "pattern is marked invalid");
+  test_assert(!pattern->is_valid, "pattern is marked invalid");
 
   dynamic_pattern_release(pattern);
 }
@@ -126,7 +126,8 @@ static void test_dynamic_pattern_hash_function(void) {
 static void test_dynamic_pattern_cache_key(void) {
   test_suite("Dynamic Pattern: cache key computation");
 
-  dynamic_pattern_cache_key_t key1, key2;
+  dynamic_pattern_cache_key_t key1;
+  dynamic_pattern_cache_key_t key2;
 
   dynamic_pattern_compute_key("test", 4, &key1);
   dynamic_pattern_compute_key("test", 4, &key2);
@@ -145,7 +146,7 @@ static void test_dynamic_pattern_cache_init_destroy(void) {
 
   dynamic_pattern_cache_t cache;
   bool result = dynamic_pattern_cache_init(&cache, 10);
-  test_assert(result == true, "cache init succeeds");
+  test_assert(result, "cache init succeeds");
   test_assert(cache.max_size == 10, "max_size is set");
   test_assert(cache.size == 0, "initial size is 0");
   test_assert(cache.buckets != NULL, "buckets allocated");
@@ -168,7 +169,7 @@ static void test_dynamic_pattern_cache_put_get(void) {
 
   dynamic_pattern_cache_t cache;
   bool init_result = dynamic_pattern_cache_init(&cache, 10);
-  test_assert(init_result == true, "cache init succeeds");
+  test_assert(init_result, "cache init succeeds");
   test_assert(cache.buckets != NULL, "cache buckets allocated");
   test_assert(cache.bucket_count > 0, "cache bucket_count > 0");
 
@@ -180,7 +181,7 @@ static void test_dynamic_pattern_cache_put_get(void) {
   test_assert(pattern != NULL, "pattern created");
 
   bool result = dynamic_pattern_cache_put(&cache, "test source", pattern);
-  test_assert(result == true, "cache put succeeds");
+  test_assert(result, "cache put succeeds");
   test_assert(cache.size == 1, "cache size is 1");
 
   dynamic_pattern_t *retrieved =
@@ -222,7 +223,7 @@ static void test_dynamic_pattern_cache_remove(void) {
   test_assert(cache.size == 1, "size is 1");
 
   bool result = dynamic_pattern_cache_remove(&cache, "test", -1);
-  test_assert(result == true, "remove returns true for existing key");
+  test_assert(result, "remove returns true for existing key");
   test_assert(cache.size == 0, "size is 0 after remove");
 
   dynamic_pattern_t *retrieved = dynamic_pattern_cache_get(&cache, "test", -1);
@@ -239,7 +240,7 @@ static void test_dynamic_pattern_cache_remove_missing(void) {
   dynamic_pattern_cache_init(&cache, 10);
 
   bool result = dynamic_pattern_cache_remove(&cache, "nonexistent", -1);
-  test_assert(result == false, "remove returns false for missing key");
+  test_assert(!result, "remove returns false for missing key");
 
   dynamic_pattern_cache_destroy(&cache);
 }
@@ -339,7 +340,8 @@ static void test_dynamic_pattern_cache_stats(void) {
   dynamic_pattern_cache_t cache;
   dynamic_pattern_cache_init(&cache, 10);
 
-  size_t size, max;
+  size_t size;
+  size_t max;
   dynamic_pattern_cache_stats(&cache, &size, &max);
   test_assert(size == 0, "initial size is 0");
   test_assert(max == 10, "max is 10");
@@ -370,7 +372,7 @@ static void test_dynamic_pattern_create_use_release_cycle(void) {
         dynamic_pattern_create("cycle pattern", bc, bc_len);
 
     /* Use the pattern */
-    test_assert(pattern->is_valid == true, "cycle: pattern is valid");
+    test_assert(pattern->is_valid, "cycle: pattern is valid");
     test_assert(pattern->bc_len == 8, "cycle: bytecode length correct");
 
     dynamic_pattern_release(pattern);
@@ -449,8 +451,8 @@ static void test_dynamic_pattern_vm_op_dynamic_def(void) {
 
   test_assert(test_bc[0] == OP_DYNAMIC_DEF,
               "OP_DYNAMIC_DEF opcode in bytecode");
-  test_assert(test_bc[1] == 0 && test_bc[2] == 0 && test_bc[3] == 0 &&
-                  test_bc[4] == 3,
+  test_assert((test_bc[1] == 0 && test_bc[2] == 0 && test_bc[3] == 0 &&
+               test_bc[4] == 3) != 0,
               "length encoding correct");
 }
 
@@ -498,10 +500,10 @@ static void test_dynamic_pattern_invalid_source_handling(void) {
   uint8_t *bc = create_mock_bytecode(&bc_len);
   pattern = dynamic_pattern_create("", bc, bc_len);
   test_assert(pattern != NULL, "create with empty source succeeds");
-  test_assert(pattern->is_valid == true, "empty source pattern is valid");
+  test_assert(pattern->is_valid, "empty source pattern is valid");
 
   bool result = dynamic_pattern_cache_put(&cache, "", pattern);
-  test_assert(result == true, "can cache with empty source key");
+  test_assert(result, "can cache with empty source key");
 
   dynamic_pattern_release(pattern);
   dynamic_pattern_cache_destroy(&cache);
@@ -522,7 +524,7 @@ static void test_dynamic_pattern_ownership_lifecycle(void) {
 
   /* Cache it - cache retains its own reference */
   bool put_result = dynamic_pattern_cache_put(&cache, "lifecycle", pattern);
-  test_assert(put_result == true, "put succeeds");
+  test_assert(put_result, "put succeeds");
   test_assert(pattern->refcount == 2, "refcount is 2 after cache put");
 
   /* Get it back - caller gets retained reference */

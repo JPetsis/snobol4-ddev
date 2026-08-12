@@ -55,8 +55,9 @@ void vm_write_log_clear(VM *vm) {
 }
 
 void vm_write_log_track_cap_start(VM *vm, uint8_t cap, size_t old_start) {
-  if (!vm->use_compact_choice || !vm->write_log)
+  if (!vm->use_compact_choice || !vm->write_log) {
     return;
+  }
   /* Look for existing entry for this cap (most recent first) */
   size_t slot =
       (vm->write_log_next > 0) ? vm->write_log_next - 1 : vm->write_log_cap - 1;
@@ -67,10 +68,11 @@ void vm_write_log_track_cap_start(VM *vm, uint8_t cap, size_t old_start) {
         return;
       }
     }
-    if (slot == 0)
+    if (slot == 0) {
       slot = vm->write_log_cap - 1;
-    else
+    } else {
       slot--;
+    }
   }
   /* No existing entry: create new */
   slot = vm->write_log_next++;
@@ -86,8 +88,9 @@ void vm_write_log_track_cap_start(VM *vm, uint8_t cap, size_t old_start) {
 }
 
 void vm_write_log_track_cap_end(VM *vm, uint8_t cap, size_t old_end) {
-  if (!vm->use_compact_choice || !vm->write_log)
+  if (!vm->use_compact_choice || !vm->write_log) {
     return;
+  }
   /* Look for existing entry for this cap (most recent first) */
   size_t slot =
       (vm->write_log_next > 0) ? vm->write_log_next - 1 : vm->write_log_cap - 1;
@@ -98,10 +101,11 @@ void vm_write_log_track_cap_end(VM *vm, uint8_t cap, size_t old_end) {
         return;
       }
     }
-    if (slot == 0)
+    if (slot == 0) {
       slot = vm->write_log_cap - 1;
-    else
+    } else {
       slot--;
+    }
   }
   /* No existing entry: create new */
   slot = vm->write_log_next++;
@@ -169,12 +173,14 @@ void vm_trail_clear(VM *vm) {
 void vm_trail_push(VM *vm, UndoRecord rec) {
   if (vm->trail_top >= vm->trail_cap) {
     size_t new_cap = vm->trail_cap ? vm->trail_cap * 2 : 256;
-    while (new_cap <= vm->trail_top)
+    while (new_cap <= vm->trail_top) {
       new_cap *= 2;
+    }
     UndoRecord *nt =
         (UndoRecord *)snobol_realloc(vm->trail, new_cap * sizeof(UndoRecord));
-    if (!nt)
+    if (!nt) {
       return;
+    }
     vm->trail = nt;
     vm->trail_cap = new_cap;
   }
@@ -183,8 +189,9 @@ void vm_trail_push(VM *vm, UndoRecord rec) {
 
 void vm_trail_counter_inc(VM *vm, uint8_t loop_id, uint32_t prior_count,
                           size_t prior_last_pos) {
-  if (!vm->use_compact_choice)
+  if (!vm->use_compact_choice) {
     return;
+  }
   UndoRecord r;
   memset(&r, 0, sizeof(r));
   r.kind = UNDO_COUNTER_DEC;
@@ -196,8 +203,9 @@ void vm_trail_counter_inc(VM *vm, uint8_t loop_id, uint32_t prior_count,
 
 void vm_trail_cap_write(VM *vm, uint8_t cap, uint8_t sub, size_t prior_start,
                         size_t prior_end) {
-  if (!vm->use_compact_choice)
+  if (!vm->use_compact_choice) {
     return;
+  }
   UndoRecord r;
   memset(&r, 0, sizeof(r));
   r.kind = UNDO_CAP_WRITE;
@@ -210,8 +218,9 @@ void vm_trail_cap_write(VM *vm, uint8_t cap, uint8_t sub, size_t prior_start,
 
 void vm_trail_var_write(VM *vm, uint8_t var, size_t prior_start,
                         size_t prior_end) {
-  if (!vm->use_compact_choice)
+  if (!vm->use_compact_choice) {
     return;
+  }
   UndoRecord r;
   memset(&r, 0, sizeof(r));
   r.kind = UNDO_VAR_WRITE;
@@ -237,11 +246,11 @@ void vm_trail_replay(VM *vm, size_t base) {
         break;
       case UNDO_CAP_WRITE:
         if (e->index < MAX_CAPS) {
-          if (e->sub == 0)
-            vm->cap_start[e->index] = e->prior_a;
-          else if (e->sub == 1)
-            vm->cap_end[e->index] = e->prior_b;
-          else {
+          if (e->sub == 0) {
+            { vm->cap_start[e->index] = e->prior_a; }
+          } else if (e->sub == 1) {
+            { vm->cap_end[e->index] = e->prior_b; }
+          } else {
             vm->cap_start[e->index] = e->prior_a;
             vm->cap_end[e->index] = e->prior_b;
           }

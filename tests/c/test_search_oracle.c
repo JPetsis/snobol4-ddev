@@ -60,8 +60,9 @@ static void oracle_ref_run(const uint8_t *bc, size_t bc_len,
                            size_t range_meta_count, const char *subject,
                            size_t sub_len, oracle_ref_t *out) {
   memset(out, 0, sizeof(*out));
-  if (sub_len > ORACLE_MAX_SUBJECT)
+  if (sub_len > ORACLE_MAX_SUBJECT) {
     sub_len = ORACLE_MAX_SUBJECT;
+  }
 
   VM vm;
   memset(&vm, 0, sizeof(vm));
@@ -90,15 +91,18 @@ static void oracle_ref_run(const uint8_t *bc, size_t bc_len,
       /* Record every variable register the VM populated.  Registers are
        * 1-based: variable "N" lives at var_start[N]. */
       for (size_t k = 1; k < ORACLE_MAX_VARS; k++) {
-        if (k >= vm.var_count)
+        if (k >= vm.var_count) {
           break;
+        }
         size_t s = vm.var_start[k];
         size_t e = vm.var_end[k];
-        if (e < s || e > vm.len)
+        if (e < s || e > vm.len) {
           e = s;
+        }
         size_t clen = e - s;
-        if (clen > ORACLE_MAX_SUBJECT)
+        if (clen > ORACLE_MAX_SUBJECT) {
           clen = ORACLE_MAX_SUBJECT;
+        }
         memcpy(out->vars[k], subject + off + s, clen);
         out->vars[k][clen] = '\0';
         out->var_lens[k] = clen;
@@ -106,8 +110,9 @@ static void oracle_ref_run(const uint8_t *bc, size_t bc_len,
       }
       break;
     }
-    if (vm.abort_flag)
+    if (vm.abort_flag) {
       break;
+    }
   }
   snobol_buf_free(&out_buf);
 }
@@ -117,10 +122,12 @@ static void oracle_ref_run(const uint8_t *bc, size_t bc_len,
 static int oracle_compare_match(snobol_match_t *m, const oracle_ref_t *ref) {
   int mismatches = 0;
   bool s = snobol_match_success(m);
-  if (s != ref->success)
+  if (s != ref->success) {
     return mismatches + 1;
-  if (!s)
+  }
+  if (!s) {
     return 0;
+  }
   if (snobol_match_get_position(m) != ref->pos) {
     mismatches++;
     printf("  position: search=%zu ref=%zu\n", snobol_match_get_position(m),
@@ -170,7 +177,7 @@ static bool oracle_compile(const char *src, size_t len, uint32_t flags,
                            const snobol_search_meta_t **out_meta,
                            const snobol_range_meta_t **out_range,
                            size_t *out_range_count) {
-  char *error = NULL;
+  char *error = nullptr;
   snobol_pattern_t *pat =
       snobol_pattern_compile_ex(ctx, src, len, flags, &error);
   if (!pat) {
@@ -199,8 +206,9 @@ static bool oracle_compile(const char *src, size_t len, uint32_t flags,
  * reference terminates quickly. */
 static bool oracle_reference_bounded(const char *src, size_t len) {
   for (size_t i = 0; i + 1 < len; i++) {
-    if ((src[i] == '*' || src[i] == '+') && src[i + 1] == ')')
+    if ((src[i] == '*' || src[i] == '+') && src[i + 1] == ')') {
       return true;
+    }
   }
   return false;
 }
@@ -208,16 +216,18 @@ static bool oracle_reference_bounded(const char *src, size_t len) {
 static void oracle_check_pair(const char *name, const char *src, size_t src_len,
                               uint32_t flags, const char *subject,
                               size_t sub_len, int *checked, int *mismatch) {
-  if (oracle_reference_bounded(src, src_len) && sub_len > 16)
+  if (oracle_reference_bounded(src, src_len) && sub_len > 16) {
     return; /* reference would be exponential; skip the pair */
+  }
   snobol_context_t *ctx = snobol_context_create();
-  if (!ctx)
+  if (!ctx) {
     return;
-  snobol_pattern_t *pat = NULL;
-  const uint8_t *bc = NULL;
+  }
+  snobol_pattern_t *pat = nullptr;
+  const uint8_t *bc = nullptr;
   size_t bc_len = 0;
-  const snobol_search_meta_t *meta = NULL;
-  const snobol_range_meta_t *range = NULL;
+  const snobol_search_meta_t *meta = nullptr;
+  const snobol_range_meta_t *range = nullptr;
   size_t range_count = 0;
   if (!oracle_compile(src, src_len, flags, ctx, &pat, &bc, &bc_len, &meta,
                       &range, &range_count)) {
@@ -257,7 +267,8 @@ static void oracle_check_pair(const char *name, const char *src, size_t src_len,
       }
     }
     if (snobol_meta_is_literal_only(meta)) {
-      size_t p = 0, l = 0;
+      size_t p = 0;
+      size_t l = 0;
       bool ok = snobol_pattern_search_next(state, subject, sub_len, 0, &p, &l);
       (*checked)++;
       if (ok != ref.success) {
@@ -326,13 +337,15 @@ static void litset_add_id(litset_t *s, int id) {
 }
 static void litset_intersect(litset_t *dst, const litset_t *a,
                              const litset_t *b) {
-  for (int i = 0; i < 4; i++)
+  for (int i = 0; i < 4; i++) {
     dst->bits[i] = a->bits[i] & b->bits[i];
+  }
 }
 
 static uint32_t must_read_u32(const uint8_t *bc, size_t bc_len, size_t p) {
-  if (p + 4 > bc_len)
+  if (p + 4 > bc_len) {
     return 0;
+  }
   return ((uint32_t)bc[p] << 24) | ((uint32_t)bc[p + 1] << 16) |
          ((uint32_t)bc[p + 2] << 8) | (uint32_t)bc[p + 3];
 }
@@ -346,11 +359,13 @@ typedef struct {
 
 static int must_lit_id(must_ctx_t *ctx, size_t off, size_t len) {
   for (int i = 0; i < ctx->lit_count; i++) {
-    if (ctx->lit_off[i] == off && ctx->lit_len[i] == len)
+    if (ctx->lit_off[i] == off && ctx->lit_len[i] == len) {
       return i;
+    }
   }
-  if (ctx->lit_count >= MUST_MAX_LITS)
+  if (ctx->lit_count >= MUST_MAX_LITS) {
     return -1;
+  }
   ctx->lit_off[ctx->lit_count] = off;
   ctx->lit_len[ctx->lit_count] = len;
   return ctx->lit_count++;
@@ -361,8 +376,9 @@ static int must_find_lit(const must_ctx_t *ctx, const uint8_t *bc,
                          const uint8_t *lit, size_t lit_len) {
   for (int i = 0; i < ctx->lit_count; i++) {
     if (ctx->lit_len[i] == lit_len &&
-        memcmp(bc + ctx->lit_off[i], lit, lit_len) == 0)
+        memcmp(bc + ctx->lit_off[i], lit, lit_len) == 0) {
       return i;
+    }
   }
   return -1;
 }
@@ -406,8 +422,9 @@ static void must_transfer(must_ctx_t *ctx, const uint8_t *bc, size_t bc_len,
         return;
       }
       int id = must_lit_id(ctx, payload, len);
-      if (id >= 0)
+      if (id >= 0) {
         litset_add_id(out, id);
+      }
       *edge_kind = MUST_EDGE_LINEAR;
       *advance = (off == p + 9) ? 9 + len : 9;
       return;
@@ -540,10 +557,12 @@ static bool must_analyze(const uint8_t *bc, size_t bc_len, must_ctx_t *ctx,
     return false;
   }
   litset_t *must = (litset_t *)calloc(bc_len, sizeof(litset_t));
-  if (!must)
+  if (!must) {
     return false;
-  for (size_t i = 1; i < bc_len; i++)
+  }
+  for (size_t i = 1; i < bc_len; i++) {
     litset_set_all(&must[i]);
+  }
   litset_clear(&must[0]); /* entry: nothing guaranteed yet */
 
   /* Only instruction-start offsets are visited (operand bytes are not
@@ -564,15 +583,18 @@ static bool must_analyze(const uint8_t *bc, size_t bc_len, must_ctx_t *ctx,
   while (changed && !ctx->gave_up) {
     changed = false;
     for (size_t p = 0; p < bc_len; p++) {
-      if (!reachable[p])
+      if (!reachable[p]) {
         continue;
+      }
       litset_t out;
       int kind;
-      uint32_t e1, e2;
+      uint32_t e1;
+      uint32_t e2;
       size_t adv;
       must_transfer(ctx, bc, bc_len, p, &must[p], &out, &kind, &e1, &e2, &adv);
-      if (ctx->gave_up)
+      if (ctx->gave_up) {
         break;
+      }
       if (kind == MUST_EDGE_NONE) {
         if (bc[p] == OP_ACCEPT || bc[p] == OP_SUCCEED) {
           if (!any_accept) {
@@ -602,8 +624,9 @@ static bool must_analyze(const uint8_t *bc, size_t bc_len, must_ctx_t *ctx,
           dst = e == 0 ? e1 : e2;
           have = dst < bc_len;
         }
-        if (!have)
+        if (!have) {
           continue;
+        }
         litset_t joined;
         litset_intersect(&joined, &must[dst], &out);
         if (memcmp(&joined, &must[dst], sizeof(litset_t)) != 0) {
@@ -617,9 +640,10 @@ static bool must_analyze(const uint8_t *bc, size_t bc_len, must_ctx_t *ctx,
     }
   }
 
-  bool ok = !ctx->gave_up && any_accept;
-  if (ok)
+  bool ok = (!ctx->gave_up && any_accept) != 0;
+  if (ok) {
     *out_accept = accept_set;
+  }
   free(reachable);
   free(must);
   return ok;
@@ -676,7 +700,7 @@ static int oracle_check_meta_invariants(const char *name, const uint8_t *bc,
 static size_t gen_state = 0x9E3779B97F4A7C15ULL;
 
 static unsigned char gen_byte(void) {
-  gen_state = gen_state * 6364136223846793005ULL + 1442695040888963407ULL;
+  gen_state = (gen_state * 6364136223846793005ULL) + 1442695040888963407ULL;
   return (unsigned char)(gen_state >> 32);
 }
 
@@ -693,8 +717,9 @@ static size_t gen_literal(char *buf, size_t cap, size_t max_len) {
   for (size_t i = 0; i < len; i++) {
     static const char alphabet[] =
         "abcdefghijklmnopqrstuvwxyz0123456789 ,;.-+*/()=<>_";
-    if (off + 1 >= cap)
+    if (off + 1 >= cap) {
       break;
+    }
     buf[off++] = alphabet[gen_bounded(sizeof(alphabet) - 1)];
   }
   buf[off++] = '\'';
@@ -703,8 +728,9 @@ static size_t gen_literal(char *buf, size_t cap, size_t max_len) {
 }
 
 static size_t gen_pattern_fragment(char *buf, size_t cap, int kind, int depth) {
-  if (depth <= 0)
+  if (depth <= 0) {
     kind = 0;
+  }
   switch (kind) {
     case 0: return gen_literal(buf, cap, 6);
     case 1: {
@@ -712,8 +738,9 @@ static size_t gen_pattern_fragment(char *buf, size_t cap, int kind, int depth) {
                                             "BREAK(' ,;')", "ANY('abc')"};
       const char *c = classes[gen_bounded(4)];
       size_t l = strlen(c);
-      if (l >= cap)
+      if (l >= cap) {
         l = cap - 1;
+      }
       memcpy(buf, c, l);
       buf[l] = '\0';
       return l;
@@ -722,8 +749,9 @@ static size_t gen_pattern_fragment(char *buf, size_t cap, int kind, int depth) {
       int n = 2 + (int)gen_bounded(5);
       size_t off = 0;
       for (int i = 0; i < n; i++) {
-        if (i)
+        if (i) {
           off += (size_t)snprintf(buf + off, cap - off, " | ");
+        }
         off += gen_literal(buf + off, cap - off, 4);
       }
       return off;
@@ -749,8 +777,9 @@ static size_t gen_pattern_fragment(char *buf, size_t cap, int kind, int depth) {
       /* anchor: "^ " prefix, none, or " $" suffix */
       int mode = (int)gen_bounded(3);
       size_t off = 0;
-      if (mode == 0)
+      if (mode == 0) {
         off = (size_t)snprintf(buf, cap, "^ ");
+      }
       off += gen_pattern_fragment(buf + off, cap - off, 0, depth - 1);
       if (mode == 2) {
         if (off + 3 < cap) {
@@ -769,8 +798,9 @@ static size_t gen_pattern(char *buf, size_t cap) {
   size_t off = 0;
   for (int i = 0; i < nparts; i++) {
     int kind = (int)gen_bounded(6);
-    if (kind == 4 && i > 0)
+    if (kind == 4 && i > 0) {
       kind = 0; /* captures must lead the pattern */
+    }
     off += gen_pattern_fragment(buf + off, cap - off, kind, 3);
   }
   return off;
@@ -778,20 +808,23 @@ static size_t gen_pattern(char *buf, size_t cap) {
 
 static size_t gen_subject(char *buf, size_t cap) {
   size_t len = 1 + gen_bounded(48);
-  if (len >= cap)
+  if (len >= cap) {
     len = cap - 1;
+  }
   static const char *const tokens[] = {"a",  "ab", "abc",   "x",   "123",
                                        "  ", ",",  "κόσμε", "cat", "dog"};
   size_t off = 0;
   while (off < len) {
     const char *t = tokens[gen_bounded(10)];
     size_t tl = strlen(t);
-    if (off + tl > len)
+    if (off + tl > len) {
       break;
+    }
     memcpy(buf + off, t, tl);
     off += tl;
-    if (off < len)
+    if (off < len) {
       buf[off++] = ' ';
+    }
   }
   buf[off] = '\0';
   return off;
@@ -809,7 +842,7 @@ void test_search_oracle_suite(void) {
   size_t marker_len = oracle_build_marker_alt(marker_alt, sizeof(marker_alt));
   size_t big30_len = oracle_build_big_alt(big_alt, sizeof(big_alt), 30, 20);
   size_t big70_len = oracle_build_big_alt(big_alt, sizeof(big_alt), 70, 20);
-  test_assert(marker_len > 0 && big30_len > 0 && big70_len > 0,
+  test_assert((marker_len > 0 && big30_len > 0 && big70_len > 0) != 0,
               "corpus builders produce patterns");
 
   int checked = 0;
@@ -861,11 +894,11 @@ void test_search_oracle_meta_suite(void) {
 
   for (size_t i = 0; i < oracle_corpus_count; i++) {
     const oracle_corpus_entry_t *e = &oracle_corpus[i];
-    snobol_pattern_t *pat = NULL;
-    const uint8_t *bc = NULL;
+    snobol_pattern_t *pat = nullptr;
+    const uint8_t *bc = nullptr;
     size_t bc_len = 0;
-    const snobol_search_meta_t *meta = NULL;
-    const snobol_range_meta_t *range = NULL;
+    const snobol_search_meta_t *meta = nullptr;
+    const snobol_range_meta_t *range = nullptr;
     size_t range_count = 0;
     if (oracle_compile(e->pattern, strlen(e->pattern), e->flags, ctx, &pat, &bc,
                        &bc_len, &meta, &range, &range_count)) {
@@ -886,11 +919,11 @@ void test_search_oracle_meta_suite(void) {
         {"big-alt-70", big_alt, big70_len},
     };
     for (size_t i = 0; i < sizeof(dyn) / sizeof(dyn[0]); i++) {
-      snobol_pattern_t *pat = NULL;
-      const uint8_t *bc = NULL;
+      snobol_pattern_t *pat = nullptr;
+      const uint8_t *bc = nullptr;
       size_t bc_len = 0;
-      const snobol_search_meta_t *meta = NULL;
-      const snobol_range_meta_t *range = NULL;
+      const snobol_search_meta_t *meta = nullptr;
+      const snobol_range_meta_t *range = nullptr;
       size_t range_count = 0;
       if (oracle_compile(dyn[i].src, dyn[i].len, 0, ctx, &pat, &bc, &bc_len,
                          &meta, &range, &range_count)) {
@@ -952,8 +985,9 @@ static void test_trie_pool_fallback(void) {
   bc[ip++] = 0;
   bc[ip++] = 1;
   bc[ip++] = 44; /* len = 300 */
-  for (int i = 0; i < 300; i++)
+  for (int i = 0; i < 300; i++) {
     bc[ip++] = (uint8_t)('a' + (i % 26));
+  }
   bc[ip++] = OP_ACCEPT;
   bc[ip++] = OP_LIT;
   off = (uint32_t)(ip + 8);
@@ -981,9 +1015,10 @@ static void test_trie_pool_fallback(void) {
   vm.bc_len = bc_len;
   snobol_search_result_t result;
   memset(&result, 0, sizeof(result));
-  bool ok = snobol_search_exec(&vm, "x", 1, 0, &meta, NULL, &result, NULL);
+  bool ok =
+      snobol_search_exec(&vm, "x", 1, 0, &meta, nullptr, &result, nullptr);
   snobol_search_vm_cleanup(&vm);
-  test_assert(ok && result.match_start == 0 && result.match_end == 1,
+  test_assert((ok && result.match_start == 0 && result.match_end == 1) != 0,
               "pool-overflow tier falls back and matches");
 }
 
@@ -1014,11 +1049,11 @@ static void test_prefilter_loop_soundness(void) {
   };
 
   for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
-    snobol_pattern_t *pat = NULL;
-    const uint8_t *bc = NULL;
+    snobol_pattern_t *pat = nullptr;
+    const uint8_t *bc = nullptr;
     size_t bc_len = 0;
-    const snobol_search_meta_t *meta = NULL;
-    const snobol_range_meta_t *range = NULL;
+    const snobol_search_meta_t *meta = nullptr;
+    const snobol_range_meta_t *range = nullptr;
     size_t range_count = 0;
     if (!oracle_compile(cases[i].pat, strlen(cases[i].pat), 0, ctx, &pat, &bc,
                         &bc_len, &meta, &range, &range_count)) {
@@ -1027,7 +1062,8 @@ static void test_prefilter_loop_soundness(void) {
     char msg[160];
     snprintf(msg, sizeof(msg), "%s: has_required_lit == %s", cases[i].name,
              cases[i].expect_required ? "true" : "false");
-    test_assert(snobol_meta_has_required_lit(meta) == cases[i].expect_required,
+    test_assert(snobol_meta_has_required_lit(meta) ==
+                    (int)cases[i].expect_required,
                 msg);
     if (snobol_meta_has_required_lit(meta) && meta->required_lit_len > 0) {
       /* The derived required literal must be on every accepting path. */
@@ -1038,7 +1074,8 @@ static void test_prefilter_loop_soundness(void) {
                                meta->required_lit_len);
         snprintf(msg, sizeof(msg), "%s: required lit in must-set",
                  cases[i].name);
-        test_assert(id >= 0 && (accept.bits[id >> 6] & (1ULL << (id & 63))),
+        test_assert((id >= 0 && (accept.bits[id >> 6] & (1ULL << (id & 63)))) !=
+                        0,
                     msg);
       }
     }
@@ -1087,11 +1124,11 @@ static void test_must_analysis_walker(void) {
     test_assert(ok, "must-analysis completes on linear chain");
     int id_abc = must_find_lit(&ctx, bc, (const uint8_t *)"abc", 3);
     int id_def = must_find_lit(&ctx, bc, (const uint8_t *)"def", 3);
-    test_assert(id_abc >= 0 &&
-                    (accept.bits[id_abc >> 6] & (1ULL << (id_abc & 63))),
+    test_assert((id_abc >= 0 &&
+                 (accept.bits[id_abc >> 6] & (1ULL << (id_abc & 63)))) != 0,
                 "abc is required on the linear chain");
-    test_assert(id_def >= 0 &&
-                    (accept.bits[id_def >> 6] & (1ULL << (id_def & 63))),
+    test_assert((id_def >= 0 &&
+                 (accept.bits[id_def >> 6] & (1ULL << (id_def & 63)))) != 0,
                 "def is required on the linear chain");
   }
 
@@ -1215,11 +1252,11 @@ static void test_must_analysis_walker(void) {
     test_assert(ok, "must-analysis completes on post-literal split");
     int id_abc = must_find_lit(&ctx, bc, (const uint8_t *)"abc", 3);
     int id_xyz = must_find_lit(&ctx, bc, (const uint8_t *)"xyz", 3);
-    test_assert(id_abc >= 0 &&
-                    (accept.bits[id_abc >> 6] & (1ULL << (id_abc & 63))),
+    test_assert((id_abc >= 0 &&
+                 (accept.bits[id_abc >> 6] & (1ULL << (id_abc & 63)))) != 0,
                 "abc survives the join (on every accepting path)");
-    test_assert(id_xyz >= 0 &&
-                    !(accept.bits[id_xyz >> 6] & (1ULL << (id_xyz & 63))),
+    test_assert((id_xyz >= 0 &&
+                 !(accept.bits[id_xyz >> 6] & (1ULL << (id_xyz & 63)))) != 0,
                 "xyz does not survive the join");
   }
 }
@@ -1236,7 +1273,12 @@ void test_search_oracle_generator_suite(void) {
   char sub_buf[512];
   int checked = 0;
   int mismatch = 0;
-  int lits = 0, classes = 0, alts = 0, repeats = 0, captures = 0, anchored = 0;
+  int lits = 0;
+  int classes = 0;
+  int alts = 0;
+  int repeats = 0;
+  int captures = 0;
+  int anchored = 0;
 
   /* Shape 0: force a >2048-byte leading alternation (the failing shape). */
   {
@@ -1247,16 +1289,16 @@ void test_search_oracle_generator_suite(void) {
                         strlen(subjects[j]), &checked, &mismatch);
     }
     snobol_context_t *ctx = snobol_context_create();
-    snobol_pattern_t *pat = NULL;
-    const uint8_t *bc = NULL;
+    snobol_pattern_t *pat = nullptr;
+    const uint8_t *bc = nullptr;
     size_t bc_len = 0;
-    const snobol_search_meta_t *meta = NULL;
-    const snobol_range_meta_t *range = NULL;
+    const snobol_search_meta_t *meta = nullptr;
+    const snobol_range_meta_t *range = nullptr;
     size_t range_count = 0;
     if (oracle_compile(big_alt, big70_len, 0, ctx, &pat, &bc, &bc_len, &meta,
                        &range, &range_count)) {
       test_assert(bc_len > 2048, "big alternation bytecode exceeds 2048");
-      test_assert(!snobol_meta_has_required_lit(meta),
+      test_assert((!snobol_meta_has_required_lit(meta)) != 0,
                   "over-bound leading alternation derives no required lit");
       snobol_pattern_free(pat);
     }
@@ -1265,23 +1307,30 @@ void test_search_oracle_generator_suite(void) {
 
   for (int trial = 0; trial < 60; trial++) {
     size_t plen = gen_pattern(pat_buf, sizeof(pat_buf));
-    if (plen == 0)
+    if (plen == 0) {
       continue;
+    }
     size_t slen = gen_subject(sub_buf, sizeof(sub_buf));
 
-    if (strchr(pat_buf, '\''))
+    if (strchr(pat_buf, '\'')) {
       lits++;
+    }
     if (strstr(pat_buf, "SPAN") || strstr(pat_buf, "BREAK") ||
-        strstr(pat_buf, "ANY"))
+        strstr(pat_buf, "ANY")) {
       classes++;
-    if (strstr(pat_buf, " | "))
+    }
+    if (strstr(pat_buf, " | ")) {
       alts++;
-    if (strchr(pat_buf, '+') || strchr(pat_buf, '*'))
+    }
+    if (strchr(pat_buf, '+') || strchr(pat_buf, '*')) {
       repeats++;
-    if (strstr(pat_buf, "@v1"))
+    }
+    if (strstr(pat_buf, "@v1")) {
       captures++;
-    if (strchr(pat_buf, '^') || strchr(pat_buf, '$'))
+    }
+    if (strchr(pat_buf, '^') || strchr(pat_buf, '$')) {
       anchored++;
+    }
 
     oracle_check_pair("gen", pat_buf, plen, 0, sub_buf, slen, &checked,
                       &mismatch);
@@ -1289,7 +1338,7 @@ void test_search_oracle_generator_suite(void) {
 
   test_assert(mismatch == 0, "no disagreements on generated patterns");
   test_assert(checked > 100, "generated equivalence checks ran");
-  test_assert(lits > 0 && classes > 0 && alts > 0 && repeats > 0 &&
-                  captures > 0 && anchored > 0,
+  test_assert((lits > 0 && classes > 0 && alts > 0 && repeats > 0 &&
+               captures > 0 && anchored > 0) != 0,
               "generator covers every grammar production");
 }

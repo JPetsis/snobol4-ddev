@@ -140,10 +140,11 @@ static TrailResult run_mode(const uint8_t *bc, size_t bc_len,
   snobol_buf out;
   snobol_buf_init(&out);
 
-  if (legacy)
+  if (legacy) {
     setenv("SNOBOL_LEGACY_CHOICE", "1", 1);
-  else
+  } else {
     unsetenv("SNOBOL_LEGACY_CHOICE");
+  }
 
   VM vm = make_vm(bc, bc_len, subject, &out);
   r.ok = vm_run(&vm);
@@ -171,22 +172,28 @@ static TrailResult run_mode(const uint8_t *bc, size_t bc_len,
 }
 
 static bool results_equal(const TrailResult *a, const TrailResult *b) {
-  if (a->ok != b->ok)
+  if (a->ok != b->ok) {
     return false;
+  }
   for (int i = 0; i < 64; i++) {
-    if (a->cap_set[i] != b->cap_set[i])
+    if (a->cap_set[i] != b->cap_set[i]) {
       return false;
+    }
     if (a->cap_set[i]) {
-      if (a->cap_start[i] != b->cap_start[i])
+      if (a->cap_start[i] != b->cap_start[i]) {
         return false;
-      if (a->cap_end[i] != b->cap_end[i])
+      }
+      if (a->cap_end[i] != b->cap_end[i]) {
         return false;
+      }
     }
   }
-  if (a->out_len != b->out_len)
+  if (a->out_len != b->out_len) {
     return false;
-  if (memcmp(a->out, b->out, a->out_len) != 0)
+  }
+  if (memcmp(a->out, b->out, a->out_len) != 0) {
     return false;
+  }
   return true;
 }
 
@@ -210,11 +217,11 @@ static void test_repeat_emit_matches_legacy(void) {
               "trail output equals legacy snapshot (match + captures + emit)");
 
   /* The EMIT output should be 'a' repeated for each 'a' consumed. */
-  test_assert(compact.out_len == 3 && memcmp(compact.out, "aaa", 3) == 0,
+  test_assert((compact.out_len == 3 && memcmp(compact.out, "aaa", 3) == 0) != 0,
               "EMIT output is 'aaa'");
 
   printf("  [info] legacy ok=%d emit='%.*s'  compact ok=%d emit='%.*s'\n",
-         legacy.ok, (int)legacy.out_len, legacy.out, compact.ok,
+         (int)legacy.ok, (int)legacy.out_len, legacy.out, (int)compact.ok,
          (int)compact.out_len, compact.out);
 }
 
@@ -234,13 +241,14 @@ static void test_cap_heavy_matches_legacy(void) {
   TrailResult legacy = run_mode(b.bc, b.lit_pool, subject, true);
   TrailResult compact = run_mode(b.bc, b.lit_pool, subject, false);
 
-  test_assert(legacy.ok && compact.ok, "both modes match 'aaaaaa'");
+  test_assert((legacy.ok && compact.ok) != 0, "both modes match 'aaaaaa'");
   test_assert(results_equal(&legacy, &compact),
               "trail captures/output equal legacy snapshot");
 
   char expect[16];
   memset(expect, 'a', 6);
-  test_assert(compact.out_len == 6 && memcmp(compact.out, expect, 6) == 0,
+  test_assert((compact.out_len == 6 && memcmp(compact.out, expect, 6) == 0) !=
+                  0,
               "EMIT output is six 'a's");
 }
 
@@ -264,7 +272,8 @@ static void test_repeat_backtrack_replays_trail(void) {
   TrailResult legacy = run_mode(b.bc, b.lit_pool, subject, true);
   TrailResult compact = run_mode(b.bc, b.lit_pool, subject, false);
 
-  test_assert(!legacy.ok && !compact.ok, "both modes fail on 'aaa' (no 'Z')");
+  test_assert((!legacy.ok && !compact.ok) != 0,
+              "both modes fail on 'aaa' (no 'Z')");
   test_assert(results_equal(&legacy, &compact),
               "trail failure state equals legacy");
 }
@@ -337,17 +346,20 @@ static void test_multi_loop_matches_legacy(void) {
   TrailResult legacy = run_mode(b.bc, b.lit_pool, subject, true);
   TrailResult compact = run_mode(b.bc, b.lit_pool, subject, false);
 
-  test_assert(legacy.ok && compact.ok, "both modes match 'aabbb'");
+  test_assert((legacy.ok && compact.ok) != 0, "both modes match 'aabbb'");
   test_assert(results_equal(&legacy, &compact),
               "trail multi-loop state equals legacy snapshot");
 
   char expect[16];
   size_t ei = 0;
-  for (int i = 0; i < 2; i++)
+  for (int i = 0; i < 2; i++) {
     expect[ei++] = 'a';
-  for (int i = 0; i < 3; i++)
+  }
+  for (int i = 0; i < 3; i++) {
     expect[ei++] = 'b';
-  test_assert(compact.out_len == 5 && memcmp(compact.out, expect, 5) == 0,
+  }
+  test_assert((compact.out_len == 5 && memcmp(compact.out, expect, 5) == 0) !=
+                  0,
               "EMIT output interleaves 'aa' + 'bbb'");
 }
 
@@ -377,8 +389,9 @@ void test_cov_misc_write_log_trail(void) {
   test_assert(vm.write_log != NULL, "write log allocated");
 
   /* Track with wrap-around: >64 entries rotate the circular buffer. */
-  for (int i = 0; i < 80; i++)
+  for (int i = 0; i < 80; i++) {
     vm_write_log_track_cap_start(&vm, (uint8_t)(i & 0x3F), (size_t)i);
+  }
   test_assert(vm_write_log_count_entries(&vm) > 0, "entries counted");
 
   /* Re-tracking an existing cap updates the old_start in place. */
@@ -416,7 +429,7 @@ void test_cov_misc_write_log_trail(void) {
   test_assert(vm_trail_depth(&vm) == 3, "trail depth 3");
 
   vm_trail_replay(&vm, 0);
-  test_assert(vm.cap_start[1] == 30 && vm.var_start[3] == 50,
+  test_assert((vm.cap_start[1] == 30 && vm.var_start[3] == 50) != 0,
               "replay restores prior values");
   test_assert(vm_trail_depth(&vm) == 0, "replay consumes records");
 
@@ -454,8 +467,9 @@ void test_cov_misc_write_log_round2(void) {
   bool found3 = false;
   for (size_t i = 0; i < n && i < 64; i++) {
     if (buf[i].cap_index == 3 && buf[i].old_start == 200 &&
-        buf[i].old_end == 400)
+        buf[i].old_end == 400) {
       found3 = true;
+    }
   }
   test_assert(found3, "re-tracked entry updated in place");
   vm_write_log_free(&vm);
@@ -464,8 +478,9 @@ void test_cov_misc_write_log_round2(void) {
   vm_trail_init(&vm);
   vm.trail_cap = 2;
   vm.trail = (UndoRecord *)snobol_malloc(vm.trail_cap * sizeof(UndoRecord));
-  for (int i = 0; i < 10; i++)
+  for (int i = 0; i < 10; i++) {
     vm_trail_counter_inc(&vm, 0, (uint32_t)i, (size_t)i);
+  }
   test_assert(vm_trail_depth(&vm) == 10, "trail grew past capacity");
   vm_trail_replay(&vm, 0);
   test_assert(vm.counters[0] == 0, "trail replay restored counter");
@@ -498,9 +513,9 @@ void test_cov_misc_round3_trail(void) {
   vm.var_start[2] = 0;
   vm.var_end[2] = 0;
   vm_trail_replay(&vm, 0);
-  test_assert(vm.cap_start[4] == 111 && vm.cap_end[4] == 222 &&
-                  vm.cap_start[5] == 333 && vm.cap_end[5] == 444 &&
-                  vm.var_start[2] == 55 && vm.var_end[2] == 66,
+  test_assert((vm.cap_start[4] == 111 && vm.cap_end[4] == 222 &&
+               vm.cap_start[5] == 333 && vm.cap_end[5] == 444 &&
+               vm.var_start[2] == 55 && vm.var_end[2] == 66) != 0,
               "trail replay restores all write kinds");
   vm_trail_free(&vm);
 
@@ -511,8 +526,9 @@ void test_cov_misc_round3_trail(void) {
   vm.write_log_cap = 8;
   vm.write_log =
       (WriteLogEntry *)snobol_malloc(vm.write_log_cap * sizeof(WriteLogEntry));
-  for (int i = 0; i < 30; i++)
+  for (int i = 0; i < 30; i++) {
     vm_write_log_track_cap_end(&vm, (uint8_t)i, (size_t)i);
+  }
   test_assert(vm_write_log_count_entries(&vm) == 8, "write-log wrapped");
   vm_write_log_free(&vm);
 }

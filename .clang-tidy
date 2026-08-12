@@ -3,12 +3,26 @@
 # Check set follows the LLVM project defaults for the installed toolchain
 # (clang-tidy 22). Note: the clang-diagnostic-* family no longer exists in
 # LLVM >= 21 and is therefore not listed.
+#
+# Deliberately disabled (repo conventions / design noise):
+# - readability-magic-numbers, readability-identifier-length: constant-heavy
+#   C code and short test identifiers make these pure noise
+# - portability-avoid-pragma-once: the codebase uses #pragma once throughout
+# - misc-no-recursion: the VM and pattern engines are recursive by design
+# - bugprone-easily-swappable-parameters, readability-function-cognitive-
+#   complexity: design-level metrics, not gate material
 Checks: 'bugprone-*,
          clang-analyzer-*,
          misc-*,
          modernize-*,
          performance-*,
          portability-*,
-         readability-*'
+         readability-*,
+         -readability-magic-numbers,
+         -readability-identifier-length,
+         -portability-avoid-pragma-once,
+         -misc-no-recursion,
+         -bugprone-easily-swappable-parameters,
+         -readability-function-cognitive-complexity'
 HeaderFilterRegex: '.*'
 FormatStyle: none

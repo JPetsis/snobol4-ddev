@@ -23,8 +23,6 @@ extern void test_assert(bool condition, const char *message);
 #include "../../core/include/snobol/table.h"
 #include "../../core/include/snobol/vm.h"
 
-extern void test_suite(const char *name);
-extern void test_assert(bool condition, const char *message);
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
@@ -44,10 +42,11 @@ static void covv_emit_u32_be(uint8_t *bc, size_t *ip, uint32_t v) {
 static bool covv_run_ast(ast_node_t *root, const char *subject, size_t len,
                          int *out_pos, int *out_caps, VM *out_vm,
                          snobol_buf *out_buf) {
-  uint8_t *bc = NULL;
+  uint8_t *bc = nullptr;
   size_t bc_len = 0;
-  if (compile_ast_to_bytecode_c(root, false, &bc, &bc_len) != 0)
+  if (compile_ast_to_bytecode_c(root, false, &bc, &bc_len) != 0) {
     return false;
+  }
   if (!bc || bc_len == 0) {
     free(bc);
     return false;
@@ -64,14 +63,17 @@ static bool covv_run_ast(ast_node_t *root, const char *subject, size_t len,
   vm.out = &ob;
 
   bool ok = vm_exec(&vm);
-  if (out_pos)
+  if (out_pos) {
     *out_pos = (int)vm.pos;
-  if (out_caps)
+  }
+  if (out_caps) {
     *out_caps = (int)vm.var_count;
-  if (out_vm)
+  }
+  if (out_vm) {
     *out_vm = vm;
-  else
+  } else {
     vm_free_labels(&vm);
+  }
   if (out_buf) {
     *out_buf = ob;
   } else {
@@ -94,8 +96,9 @@ static bool covv_run_bc(const uint8_t *bc, size_t bc_len, const char *subject,
   vm.out = &ob;
 
   bool ok = vm_exec(&vm);
-  if (out_pos)
+  if (out_pos) {
     *out_pos = (int)vm.pos;
+  }
   if (vm_out) {
     *vm_out = vm;
   } else {
@@ -114,14 +117,16 @@ void test_cov_vm_charclass_utf8(void) {
   {
     const char *euro = "\xE2\x82\xAC";
     ast_node_t *ast = snobol_ast_create_span(euro, 3);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "SPAN('€') fails on ASCII subject");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "SPAN('€') fails on ASCII subject");
     snobol_ast_free(ast);
 
     ast = snobol_ast_create_span(euro, 3);
-    ok = covv_run_ast(ast, "\xE2\x82\xACx", 4, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 3, "SPAN('€') consumes the 3-byte codepoint");
+    ok = covv_run_ast(ast, "\xE2\x82\xACx", 4, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 3) != 0,
+                "SPAN('€') consumes the 3-byte codepoint");
     snobol_ast_free(ast);
   }
 
@@ -129,14 +134,15 @@ void test_cov_vm_charclass_utf8(void) {
   {
     const char *euro = "\xE2\x82\xAC";
     ast_node_t *ast = snobol_ast_create_any(euro, 3);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "x", 1, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "ANY('€') fails on 'x'");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "x", 1, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "ANY('€') fails on 'x'");
     snobol_ast_free(ast);
 
     ast = snobol_ast_create_any(euro, 3);
-    ok = covv_run_ast(ast, "\xE2\x82\xAC", 3, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 3, "ANY('€') matches the codepoint");
+    ok = covv_run_ast(ast, "\xE2\x82\xAC", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 3) != 0, "ANY('€') matches the codepoint");
     snobol_ast_free(ast);
   }
 
@@ -144,14 +150,15 @@ void test_cov_vm_charclass_utf8(void) {
   {
     const char *euro = "\xE2\x82\xAC";
     ast_node_t *ast = snobol_ast_create_notany(euro, 3);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "x", 1, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 1, "NOTANY('€') matches 'x'");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "x", 1, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 1) != 0, "NOTANY('€') matches 'x'");
     snobol_ast_free(ast);
 
     ast = snobol_ast_create_notany(euro, 3);
-    ok = covv_run_ast(ast, "\xE2\x82\xAC", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "NOTANY('€') rejects the codepoint");
+    ok = covv_run_ast(ast, "\xE2\x82\xAC", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "NOTANY('€') rejects the codepoint");
     snobol_ast_free(ast);
   }
 
@@ -159,14 +166,17 @@ void test_cov_vm_charclass_utf8(void) {
   {
     const char *euro = "\xE2\x82\xAC";
     ast_node_t *ast = snobol_ast_create_break(euro, 3);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "ab\xE2\x82\xACxy", 6, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 2, "BREAK('€') stops before the codepoint");
+    int pos = 0;
+    int caps = 0;
+    bool ok =
+        covv_run_ast(ast, "ab\xE2\x82\xACxy", 6, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 2) != 0, "BREAK('€') stops before the codepoint");
     snobol_ast_free(ast);
 
     ast = snobol_ast_create_break(euro, 3);
-    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 3, "BREAK('€') consumes to end when absent");
+    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 3) != 0,
+                "BREAK('€') consumes to end when absent");
     snobol_ast_free(ast);
   }
 }
@@ -177,21 +187,22 @@ void test_cov_vm_break_variants(void) {
 
   /* BREAK with a multi-char ASCII class → bitmap loop (not single-byte). */
   ast_node_t *ast = snobol_ast_create_break("abc", 3);
-  int pos = 0, caps = 0;
-  bool ok = covv_run_ast(ast, "zzzaxx", 6, &pos, &caps, NULL, NULL);
-  test_assert(ok && pos == 3, "BREAK('abc') bitmap scan stops at 'a'");
+  int pos = 0;
+  int caps = 0;
+  bool ok = covv_run_ast(ast, "zzzaxx", 6, &pos, &caps, nullptr, nullptr);
+  test_assert((ok && pos == 3) != 0, "BREAK('abc') bitmap scan stops at 'a'");
   snobol_ast_free(ast);
 
   /* BREAK with single-byte class, delimiter absent → memchr NULL path. */
   ast = snobol_ast_create_break(",", 1);
-  ok = covv_run_ast(ast, "aaaa", 4, &pos, &caps, NULL, NULL);
-  test_assert(ok && pos == 4, "BREAK(',') memchr miss consumes to end");
+  ok = covv_run_ast(ast, "aaaa", 4, &pos, &caps, nullptr, nullptr);
+  test_assert((ok && pos == 4) != 0, "BREAK(',') memchr miss consumes to end");
   snobol_ast_free(ast);
 
   /* BREAK single-byte class with delimiter → memchr hit. */
   ast = snobol_ast_create_break(",", 1);
-  ok = covv_run_ast(ast, "aaa,bbb", 7, &pos, &caps, NULL, NULL);
-  test_assert(ok && pos == 3, "BREAK(',') memchr hit stops at comma");
+  ok = covv_run_ast(ast, "aaa,bbb", 7, &pos, &caps, nullptr, nullptr);
+  test_assert((ok && pos == 3) != 0, "BREAK(',') memchr hit stops at comma");
   snobol_ast_free(ast);
 }
 
@@ -203,9 +214,10 @@ void test_cov_vm_position_ops(void) {
 
   /* REM: consume the remainder. */
   ast_node_t *ast = snobol_ast_create_rem();
-  int pos = 0, caps = 0;
-  bool ok = covv_run_ast(ast, "hello", 5, &pos, &caps, NULL, NULL);
-  test_assert(ok && pos == 5, "REM consumes the remainder");
+  int pos = 0;
+  int caps = 0;
+  bool ok = covv_run_ast(ast, "hello", 5, &pos, &caps, nullptr, nullptr);
+  test_assert((ok && pos == 5) != 0, "REM consumes the remainder");
   snobol_ast_free(ast);
 
   /* RPOS(0) after LEN(5) on "abcde" → at end, ok. */
@@ -214,7 +226,7 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_len(5);
     parts[1] = snobol_ast_create_rpos(0);
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, NULL, NULL);
+    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, nullptr, nullptr);
     test_assert(ok, "RPOS(0) at end succeeds");
     snobol_ast_free(ast);
 
@@ -223,8 +235,8 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_len(2);
     parts[1] = snobol_ast_create_rpos(2);
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "RPOS(2) fails at pos 2");
+    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "RPOS(2) fails at pos 2");
     snobol_ast_free(ast);
 
     /* RPOS(1) on multibyte subject — continuation-byte walk. */
@@ -232,7 +244,7 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_len(1);
     parts[1] = snobol_ast_create_rpos(1);
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "a\xE2\x82\xAC", 4, &pos, &caps, NULL, NULL);
+    ok = covv_run_ast(ast, "a\xE2\x82\xAC", 4, &pos, &caps, nullptr, nullptr);
     test_assert(ok, "RPOS(1) skips UTF-8 continuation bytes");
     snobol_ast_free(ast);
   }
@@ -243,8 +255,8 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_rtab(2);
     parts[1] = snobol_ast_create_rem();
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 5, "RTAB(2) advances to 2-from-end");
+    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 5) != 0, "RTAB(2) advances to 2-from-end");
     snobol_ast_free(ast);
 
     /* RTAB(9) after LEN(1): target 0 < pos 1 → fail. */
@@ -252,14 +264,14 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_len(1);
     parts[1] = snobol_ast_create_rtab(9);
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "RTAB(9) fails when pos is past the target");
+    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "RTAB(9) fails when pos is past the target");
     snobol_ast_free(ast);
   }
 
   /* POS(0) succeeds at 0; POS(1) at pos 0 fails. */
   ast = snobol_ast_create_pos(0);
-  ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
+  ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
   test_assert(ok, "POS(0) at start succeeds");
   snobol_ast_free(ast);
 
@@ -268,8 +280,8 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_pos(1);
     parts[1] = snobol_ast_create_lit("a", 1);
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "POS(1) at pos 0 fails");
+    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "POS(1) at pos 0 fails");
     snobol_ast_free(ast);
   }
 
@@ -279,8 +291,8 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_tab(2);
     parts[1] = snobol_ast_create_len(2);
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 4, "TAB(2) advances to byte offset 2");
+    ok = covv_run_ast(ast, "abcde", 5, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 4) != 0, "TAB(2) advances to byte offset 2");
     snobol_ast_free(ast);
 
     /* TAB(9) beyond subject → fail. */
@@ -288,8 +300,8 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_tab(9);
     parts[1] = snobol_ast_create_lit("a", 1);
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "TAB(9) beyond subject fails");
+    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "TAB(9) beyond subject fails");
     snobol_ast_free(ast);
 
     /* TAB(1) after LEN(2): pos already past target → fail. */
@@ -297,8 +309,8 @@ void test_cov_vm_position_ops(void) {
     parts[0] = snobol_ast_create_len(2);
     parts[1] = snobol_ast_create_tab(1);
     ast = snobol_ast_create_concat(parts, 2);
-    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "TAB(1) after pos 2 fails");
+    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "TAB(1) after pos 2 fails");
     snobol_ast_free(ast);
   }
 }
@@ -328,9 +340,10 @@ void test_cov_vm_caps_assign(void) {
     parts[1] = snobol_ast_create_assign(3, 0);
     parts[2] = snobol_ast_create_lit("c", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 3);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 3, "capture+assign pattern matches");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 3) != 0, "capture+assign pattern matches");
     test_assert(caps == 4, "assign to var 3 sets var_count to 4");
     snobol_ast_free(ast);
   }
@@ -338,9 +351,10 @@ void test_cov_vm_caps_assign(void) {
   /* LEN beyond subject → fail path. */
   {
     ast_node_t *ast = snobol_ast_create_len(5);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "ab", 2, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "LEN(5) on 2-byte subject fails");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "ab", 2, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "LEN(5) on 2-byte subject fails");
     snobol_ast_free(ast);
   }
 }
@@ -368,8 +382,9 @@ void test_cov_vm_eval(void) {
     parts[0] = snobol_ast_create_cap(0, snobol_ast_create_lit("123", 3));
     parts[1] = snobol_ast_create_eval(SNOBOL_FN_INTEGER, 0);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "123", 3, &pos, &caps, NULL, NULL);
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "123", 3, &pos, &caps, nullptr, nullptr);
     test_assert(ok, "EVAL(INTEGER) succeeds on '123'");
     snobol_ast_free(ast);
   }
@@ -378,9 +393,10 @@ void test_cov_vm_eval(void) {
     parts[0] = snobol_ast_create_cap(0, snobol_ast_create_lit("abc", 3));
     parts[1] = snobol_ast_create_eval(SNOBOL_FN_NUMERIC, 0);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "EVAL(NUMERIC) fails on 'abc'");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "EVAL(NUMERIC) fails on 'abc'");
     snobol_ast_free(ast);
   }
   {
@@ -388,8 +404,9 @@ void test_cov_vm_eval(void) {
     parts[0] = snobol_ast_create_cap(0, snobol_ast_create_lit("1.5", 3));
     parts[1] = snobol_ast_create_eval(SNOBOL_FN_REAL, 0);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "1.5", 3, &pos, &caps, NULL, NULL);
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "1.5", 3, &pos, &caps, nullptr, nullptr);
     test_assert(ok, "EVAL(REAL) succeeds on '1.5'");
     snobol_ast_free(ast);
   }
@@ -400,13 +417,14 @@ void test_cov_vm_eval(void) {
     parts[0] = snobol_ast_create_cap(0, snobol_ast_create_lit("x ", 2));
     parts[1] = snobol_ast_create_eval(SNOBOL_FN_TRIM, 0);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
+    int pos = 0;
+    int caps = 0;
     VM vm;
     snobol_buf out;
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     int rc = compile_ast_to_bytecode_c(ast, false, &bc, &bc_len);
-    test_assert(rc == 0 && bc, "EVAL TRIM compiles");
+    test_assert((rc == 0 && bc) != 0, "EVAL TRIM compiles");
     memset(&vm, 0, sizeof(vm));
     vm.bc = bc;
     vm.bc_len = bc_len;
@@ -420,8 +438,9 @@ void test_cov_vm_eval(void) {
     vm.emit_udata = &cb_buf;
     bool ok = vm_exec(&vm);
     test_assert(ok, "EVAL(TRIM) succeeds");
-    test_assert(out.len == 1 && out.data[0] == 'x', "TRIM output appended");
-    test_assert(cb_buf.len == 1 && cb_buf.data[0] == 'x',
+    test_assert((out.len == 1 && out.data[0] == 'x') != 0,
+                "TRIM output appended");
+    test_assert((cb_buf.len == 1 && cb_buf.data[0] == 'x') != 0,
                 "emit_fn invoked by EVAL");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
@@ -436,10 +455,10 @@ void test_cov_vm_eval(void) {
     parts[0] = snobol_ast_create_cap(0, snobol_ast_create_lit("ab", 2));
     parts[1] = snobol_ast_create_eval(SNOBOL_FN_DUPL, 0);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     int rc = compile_ast_to_bytecode_c(ast, false, &bc, &bc_len);
-    test_assert(rc == 0 && bc, "EVAL DUPL compiles");
+    test_assert((rc == 0 && bc) != 0, "EVAL DUPL compiles");
     VM vm;
     memset(&vm, 0, sizeof(vm));
     vm.bc = bc;
@@ -453,7 +472,8 @@ void test_cov_vm_eval(void) {
     vm.eval_fn = covv_eval_callback;
     vm.eval_udata = &cb_count;
     bool ok = vm_exec(&vm);
-    test_assert(ok && cb_count == 1, "unknown builtin routed to eval_fn");
+    test_assert((ok && cb_count == 1) != 0,
+                "unknown builtin routed to eval_fn");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
     free(bc);
@@ -489,7 +509,7 @@ void test_cov_vm_eval(void) {
     vm.eval_fn = covv_eval_callback;
     vm.eval_udata = &cb_count;
     bool ok = vm_exec(&vm);
-    test_assert(ok && cb_count == 1, "EVAL(fn=0) uses host callback");
+    test_assert((ok && cb_count == 1) != 0, "EVAL(fn=0) uses host callback");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
   }
@@ -505,26 +525,29 @@ void test_cov_vm_anchor_fail(void) {
     parts[0] = snobol_ast_create_len(1);
     parts[1] = snobol_ast_create_anchor(0);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "ab", 2, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "ANCHOR(start) at pos 1 fails");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "ab", 2, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "ANCHOR(start) at pos 1 fails");
     snobol_ast_free(ast);
   }
 
   /* ANCHOR(1) at pos 0 (not at end) → fail. */
   {
     ast_node_t *ast = snobol_ast_create_anchor(1);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "ab", 2, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "ANCHOR(end) at pos 0 fails");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "ab", 2, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "ANCHOR(end) at pos 0 fails");
     snobol_ast_free(ast);
   }
 
   /* ANCHOR(0) at pos 0 succeeds. */
   {
     ast_node_t *ast = snobol_ast_create_anchor(0);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "ab", 2, &pos, &caps, NULL, NULL);
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "ab", 2, &pos, &caps, nullptr, nullptr);
     test_assert(ok, "ANCHOR(start) at pos 0 succeeds");
     snobol_ast_free(ast);
   }
@@ -540,9 +563,10 @@ void test_cov_vm_repeat(void) {
   {
     ast_node_t *ast =
         snobol_ast_create_repeat(snobol_ast_create_lit("a", 1), 2, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "aa", 2, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 2, "repeat(2,2) matches 'aa'");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "aa", 2, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 2) != 0, "repeat(2,2) matches 'aa'");
     snobol_ast_free(ast);
   }
 
@@ -550,9 +574,10 @@ void test_cov_vm_repeat(void) {
   {
     ast_node_t *ast =
         snobol_ast_create_repeat(snobol_ast_create_lit("a", 1), 0, 1);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "b", 1, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 0, "repeat(0,1) zero-iteration succeeds");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "b", 1, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 0) != 0, "repeat(0,1) zero-iteration succeeds");
     snobol_ast_free(ast);
   }
 
@@ -560,9 +585,11 @@ void test_cov_vm_repeat(void) {
   {
     ast_node_t *ast =
         snobol_ast_create_repeat(snobol_ast_create_lit("", 0), 1, (int32_t)-1);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 0, "empty-body repeat exits without looping");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 0) != 0,
+                "empty-body repeat exits without looping");
     snobol_ast_free(ast);
   }
 
@@ -570,9 +597,10 @@ void test_cov_vm_repeat(void) {
   {
     ast_node_t *ast =
         snobol_ast_create_repeat(snobol_ast_create_lit("a", 1), 1, (int32_t)-1);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "aaa", 3, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 3, "unbounded repeat consumes the run");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "aaa", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 3) != 0, "unbounded repeat consumes the run");
     snobol_ast_free(ast);
   }
 
@@ -583,9 +611,10 @@ void test_cov_vm_repeat(void) {
         snobol_ast_create_repeat(snobol_ast_create_lit("a", 1), 1, (int32_t)-1);
     parts[1] = snobol_ast_create_lit("b", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "aaab", 4, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 4, "repeat+tail matches via backtracking");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "aaab", 4, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 4) != 0, "repeat+tail matches via backtracking");
     snobol_ast_free(ast);
   }
 }
@@ -619,14 +648,15 @@ void test_cov_vm_emit(void) {
     vm.bc_len = bc_len;
     vm.s = "";
     vm.len = 0;
-    snobol_buf out, cb_buf;
+    snobol_buf out;
+    snobol_buf cb_buf;
     snobol_buf_init(&out);
     snobol_buf_init(&cb_buf);
     vm.out = &out;
     vm.emit_fn = covv_emit_cb;
     vm.emit_udata = &cb_buf;
     bool ok = vm_exec(&vm);
-    test_assert(ok && out.len == 3, "EMIT_LITERAL appends to out");
+    test_assert((ok && out.len == 3) != 0, "EMIT_LITERAL appends to out");
     test_assert(cb_buf.len == 3, "EMIT_LITERAL invokes emit_fn");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
@@ -639,7 +669,7 @@ void test_cov_vm_emit(void) {
   {
     static const char nul_payload[] = "\x61\x00\x62"; /* 'a', NUL, 'b' */
     ast_node_t *emit = snobol_ast_create_emit(nul_payload, 3, -1);
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     test_assert(compile_ast_to_bytecode_c(emit, false, &bc, &bc_len) == 0,
                 "NUL emit compiles");
@@ -655,7 +685,8 @@ void test_cov_vm_emit(void) {
     snobol_buf_init(&out);
     vm.out = &out;
     bool ok = vm_exec(&vm);
-    test_assert(ok && out.len == 3 && memcmp(out.data, nul_payload, 3) == 0,
+    test_assert((ok && out.len == 3 && memcmp(out.data, nul_payload, 3) == 0) !=
+                    0,
                 "NUL emit output is byte-exact");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
@@ -689,7 +720,7 @@ void test_cov_vm_emit(void) {
     snobol_buf_init(&out);
     vm.out = &out;
     bool ok = vm_exec(&vm);
-    test_assert(ok && out.len == 2 && out.data[0] == 'a',
+    test_assert((ok && out.len == 2 && out.data[0] == 'a') != 0,
                 "EMIT_CAPTURE appends capture");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
@@ -724,14 +755,16 @@ void test_cov_vm_emit(void) {
     snobol_buf_init(&out);
     vm.out = &out;
     bool ok = vm_exec(&vm);
-    test_assert(ok && out.len > 0, "EMIT_EXPR emits");
-    if (et == 1)
-      test_assert(out.len == 3 && out.data[0] == 'A', "EMIT_EXPR upper-cases");
-    else if (et == 2)
+    test_assert((ok && out.len > 0) != 0, "EMIT_EXPR emits");
+    if (et == 1) {
+      test_assert((out.len == 3 && out.data[0] == 'A') != 0,
+                  "EMIT_EXPR upper-cases");
+    } else if (et == 2) {
       test_assert(strncmp(out.data, "3", out.len) == 0,
                   "EMIT_EXPR emits length");
-    else
-      test_assert(out.len == 3 && out.data[0] == 'a', "EMIT_EXPR raw");
+    } else {
+      test_assert((out.len == 3 && out.data[0] == 'a') != 0, "EMIT_EXPR raw");
+    }
     vm_free_labels(&vm);
     snobol_buf_free(&out);
   }
@@ -788,8 +821,8 @@ void test_cov_vm_emit(void) {
     test_assert(ok, "EMIT_FORMAT chain succeeds");
     /* ABC abc 3 --abc abc** abc (LPAD 5 = "--abc", RPAD 5 = "abc**") */
     const char *expected = "ABCabc3--abcabc**abc";
-    test_assert(out.len == strlen(expected) &&
-                    memcmp(out.data, expected, out.len) == 0,
+    test_assert((out.len == strlen(expected) &&
+                 memcmp(out.data, expected, out.len) == 0) != 0,
                 "EMIT_FORMAT outputs match");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
@@ -803,7 +836,7 @@ void test_cov_vm_emit(void) {
     bc[ip++] = OP_EMIT_FORMAT;
     bc[ip++] = 0; /* empty-but-valid capture → padded to capped width */
     bc[ip++] = SNBL_FMT_LPAD;
-    covv_emit_u16_be(bc, &ip, 0xFFFFu); /* width > 1024 */
+    covv_emit_u16_be(bc, &ip, 0xFFFFU); /* width > 1024 */
     bc[ip++] = '0';
     bc[ip++] = OP_ACCEPT;
     VM vm;
@@ -895,7 +928,7 @@ void test_cov_vm_table_array(void) {
 
   snobol_table_t *table = table_create("t");
   snobol_array_t *array = snobol_array_create(16);
-  test_assert(table && array, "table/array created");
+  test_assert((table && array) != 0, "table/array created");
   test_assert(table_set(table, "k", "v"), "table seed set");
   test_assert(snobol_array_set(array, 0, "v0"), "array seed set");
 
@@ -907,10 +940,11 @@ void test_cov_vm_table_array(void) {
   vm.len = 1;
   vm_init_tables(&vm);
   vm_init_arrays(&vm);
-  uint16_t tid = 0, aid = 0;
-  test_assert(vm_register_table(&vm, table, &tid) && tid == 0,
+  uint16_t tid = 0;
+  uint16_t aid = 0;
+  test_assert((vm_register_table(&vm, table, &tid) && tid == 0) != 0,
               "table registered as id 0");
-  test_assert(vm_register_array(&vm, array, &aid) && aid == 0,
+  test_assert((vm_register_array(&vm, array, &aid) && aid == 0) != 0,
               "array registered as id 0");
   bool ok = vm_exec(&vm);
   test_assert(ok, "TABLE/ARRAY GET+SET chain succeeds");
@@ -956,7 +990,7 @@ void test_cov_vm_table_array(void) {
     uint16_t t2 = 0;
     vm_register_table(&vm2, table, &t2);
     bool ok2 = vm_exec(&vm2);
-    test_assert(!ok2, "TABLE_GET missing key fails");
+    test_assert((!ok2) != 0, "TABLE_GET missing key fails");
     vm_free_labels(&vm2);
     vm_free_tables(&vm2);
     table_release(table);
@@ -989,7 +1023,7 @@ void test_cov_vm_table_array(void) {
     vm3.len = 1;
     vm_init_tables(&vm3);
     bool ok3 = vm_exec(&vm3);
-    test_assert(!ok3, "TABLE_GET invalid table fails");
+    test_assert((!ok3) != 0, "TABLE_GET invalid table fails");
     vm_free_labels(&vm3);
     vm_free_tables(&vm3);
   }
@@ -1024,7 +1058,7 @@ void test_cov_vm_table_array(void) {
     uint16_t a4 = 0;
     vm_register_array(&vm4, array, &a4);
     bool ok4 = vm_exec(&vm4);
-    test_assert(!ok4, "ARRAY_GET missing key fails");
+    test_assert((!ok4) != 0, "ARRAY_GET missing key fails");
     vm_free_labels(&vm4);
     vm_free_arrays(&vm4);
     snobol_array_release(array);
@@ -1167,7 +1201,7 @@ void test_cov_vm_dynamic(void) {
     snobol_buf_init(&ob);
     vm2.out = &ob;
     bool ok2 = vm_exec(&vm2);
-    test_assert(!ok2, "DYNAMIC without DEF fails");
+    test_assert((!ok2) != 0, "DYNAMIC without DEF fails");
     vm_free_labels(&vm2);
     snobol_buf_free(&ob);
     dynamic_pattern_cache_destroy(&c2);
@@ -1200,7 +1234,7 @@ void test_cov_vm_dynamic(void) {
     snobol_buf_init(&ob3);
     vm3.out = &ob3;
     bool ok3 = vm_exec(&vm3);
-    test_assert(!ok3, "DYNAMIC failing inner pattern fails");
+    test_assert((!ok3) != 0, "DYNAMIC failing inner pattern fails");
     vm_free_labels(&vm3);
     snobol_buf_free(&ob3);
     dynamic_pattern_cache_destroy(&c3);
@@ -1219,9 +1253,10 @@ void test_cov_vm_primitives(void) {
     parts[0] = snobol_ast_create_breakx(",", 1);
     parts[1] = snobol_ast_create_lit(",", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "a,b", 3, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 2, "BREAKX+literal matches at the comma");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "a,b", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 2) != 0, "BREAKX+literal matches at the comma");
     snobol_ast_free(ast);
   }
 
@@ -1231,9 +1266,10 @@ void test_cov_vm_primitives(void) {
     parts[0] = snobol_ast_create_breakx("ab", 2);
     parts[1] = snobol_ast_create_lit("a", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "zzza", 4, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 4, "BREAKX bitmap scan matches");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "zzza", 4, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 4) != 0, "BREAKX bitmap scan matches");
     snobol_ast_free(ast);
   }
 
@@ -1244,9 +1280,11 @@ void test_cov_vm_primitives(void) {
     parts[0] = snobol_ast_create_breakx(euro, 3);
     parts[1] = snobol_ast_create_lit(euro, 3);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "x\xE2\x82\xAC", 4, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 4, "BREAKX UTF-8 walk matches");
+    int pos = 0;
+    int caps = 0;
+    bool ok =
+        covv_run_ast(ast, "x\xE2\x82\xAC", 4, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 4) != 0, "BREAKX UTF-8 walk matches");
     snobol_ast_free(ast);
   }
 
@@ -1256,28 +1294,30 @@ void test_cov_vm_primitives(void) {
     parts[0] = snobol_ast_create_breakx(",", 1);
     parts[1] = snobol_ast_create_lit("x", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "BREAKX without delimiter cannot match tail");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "BREAKX without delimiter cannot match tail");
     snobol_ast_free(ast);
   }
 
   /* BAL: balanced delimiters. */
   {
     ast_node_t *ast = snobol_ast_create_bal('(', ')');
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "(a(b)c)", 7, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 7, "BAL matches balanced parens");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "(a(b)c)", 7, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 7) != 0, "BAL matches balanced parens");
     snobol_ast_free(ast);
 
     ast = snobol_ast_create_bal('(', ')');
-    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "BAL fails without open delimiter");
+    ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "BAL fails without open delimiter");
     snobol_ast_free(ast);
 
     ast = snobol_ast_create_bal('(', ')');
-    ok = covv_run_ast(ast, "(a", 2, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "BAL fails on unbalanced subject");
+    ok = covv_run_ast(ast, "(a", 2, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "BAL fails on unbalanced subject");
     snobol_ast_free(ast);
   }
 
@@ -1293,9 +1333,10 @@ void test_cov_vm_primitives(void) {
     parts[1] = snobol_ast_create_fence();
     parts[2] = snobol_ast_create_lit("c", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 3);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "FENCE blocks backtracking into alternative");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "FENCE blocks backtracking into alternative");
     snobol_ast_free(ast);
   }
 
@@ -1307,9 +1348,10 @@ void test_cov_vm_primitives(void) {
     ast_node_t *left = snobol_ast_create_concat(left_parts, 2);
     ast_node_t *ast =
         snobol_ast_create_alt(left, snobol_ast_create_lit("y", 1));
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "y", 1, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 1, "FAIL backtracks to the alternative");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "y", 1, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 1) != 0, "FAIL backtracks to the alternative");
     snobol_ast_free(ast);
   }
 
@@ -1319,9 +1361,10 @@ void test_cov_vm_primitives(void) {
     parts[0] = snobol_ast_create_lit("a", 1);
     parts[1] = snobol_ast_create_abort();
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(!ok, "ABORT terminates with failure");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((!ok) != 0, "ABORT terminates with failure");
     snobol_ast_free(ast);
   }
 
@@ -1331,9 +1374,10 @@ void test_cov_vm_primitives(void) {
     parts[0] = snobol_ast_create_succeed();
     parts[1] = snobol_ast_create_lit("z", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    int pos = 0, caps = 0;
-    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, NULL, NULL);
-    test_assert(ok && pos == 0, "SUCCEED short-circuits the tail");
+    int pos = 0;
+    int caps = 0;
+    bool ok = covv_run_ast(ast, "abc", 3, &pos, &caps, nullptr, nullptr);
+    test_assert((ok && pos == 0) != 0, "SUCCEED short-circuits the tail");
     snobol_ast_free(ast);
   }
 
@@ -1390,7 +1434,7 @@ void test_cov_vm_goto(void) {
     vm.s = "a";
     vm.len = 1;
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "GOTO to unknown label fails");
+    test_assert((!ok) != 0, "GOTO to unknown label fails");
     vm_free_labels(&vm);
   }
 
@@ -1455,7 +1499,7 @@ void test_cov_vm_goto(void) {
     vm.len = 1;
     vm.in_goto_fail = true;
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "GOTO_F with unknown label fails");
+    test_assert((!ok) != 0, "GOTO_F with unknown label fails");
     vm_free_labels(&vm);
   }
 }
@@ -1470,17 +1514,18 @@ void test_cov_vm_helpers(void) {
    * range_meta → NEW-format detection. */
   {
     ast_node_t *ast = snobol_ast_create_span("a", 1);
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     int rc = compile_ast_to_bytecode_c(ast, false, &bc, &bc_len);
-    test_assert(rc == 0 && bc && bc_len >= 8, "span pattern compiles");
+    test_assert((rc == 0 && bc && bc_len >= 8) != 0, "span pattern compiles");
     VM vm;
     memset(&vm, 0, sizeof(vm));
     vm.bc = bc;
     vm.bc_len = bc_len;
-    uint16_t cnt = 0, ci = 0;
+    uint16_t cnt = 0;
+    uint16_t ci = 0;
     const uint8_t *rp = get_ranges_ptr(&vm, 1, &cnt, &ci);
-    test_assert(rp != NULL && cnt >= 1, "SNBL-trailer range resolution");
+    test_assert((rp != NULL && cnt >= 1) != 0, "SNBL-trailer range resolution");
     test_assert(get_ranges_ptr(&vm, 0, &cnt, &ci) == NULL,
                 "set_id 0 returns NULL");
     test_assert(get_ranges_ptr(&vm, 99, &cnt, &ci) == NULL,
@@ -1492,13 +1537,13 @@ void test_cov_vm_helpers(void) {
   /* snobol_build_range_meta: new-format + old-format + tiny buffer. */
   {
     ast_node_t *ast = snobol_ast_create_span("a", 1);
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     compile_ast_to_bytecode_c(ast, false, &bc, &bc_len);
-    snobol_range_meta_t *tab = NULL;
+    snobol_range_meta_t *tab = nullptr;
     size_t tab_count = 0;
     snobol_build_range_meta(bc, bc_len, &tab, &tab_count);
-    test_assert(tab_count >= 1 && tab != NULL,
+    test_assert((tab_count >= 1 && tab != NULL) != 0,
                 "range meta built from SNBL-trailer bytecode");
     snobol_free(tab);
     compiler_free(bc);
@@ -1506,9 +1551,9 @@ void test_cov_vm_helpers(void) {
 
     uint8_t one[2] = {0, 0};
     snobol_build_range_meta(one, 2, &tab, &tab_count);
-    test_assert(tab == NULL && tab_count == 0,
+    test_assert((tab == NULL && tab_count == 0) != 0,
                 "range meta rejects tiny bytecode");
-    snobol_build_range_meta(NULL, 0, &tab, &tab_count);
+    snobol_build_range_meta(nullptr, 0, &tab, &tab_count);
     test_assert(tab == NULL, "range meta rejects NULL bytecode");
   }
 
@@ -1519,14 +1564,14 @@ void test_cov_vm_helpers(void) {
     covv_emit_u32_be(rng, &at, 0);
     covv_emit_u32_be(rng, &at, 300);
     uint64_t map[4];
-    test_assert(!ranges_to_full_bitmap(rng, 1, map),
+    test_assert((!ranges_to_full_bitmap(rng, 1, map)) != 0,
                 "range > 255 rejected by full bitmap");
     at = 0;
     covv_emit_u32_be(rng, &at, 0);
     covv_emit_u32_be(rng, &at, 127);
     test_assert(ranges_to_full_bitmap(rng, 1, map),
                 "range <= 255 accepted by full bitmap");
-    test_assert(bitmap_test_256(map, 0) && !bitmap_test_256(map, 200),
+    test_assert((bitmap_test_256(map, 0) && !bitmap_test_256(map, 200)) != 0,
                 "full bitmap bits set");
   }
 
@@ -1534,13 +1579,16 @@ void test_cov_vm_helpers(void) {
   {
     snobol_buf b;
     snobol_buf_init(&b);
-    for (int i = 0; i < 3000; i++)
+    for (int i = 0; i < 3000; i++) {
       snobol_buf_append(&b, "x", 1);
-    test_assert(b.len == 3000 && b.cap >= 3000, "buffer grows past 1 KB");
+    }
+    test_assert((b.len == 3000 && b.cap >= 3000) != 0,
+                "buffer grows past 1 KB");
     snobol_buf_clear(&b);
     test_assert(b.len == 0, "buffer clear resets length");
     snobol_buf_free(&b);
-    test_assert(b.data == NULL && b.cap == 0, "buffer free resets state");
+    test_assert((b.data == NULL && b.cap == 0) != 0,
+                "buffer free resets state");
   }
 
   /* VM state reuse: second vm_run reuses trail/write-log (clear paths). */
@@ -1566,7 +1614,8 @@ void test_cov_vm_helpers(void) {
     memset(&vm, 0, sizeof(vm));
     vm.bc = tiny;
     vm.bc_len = 3;
-    uint16_t cnt = 0, ci = 0;
+    uint16_t cnt = 0;
+    uint16_t ci = 0;
     test_assert(get_ranges_ptr(&vm, 1, &cnt, &ci) == NULL,
                 "tiny bytecode range lookup returns NULL");
   }
@@ -1576,8 +1625,6 @@ void test_cov_vm_helpers(void) {
 /* ===== test_coverage_engine2 (part): coverage-driven tests merged into test_vm.c ===== */
 #include "../../core/include/snobol/snobol.h"
 
-extern void test_suite(const char *name);
-extern void test_assert(bool condition, const char *message);
 
 void cove_emit_u16_be(uint8_t *bc, size_t *ip, uint16_t v) {
   bc[(*ip)++] = (uint8_t)((v >> 8) & 0xFF);
@@ -1614,7 +1661,7 @@ void test_cov_engine2_vm_exec(void) {
     snobol_buf_init(&out);
     vm.out = &out;
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "EVAL invalid register fails");
+    test_assert((!ok) != 0, "EVAL invalid register fails");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
   }
@@ -1635,7 +1682,7 @@ void test_cov_engine2_vm_exec(void) {
     vm.cap_end[0] = 0; /* end before start */
     vm.cap_start[0] = 1;
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "EVAL invalid capture bounds fail");
+    test_assert((!ok) != 0, "EVAL invalid capture bounds fail");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
   }
@@ -1666,7 +1713,8 @@ void test_cov_engine2_vm_exec(void) {
       vm.bc_len = ip;
       vm.s = "ab";
       vm.len = 2;
-      snobol_buf out, cb;
+      snobol_buf out;
+      snobol_buf cb;
       snobol_buf_init(&out);
       snobol_buf_init(&cb);
       vm.out = &out;
@@ -1674,7 +1722,7 @@ void test_cov_engine2_vm_exec(void) {
       vm.emit_udata = &cb;
       bool ok = vm_exec(&vm);
       test_assert(ok, "EVAL transform builtin succeeds");
-      test_assert(out.len > 0 && cb.len == out.len,
+      test_assert((out.len > 0 && cb.len == out.len) != 0,
                   "EVAL builtin writes out + emit_fn");
       vm_free_labels(&vm);
       snobol_buf_free(&out);
@@ -1702,10 +1750,10 @@ void test_cov_engine2_vm_exec(void) {
     parts[0] = snobol_ast_create_repeat(snobol_ast_create_span("a", 1), 1, -1);
     parts[1] = snobol_ast_create_lit("b", 1);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     int rc = compile_ast_to_bytecode_c(ast, false, &bc, &bc_len);
-    test_assert(rc == 0 && bc, "greedy-span pattern compiles");
+    test_assert((rc == 0 && bc) != 0, "greedy-span pattern compiles");
     VM vm;
     memset(&vm, 0, sizeof(vm));
     vm.bc = bc;
@@ -1713,7 +1761,7 @@ void test_cov_engine2_vm_exec(void) {
     vm.s = "aaaab";
     vm.len = 5;
     bool ok = vm_exec(&vm);
-    test_assert(ok && vm.pos == 5, "greedy-span repeat matches run");
+    test_assert((ok && vm.pos == 5) != 0, "greedy-span repeat matches run");
     vm_free_labels(&vm);
     compiler_free(bc);
     snobol_ast_free(ast);
@@ -1749,14 +1797,15 @@ void test_cov_engine2_vm_exec(void) {
     vm.bc_len = 43;
     vm.s = "abc";
     vm.len = 3;
-    snobol_buf out, cb;
+    snobol_buf out;
+    snobol_buf cb;
     snobol_buf_init(&out);
     snobol_buf_init(&cb);
     vm.out = &out;
     vm.emit_fn = cove_emit_cb;
     vm.emit_udata = &cb;
     bool ok = vm_exec(&vm);
-    test_assert(ok && out.len == 7 && cb.len == out.len,
+    test_assert((ok && out.len == 7 && cb.len == out.len) != 0,
                 "EMIT_FORMAT chain with emit_fn");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
@@ -1775,7 +1824,7 @@ void test_cov_engine2_vm_exec(void) {
     vm.len = 0;
     vm.in_goto_fail = true;
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "GOTO_F unknown label fails");
+    test_assert((!ok) != 0, "GOTO_F unknown label fails");
     vm_free_labels(&vm);
   }
 
@@ -1809,7 +1858,7 @@ void test_cov_engine2_vm_exec(void) {
     uint16_t tid = 0;
     vm_register_table(&vm, tbl, &tid);
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "TABLE_GET invalid key register fails");
+    test_assert((!ok) != 0, "TABLE_GET invalid key register fails");
     vm_free_labels(&vm);
     vm_free_tables(&vm);
     table_release(tbl);
@@ -1845,7 +1894,7 @@ void test_cov_engine2_vm_exec(void) {
     uint16_t tid = 0;
     vm_register_table(&vm, tbl, &tid);
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "TABLE_SET invalid value register fails");
+    test_assert((!ok) != 0, "TABLE_SET invalid value register fails");
     vm_free_labels(&vm);
     vm_free_tables(&vm);
     table_release(tbl);
@@ -1858,7 +1907,7 @@ void test_cov_engine2_vm_exec(void) {
     parts[0] = snobol_ast_create_len(1);
     parts[1] = snobol_ast_create_rpos(2);
     ast_node_t *ast = snobol_ast_create_concat(parts, 2);
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     compile_ast_to_bytecode_c(ast, false, &bc, &bc_len);
     snobol_ast_free(ast);
@@ -1869,7 +1918,7 @@ void test_cov_engine2_vm_exec(void) {
     vm.s = "ab";
     vm.len = 2;
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "RPOS fail path");
+    test_assert((!ok) != 0, "RPOS fail path");
     vm_free_labels(&vm);
     compiler_free(bc);
 
@@ -1904,7 +1953,7 @@ void test_cov_engine2_vm_exec(void) {
            "b";
     vm.len = 4;
     ok = vm_exec(&vm);
-    test_assert(!ok, "TAB beyond subject fails");
+    test_assert((!ok) != 0, "TAB beyond subject fails");
     vm_free_labels(&vm);
     compiler_free(bc);
   }
@@ -1972,7 +2021,7 @@ void test_cov_engine2_vm_exec_round5(void) {
     snobol_buf_init(&out);
     vm.out = &out;
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "EVAL capture bounds beyond subject fail");
+    test_assert((!ok) != 0, "EVAL capture bounds beyond subject fail");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
   }
@@ -1986,14 +2035,16 @@ void test_cov_engine2_vm_exec_round5(void) {
     vm.bc_len = 11;
     vm.s = "";
     vm.len = 0;
-    snobol_buf out, cb;
+    snobol_buf out;
+    snobol_buf cb;
     snobol_buf_init(&out);
     snobol_buf_init(&cb);
     vm.out = &out;
     vm.emit_fn = cove_emit_cb;
     vm.emit_udata = &cb;
     bool ok = vm_exec(&vm);
-    test_assert(ok && out.len == 1 && cb.len == 1, "EMIT_LITERAL inline");
+    test_assert((ok && out.len == 1 && cb.len == 1) != 0,
+                "EMIT_LITERAL inline");
     vm_free_labels(&vm);
     snobol_buf_free(&out);
     snobol_buf_free(&cb);
@@ -2026,7 +2077,7 @@ void test_cov_engine2_vm_exec_round5(void) {
     vm.emit_fn = cove_emit_cb;
     vm.emit_udata = &cb;
     bool ok = vm_exec(&vm);
-    test_assert(ok && cb.len == 2, "EMIT_CAPTURE emit_fn");
+    test_assert((ok && cb.len == 2) != 0, "EMIT_CAPTURE emit_fn");
     vm_free_labels(&vm);
     snobol_buf_free(&cb);
   }
@@ -2059,7 +2110,7 @@ void test_cov_engine2_vm_exec_round5(void) {
     vm.emit_fn = cove_emit_cb;
     vm.emit_udata = &cb;
     bool ok = vm_exec(&vm);
-    test_assert(ok && cb.len == 2 && cb.data[0] == 'A',
+    test_assert((ok && cb.len == 2 && cb.data[0] == 'A') != 0,
                 "EMIT_EXPR upper emit_fn");
     vm_free_labels(&vm);
     snobol_buf_free(&cb);
@@ -2078,7 +2129,7 @@ void test_cov_engine2_vm_exec_round5(void) {
     vm.len = 0;
     /* label 5 intentionally NOT registered → invalid path */
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "GOTO invalid target fails");
+    test_assert((!ok) != 0, "GOTO invalid target fails");
     vm_free_labels(&vm);
   }
 
@@ -2109,7 +2160,7 @@ void test_cov_engine2_vm_exec_round5(void) {
     vm.len = 1;
     vm_init_arrays(&vm);
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "ARRAY_GET invalid array fails");
+    test_assert((!ok) != 0, "ARRAY_GET invalid array fails");
     vm_free_labels(&vm);
     vm_free_arrays(&vm);
   }
@@ -2144,7 +2195,7 @@ void test_cov_engine2_vm_exec_round5(void) {
     uint16_t aid = 0;
     vm_register_array(&vm, arr, &aid);
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "ARRAY_SET invalid value register fails");
+    test_assert((!ok) != 0, "ARRAY_SET invalid value register fails");
     vm_free_labels(&vm);
     vm_free_arrays(&vm);
     snobol_array_release(arr);
@@ -2153,7 +2204,7 @@ void test_cov_engine2_vm_exec_round5(void) {
   /* BAL on truncated UTF-8 subject. */
   {
     ast_node_t *ast = snobol_ast_create_bal('(', ')');
-    uint8_t *bc = NULL;
+    uint8_t *bc = nullptr;
     size_t bc_len = 0;
     compile_ast_to_bytecode_c(ast, false, &bc, &bc_len);
     snobol_ast_free(ast);
@@ -2164,7 +2215,7 @@ void test_cov_engine2_vm_exec_round5(void) {
     vm.s = "(\xE2\x82"; /* truncated UTF-8 inside parens */
     vm.len = 3;
     bool ok = vm_exec(&vm);
-    test_assert(!ok, "BAL truncated UTF-8 fails");
+    test_assert((!ok) != 0, "BAL truncated UTF-8 fails");
     vm_free_labels(&vm);
     compiler_free(bc);
   }

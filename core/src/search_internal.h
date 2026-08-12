@@ -34,10 +34,12 @@
 #if defined(_WIN32) || !defined(__GLIBC__)
 static const void *snobol_memmem(const void *hay, size_t hlen,
                                  const void *needle, size_t nlen) {
-  if (nlen == 0)
+  if (nlen == 0) {
     return hay;
-  if (hlen < nlen)
+  }
+  if (hlen < nlen) {
     return nullptr;
+  }
   const char *h = (const char *)hay;
   const char *n = (const char *)needle;
   size_t limit = hlen - nlen;
@@ -49,10 +51,12 @@ static const void *snobol_memmem(const void *hay, size_t hlen,
   while (i <= limit) {
     const char *p =
         (const char *)memchr(h + i, (unsigned char)n[0], limit - i + 1);
-    if (!p)
+    if (!p) {
       return nullptr;
-    if (memcmp(p, n, nlen) == 0)
+    }
+    if (memcmp(p, n, nlen) == 0) {
       return p;
+    }
     i = (size_t)(p - h) + 1;
   }
   return nullptr;

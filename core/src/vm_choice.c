@@ -40,8 +40,9 @@ size_t vm_compact_choice_record_size(const CompactChoiceHeader *hdr) {
 
 ChoiceArena *vm_arena_create(void) {
   ChoiceArena *a = (ChoiceArena *)snobol_malloc(sizeof(*a));
-  if (!a)
+  if (!a) {
     return nullptr;
+  }
   a->head = (ChoiceArenaPage *)snobol_malloc(sizeof(ChoiceArenaPage));
   if (!a->head) {
     snobol_free(a);
@@ -64,8 +65,9 @@ ChoiceArena *vm_arena_create(void) {
 }
 
 void vm_arena_destroy(ChoiceArena *a) {
-  if (!a)
+  if (!a) {
     return;
+  }
   ChoiceArenaPage *p = a->head;
   while (p) {
     ChoiceArenaPage *nx = p->next;
@@ -77,8 +79,9 @@ void vm_arena_destroy(ChoiceArena *a) {
 }
 
 void vm_arena_reset(ChoiceArena *a) {
-  if (!a)
+  if (!a) {
     return;
+  }
   ChoiceArenaPage *p = a->head->next;
   while (p) {
     ChoiceArenaPage *nx = p->next;
@@ -96,8 +99,9 @@ void vm_arena_reset(ChoiceArena *a) {
 
 static ChoiceArenaPage *arena_new_page(size_t need) {
   ChoiceArenaPage *p = (ChoiceArenaPage *)snobol_malloc(sizeof(*p));
-  if (!p)
+  if (!p) {
     return nullptr;
+  }
   size_t cap = need > CHOICE_ARENA_PAGE_SIZE ? need : CHOICE_ARENA_PAGE_SIZE;
   p->data = (uint8_t *)snobol_malloc(cap);
   if (!p->data) {
@@ -111,8 +115,9 @@ static ChoiceArenaPage *arena_new_page(size_t need) {
 }
 
 uint8_t *vm_arena_alloc(ChoiceArena *a, size_t payload_len) {
-  if (!a)
+  if (!a) {
     return nullptr;
+  }
   /* Layout: leading uint32 footprint | 4-byte align pad | aligned payload
    *         | 4-byte align pad | trailing uint32 footprint (last 4 bytes).
    * Payload is 8-aligned (CompactChoiceHeader / struct choice carry size_t
@@ -120,11 +125,12 @@ uint8_t *vm_arena_alloc(ChoiceArena *a, size_t payload_len) {
    * and triggered UBSan / Windows SEGV). Total footprint is a multiple of 8
    * so the next record's payload also lands at an 8-aligned offset. */
   size_t aligned_payload = (payload_len + 7) & ~(size_t)7;
-  size_t footprint = aligned_payload + 2 * sizeof(uint32_t) + 8;
+  size_t footprint = aligned_payload + (2 * sizeof(uint32_t)) + 8;
   if (a->cur->used + footprint > a->cur->cap) {
     ChoiceArenaPage *np = arena_new_page(footprint);
-    if (!np)
+    if (!np) {
       return nullptr;
+    }
     np->prev = a->cur;
     a->cur->next = np;
     a->cur = np;
@@ -136,15 +142,17 @@ uint8_t *vm_arena_alloc(ChoiceArena *a, size_t payload_len) {
   tw[0] = (uint32_t)footprint;
   a->cur->used += footprint;
   a->total_used += footprint;
-  if (a->total_used > a->peak_used)
+  if (a->total_used > a->peak_used) {
     a->peak_used = a->total_used;
+  }
   a->last_rec_size = footprint;
   return base + 8; /* 8-byte aligned payload area */
 }
 
 void vm_arena_pop_last(ChoiceArena *a) {
-  if (!a || a->total_used == 0)
+  if (!a || a->total_used == 0) {
     return;
+  }
   /* Trailing size word sits just before the page tail. */
   uint32_t footprint =
       *(uint32_t *)(a->cur->data + a->cur->used - sizeof(uint32_t));
@@ -186,8 +194,9 @@ void snobol_vm_reset(VM *vm) {
   vm->in_goto_fail = false;
   vm->current_label = 0;
   vm->choices_top = 0;
-  if (vm->choices_arena)
+  if (vm->choices_arena) {
     vm_arena_reset(vm->choices_arena);
+  }
   vm->choice_allocated = 0;
   vm->choice_push_count = 0;
   vm->choice_peak_depth = 0;
@@ -205,12 +214,13 @@ size_t vm_choice_stack_memory_usage(VM *vm) {
 size_t vm_choice_stack_depth(VM *vm) {
   /* Depth = number of choice records on the arena stack. Each record carries
    * a leading size word, so we walk page-by-page counting records. */
-  if (!vm->choices_arena)
+  if (!vm->choices_arena) {
     return 0;
+  }
   size_t depth = 0;
   for (ChoiceArenaPage *p = vm->choices_arena->head; p; p = p->next) {
     size_t pos = 0;
-    while (pos + 2 * sizeof(uint32_t) <= p->used) {
+    while (pos + (2 * sizeof(uint32_t)) <= p->used) {
       uint32_t footprint = *(uint32_t *)(p->data + pos);
       pos += footprint;
       depth++;
@@ -227,8 +237,9 @@ size_t vm_choice_record_average_size(VM *vm) {
 }
 
 void vm_push_choice(VM *vm, size_t ip, size_t pos) {
-  if (!vm->choices_arena)
+  if (!vm->choices_arena) {
     return;
+  }
 #ifdef SNOBOL_PROFILE
   vm->profile.push_count++;
 #endif
@@ -242,8 +253,9 @@ void vm_push_choice(VM *vm, size_t ip, size_t pos) {
     size_t rec_payload = sizeof(CompactChoiceHeader) + sizeof(uint32_t);
     CompactChoiceHeader *h =
         (CompactChoiceHeader *)vm_arena_alloc(vm->choices_arena, rec_payload);
-    if (!h)
+    if (!h) {
       return;
+    }
     h->total_size = (uint32_t)rec_payload;
     h->ip = ip;
     h->pos = pos;
@@ -256,18 +268,21 @@ void vm_push_choice(VM *vm, size_t ip, size_t pos) {
         (uint32_t *)((uint8_t *)h + rec_payload - sizeof(uint32_t));
     *size_ptr = (uint32_t)rec_payload;
     vm->choices_top = vm->choices_arena->total_used;
-    vm->choice_allocated += rec_payload + 2 * sizeof(uint32_t);
+    vm->choice_allocated += rec_payload + (2 * sizeof(uint32_t));
     vm->choice_push_count++;
     vm->choice_live_depth++;
-    if (vm->choices_top > vm->choice_peak_memory)
+    if (vm->choices_top > vm->choice_peak_memory) {
       vm->choice_peak_memory = vm->choices_top;
-    if (vm->choice_live_depth > vm->choice_peak_depth)
+    }
+    if (vm->choice_live_depth > vm->choice_peak_depth) {
       vm->choice_peak_depth = vm->choice_live_depth;
+    }
   } else {
     struct choice *c = (struct choice *)vm_arena_alloc(vm->choices_arena,
                                                        sizeof(struct choice));
-    if (!c)
+    if (!c) {
       return;
+    }
     c->ip = ip;
     c->pos = pos;
     c->var_count_snapshot = vm->var_count;
@@ -285,19 +300,22 @@ void vm_push_choice(VM *vm, size_t ip, size_t pos) {
              vm->max_counter_used * sizeof(size_t));
     }
     vm->choices_top = vm->choices_arena->total_used;
-    vm->choice_allocated += sizeof(struct choice) + 2 * sizeof(uint32_t);
+    vm->choice_allocated += sizeof(struct choice) + (2 * sizeof(uint32_t));
     vm->choice_push_count++;
     vm->choice_live_depth++;
-    if (vm->choices_top > vm->choice_peak_memory)
+    if (vm->choices_top > vm->choice_peak_memory) {
       vm->choice_peak_memory = vm->choices_top;
-    if (vm->choice_live_depth > vm->choice_peak_depth)
+    }
+    if (vm->choice_live_depth > vm->choice_peak_depth) {
       vm->choice_peak_depth = vm->choice_live_depth;
+    }
   }
 }
 
 bool vm_pop_choice(VM *vm) {
-  if (!vm->choices_arena || vm->choices_arena->total_used == 0)
+  if (!vm->choices_arena || vm->choices_arena->total_used == 0) {
     return false;
+  }
 #ifdef SNOBOL_PROFILE
   vm->profile.pop_count++;
 #endif
@@ -341,7 +359,8 @@ bool vm_pop_choice(VM *vm) {
   }
   vm_arena_pop_last(vm->choices_arena);
   vm->choices_top = vm->choices_arena->total_used;
-  if (vm->choice_live_depth > 0)
+  if (vm->choice_live_depth > 0) {
     vm->choice_live_depth--;
+  }
   return true;
 }

@@ -11,7 +11,7 @@ void test_assert(bool condition, const char *message);
 
 static void test_prefilter_miss(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   /* ('a'+)+ 'b' — required lit is 'b' */
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "('a'+)+ 'b'", 12, &err);
   if (!p) {
@@ -27,11 +27,12 @@ static void test_prefilter_miss(void) {
   fprintf(stderr,
           "  prefilter miss: has_required_lit=%d required_lit_len=%zu "
           "has_literal_prefix=%d tier=%d\n",
-          meta->has_required_lit, meta->required_lit_len,
-          meta->has_literal_prefix, meta->tier);
+          (int)meta->has_required_lit, meta->required_lit_len,
+          (int)meta->has_literal_prefix, meta->tier);
   snobol_search_result_t r;
-  bool ok = snobol_search_exec(&vm, "aaaaaaaaaa", 10, 0, meta, NULL, &r, NULL);
-  test_assert(!ok, "prefilter miss: no match on a-only");
+  bool ok =
+      snobol_search_exec(&vm, "aaaaaaaaaa", 10, 0, meta, nullptr, &r, nullptr);
+  test_assert((!ok) != 0, "prefilter miss: no match on a-only");
   test_assert(r.prefilter_skip, "prefilter miss: prefilter_skip set");
   snobol_pattern_free(p);
   snobol_context_destroy(ctx);
@@ -40,7 +41,7 @@ static void test_prefilter_miss(void) {
 
 static void test_prefilter_hit(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "('a'+)+ 'b'", 12, &err);
   if (!p) {
     test_assert(false, "prefilter hit: compile");
@@ -53,10 +54,12 @@ static void test_prefilter_hit(void) {
   vm.bc_len = snobol_pattern_get_bc_len(p);
   const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
   snobol_search_result_t r;
-  bool ok = snobol_search_exec(&vm, "aaaaabaaaa", 10, 0, meta, NULL, &r, NULL);
+  bool ok =
+      snobol_search_exec(&vm, "aaaaabaaaa", 10, 0, meta, nullptr, &r, nullptr);
   test_assert(ok, "prefilter hit: match found");
-  test_assert(!r.prefilter_skip, "prefilter hit: prefilter_skip not set");
-  test_assert(r.match_start <= 5 && r.match_end > 5,
+  test_assert((!r.prefilter_skip) != 0,
+              "prefilter hit: prefilter_skip not set");
+  test_assert((r.match_start <= 5 && r.match_end > 5) != 0,
               "prefilter hit: match contains 'b'");
   snobol_pattern_free(p);
   snobol_context_destroy(ctx);
@@ -65,7 +68,7 @@ static void test_prefilter_hit(void) {
 
 static void test_prefilter_noop(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   /* 'a' | 'b' — no single required lit (SPLIT in bytecode prevents it) */
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "'a' | 'b'", 9, &err);
   if (!p) {
@@ -79,10 +82,10 @@ static void test_prefilter_noop(void) {
   vm.bc = (uint8_t *)snobol_pattern_get_bc(p);
   vm.bc_len = snobol_pattern_get_bc_len(p);
   snobol_search_result_t r;
-  bool ok = snobol_search_exec(&vm, "c", 1, 0, meta, NULL, &r, NULL);
-  test_assert(!ok, "prefilter noop: no match");
+  bool ok = snobol_search_exec(&vm, "c", 1, 0, meta, nullptr, &r, nullptr);
+  test_assert((!ok) != 0, "prefilter noop: no match");
   /* prefilter_skip should be false — the pre-filter was skipped */
-  test_assert(!r.prefilter_skip, "prefilter noop: no prefilter_skip");
+  test_assert((!r.prefilter_skip) != 0, "prefilter noop: no prefilter_skip");
   snobol_pattern_free(p);
   snobol_context_destroy(ctx);
   snobol_search_vm_cleanup(&vm);
@@ -90,7 +93,7 @@ static void test_prefilter_noop(void) {
 
 static void test_prefilter_leading_alternation(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   /* A SPLIT encountered before any literal (loop body or leading
    * alternation) makes every later literal optional — no required literal
    * may be derived, and subjects without any branch literal must still
@@ -104,15 +107,17 @@ static void test_prefilter_leading_alternation(void) {
   }
   free(err);
   const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
-  test_assert(!meta->has_required_lit,
+  test_assert((!meta->has_required_lit) != 0,
               "prefilter leading alt: no required literal derived");
   snobol_match_t *m = snobol_pattern_search(p, "xyz", 3);
-  test_assert(m && snobol_match_success(m) && snobol_match_get_length(m) == 0,
-              "prefilter leading alt: zero-length match on 'xyz'");
+  test_assert(
+      (m && snobol_match_success(m) && snobol_match_get_length(m) == 0) != 0,
+      "prefilter leading alt: zero-length match on 'xyz'");
   snobol_match_free(m);
   m = snobol_pattern_search(p, "ab", 2);
-  test_assert(m && snobol_match_success(m) && snobol_match_get_length(m) == 2,
-              "prefilter leading alt: 'ab' fully consumed");
+  test_assert(
+      (m && snobol_match_success(m) && snobol_match_get_length(m) == 2) != 0,
+      "prefilter leading alt: 'ab' fully consumed");
   snobol_match_free(m);
   snobol_pattern_free(p);
   snobol_context_destroy(ctx);
@@ -143,7 +148,7 @@ static void test_anchored_prefilter_miss(void) {
   const char *subject = "aaaaaaaaaa";
   for (size_t i = 0; i < sizeof(patterns) / sizeof(patterns[0]); i++) {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *p =
         snobol_pattern_compile(ctx, patterns[i], strlen(patterns[i]), &err);
     if (!p) {
@@ -158,8 +163,9 @@ static void test_anchored_prefilter_miss(void) {
     const snobol_search_meta_t *meta = snobol_pattern_get_meta(p);
     snobol_search_result_t r;
     bool ok = snobol_search_exec_anchored(&vm, subject, strlen(subject), meta,
-                                          NULL, &r, NULL);
-    test_assert(!ok, "anchored prefilter miss: no match on a-only subject");
+                                          nullptr, &r, nullptr);
+    test_assert((!ok) != 0,
+                "anchored prefilter miss: no match on a-only subject");
     test_assert(r.prefilter_skip,
                 "anchored prefilter miss: prefilter_skip set");
     snobol_pattern_free(p);
@@ -173,7 +179,7 @@ static void test_anchored_prefilter_miss(void) {
  * short-circuit and the failure must agree with the full VM. */
 static void test_anchored_prefilter_no_shortcircuit(void) {
   snobol_context_t *ctx = snobol_context_create();
-  char *err = NULL;
+  char *err = nullptr;
   /* ('a'+) needs an 'a' at the anchor; "bbbbbb" has the required 'b' but no
    * anchored match. */
   snobol_pattern_t *p = snobol_pattern_compile(ctx, "('a'+) 'b'", 10, &err);
@@ -190,9 +196,11 @@ static void test_anchored_prefilter_no_shortcircuit(void) {
   vm.bc = (uint8_t *)bc;
   vm.bc_len = bc_len;
   snobol_search_result_t r;
-  bool ok = snobol_search_exec_anchored(&vm, "bbbbbb", 6, meta, NULL, &r, NULL);
-  test_assert(!ok, "anchored prefilter no-shortcircuit: no anchored match");
-  test_assert(!r.prefilter_skip,
+  bool ok =
+      snobol_search_exec_anchored(&vm, "bbbbbb", 6, meta, nullptr, &r, nullptr);
+  test_assert((!ok) != 0,
+              "anchored prefilter no-shortcircuit: no anchored match");
+  test_assert((!r.prefilter_skip) != 0,
               "anchored prefilter no-shortcircuit: prefilter did not reject");
   VM fvm = make_vm(bc, bc_len, "bbbbbb");
   test_assert(ok == vm_run(&fvm),

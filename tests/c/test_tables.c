@@ -34,7 +34,7 @@ static void test_table_create_free(void) {
 static void test_table_create_unnamed(void) {
   test_suite("Table: create unnamed");
 
-  snobol_table_t *table = table_create(NULL);
+  snobol_table_t *table = table_create(nullptr);
   test_assert(table != NULL, "table_create(NULL) returns non-NULL");
   test_assert(table_name(table) == NULL, "unnamed table has NULL name");
 
@@ -48,7 +48,7 @@ static void test_table_set_get(void) {
 
   /* Insert a value */
   bool result = table_set(table, "key1", "value1");
-  test_assert(result == true, "table_set returns true");
+  test_assert(result, "table_set returns true");
   test_assert(table_size(table) == 1, "size is 1 after insert");
 
   /* Retrieve the value */
@@ -90,7 +90,7 @@ static void test_table_delete(void) {
   test_assert(table_size(table) == 2, "size is 2");
 
   bool deleted = table_delete(table, "key1");
-  test_assert(deleted == true, "table_delete returns true for existing key");
+  test_assert(deleted, "table_delete returns true for existing key");
   test_assert(table_size(table) == 1, "size is 1 after delete");
 
   const char *value = table_get(table, "key1");
@@ -98,7 +98,7 @@ static void test_table_delete(void) {
 
   /* Delete non-existent key */
   deleted = table_delete(table, "nonexistent");
-  test_assert(deleted == false, "table_delete returns false for missing key");
+  test_assert(!deleted, "table_delete returns false for missing key");
 
   table_release(table);
 }
@@ -109,11 +109,10 @@ static void test_table_set_null_deletes(void) {
   snobol_table_t *table = table_create("test");
 
   (void)table_set(table, "key", "value");
-  test_assert(table_has(table, "key") == true, "key exists");
+  test_assert(table_has(table, "key"), "key exists");
 
-  (void)table_set(table, "key", NULL);
-  test_assert(table_has(table, "key") == false,
-              "key is deleted after set NULL");
+  (void)table_set(table, "key", nullptr);
+  test_assert(!table_has(table, "key"), "key is deleted after set NULL");
   test_assert(table_size(table) == 0, "size is 0");
 
   table_release(table);
@@ -124,16 +123,13 @@ static void test_table_has(void) {
 
   snobol_table_t *table = table_create("test");
 
-  test_assert(table_has(table, "key") == false,
-              "has returns false for missing key");
+  test_assert(!table_has(table, "key"), "has returns false for missing key");
 
   (void)table_set(table, "key", "value");
-  test_assert(table_has(table, "key") == true,
-              "has returns true for existing key");
+  test_assert(table_has(table, "key"), "has returns true for existing key");
 
   (void)table_delete(table, "key");
-  test_assert(table_has(table, "key") == false,
-              "has returns false after delete");
+  test_assert(!table_has(table, "key"), "has returns false after delete");
 
   table_release(table);
 }
@@ -150,9 +146,9 @@ static void test_table_clear(void) {
 
   table_clear(table);
   test_assert(table_size(table) == 0, "size is 0 after clear");
-  test_assert(table_has(table, "key1") == false, "key1 is gone");
-  test_assert(table_has(table, "key2") == false, "key2 is gone");
-  test_assert(table_has(table, "key3") == false, "key3 is gone");
+  test_assert(!table_has(table, "key1"), "key1 is gone");
+  test_assert(!table_has(table, "key2"), "key2 is gone");
+  test_assert(!table_has(table, "key3"), "key3 is gone");
 
   /* Can re-use cleared table */
   (void)table_set(table, "newkey", "newvalue");
@@ -210,12 +206,13 @@ static void test_table_many_entries(void) {
   snobol_table_t *table = table_create("large");
 
   /* Insert enough entries to trigger resize */
-  char key[32], value[32];
+  char key[32];
+  char value[32];
   for (int i = 0; i < 100; i++) {
     snprintf(key, sizeof(key), "key%d", i);
     snprintf(value, sizeof(value), "value%d", i);
     bool result = table_set(table, key, value);
-    test_assert(result == true, "insert many entries succeeds");
+    test_assert(result, "insert many entries succeeds");
   }
 
   test_assert(table_size(table) == 100, "size is 100");
@@ -315,12 +312,12 @@ static void test_table_nul_safe_keys_and_values(void) {
 
   test_assert(table_has_ex(table, key_a, sizeof(key_a)), "has_ex key A");
   test_assert(table_has_ex(table, key_b, sizeof(key_b)), "has_ex key B");
-  test_assert(!table_has_ex(table, "k", 1), "prefix alone is not a key");
+  test_assert((!table_has_ex(table, "k", 1)) != 0, "prefix alone is not a key");
 
   size_t vlen = 0;
   const char *got = table_get_ex(table, key_a, sizeof(key_a), &vlen);
   test_assert(got != NULL, "get_ex key A");
-  test_assert(vlen == 3 && memcmp(got, bin_val, 3) == 0,
+  test_assert((vlen == 3 && memcmp(got, bin_val, 3) == 0) != 0,
               "get_ex value is byte-exact (embedded NUL preserved)");
 
   test_assert(table_delete_ex(table, key_a, sizeof(key_a)), "delete_ex key A");

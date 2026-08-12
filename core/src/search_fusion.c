@@ -30,7 +30,7 @@
  */
 
 static inline bool fusion_bitmap_test(const uint8_t bm[32], uint8_t b) {
-  return (bm[b >> 3] & (uint8_t)(1u << (b & 7))) != 0;
+  return (bm[b >> 3] & (uint8_t)(1U << (b & 7))) != 0;
 }
 
 /* ---------------------------------------------------------------------------
@@ -71,10 +71,12 @@ static bool exec_fusion(const snobol_fusion_t *fusion, const char *subject,
 
     switch (seg->type) {
       case FUSION_LIT: {
-        if (cur + seg->lit.len > subject_len)
+        if (cur + seg->lit.len > subject_len) {
           return false;
-        if (memcmp(subject + cur, seg->lit.data, seg->lit.len) != 0)
+        }
+        if (memcmp(subject + cur, seg->lit.data, seg->lit.len) != 0) {
           return false;
+        }
         cur += seg->lit.len;
         break;
       }
@@ -85,16 +87,19 @@ static bool exec_fusion(const snobol_fusion_t *fusion, const char *subject,
                fusion_bitmap_test(seg->run.bitmap, (uint8_t)subject[cur])) {
           cur++;
         }
-        if (cur - start < seg->run.min)
+        if (cur - start < seg->run.min) {
           return false;
+        }
         break;
       }
 
       case FUSION_CHAR: {
-        if (cur >= subject_len)
+        if (cur >= subject_len) {
           return false;
-        if (!fusion_bitmap_test(seg->chr.bitmap, (uint8_t)subject[cur]))
+        }
+        if (!fusion_bitmap_test(seg->chr.bitmap, (uint8_t)subject[cur])) {
           return false;
+        }
         cur++;
         break;
       }
@@ -105,8 +110,9 @@ static bool exec_fusion(const snobol_fusion_t *fusion, const char *subject,
         for (uint32_t j = 0; j < seg->alt.alt_count; j++) {
           snobol_fusion_segment_t *alt_segs = seg->alt.alts[j];
           uint32_t alt_len = seg->alt.alt_lens[j];
-          if (!alt_segs || alt_len == 0)
+          if (!alt_segs || alt_len == 0) {
             continue;
+          }
 
           cur = save_cur;
           bool alt_matched = true;
@@ -149,16 +155,18 @@ static bool exec_fusion(const snobol_fusion_t *fusion, const char *subject,
               }
               default: alt_matched = false; break;
             }
-            if (!alt_matched)
+            if (!alt_matched) {
               break;
+            }
           }
           if (alt_matched) {
             matched = true;
             break;
           }
         }
-        if (!matched)
+        if (!matched) {
           return false;
+        }
         break;
       }
 
@@ -207,8 +215,9 @@ bool tier_fusion(VM *vm, const char *subject, size_t subject_len,
   size_t offset = start_offset;
 
   while (offset < subject_len) {
-    if (diag)
+    if (diag) {
       diag->candidates_tested++;
+    }
 
     size_t match_end = 0;
     if (exec_fusion(fusion, subject, subject_len, offset, &match_end)) {
@@ -218,8 +227,9 @@ bool tier_fusion(VM *vm, const char *subject, size_t subject_len,
       return true;
     }
 
-    if (offset >= subject_len)
+    if (offset >= subject_len) {
       break;
+    }
     offset++;
   }
 

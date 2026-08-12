@@ -23,12 +23,14 @@ extern void test_assert(bool condition, const char *message);
 static void compare_with_source(snobol_pattern_t *src, snobol_pattern_t *bld,
                                 const char *subject, size_t slen, bool anchored,
                                 const char *label) {
-  snobol_match_t *ms = anchored ? snobol_pattern_match(src, subject, slen)
-                                : snobol_pattern_search(src, subject, slen);
-  snobol_match_t *mb = anchored ? snobol_pattern_match(bld, subject, slen)
-                                : snobol_pattern_search(bld, subject, slen);
-  bool sa = ms != NULL && snobol_match_success(ms);
-  bool sb = mb != NULL && snobol_match_success(mb);
+  snobol_match_t *ms = (int)anchored
+                           ? snobol_pattern_match(src, subject, slen)
+                           : snobol_pattern_search(src, subject, slen);
+  snobol_match_t *mb = (int)anchored
+                           ? snobol_pattern_match(bld, subject, slen)
+                           : snobol_pattern_search(bld, subject, slen);
+  bool sa = (ms != NULL && snobol_match_success(ms)) != 0;
+  bool sb = (mb != NULL && snobol_match_success(mb)) != 0;
   char msg[160];
   snprintf(msg, sizeof(msg), "%s: success parity", label);
   test_assert(sa == sb, msg);
@@ -39,14 +41,15 @@ static void compare_with_source(snobol_pattern_t *src, snobol_pattern_t *bld,
     snprintf(msg, sizeof(msg), "%s: length parity", label);
     test_assert(snobol_match_get_length(ms) == snobol_match_get_length(mb),
                 msg);
-    size_t ls = 0, lb = 0;
+    size_t ls = 0;
+    size_t lb = 0;
     /* Both construction paths use register 0: the parser allocates the first
      * @name capture to register 0 and the builder mirrors it explicitly. */
     const char *cs = snobol_match_get_variable(ms, "0", &ls);
     const char *cb = snobol_match_get_variable(mb, "0", &lb);
     snprintf(msg, sizeof(msg), "%s: capture parity", label);
-    test_assert((cs == NULL) == (cb == NULL) && ls == lb &&
-                    (cs == NULL || memcmp(cs, cb, ls) == 0),
+    test_assert(((cs == NULL) == (cb == NULL) && ls == lb &&
+                 (cs == NULL || memcmp(cs, cb, ls) == 0)) != 0,
                 msg);
   }
   snobol_match_free(ms);
@@ -59,33 +62,35 @@ static void test_builder_literal(void) {
 
   snobol_context_t *ctx = snobol_context_create();
   test_assert(ctx != NULL, "context created");
-  if (!ctx)
+  if (!ctx) {
     return;
+  }
 
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_build_t *b = snobol_pattern_build_create();
   ast_node_t *lit = snobol_pattern_build_lit(b, "hello", 5);
   ast_node_t *root = snobol_pattern_build_emit(b, lit);
   test_assert(root == lit, "emit returns the root");
   snobol_pattern_t *pat = snobol_pattern_build_compile(ctx, root, 0, &err);
-  test_assert(pat != NULL && err == NULL, "literal compiles");
+  test_assert((pat != NULL && err == NULL) != 0, "literal compiles");
   free(err);
-  err = NULL;
+  err = nullptr;
   snobol_pattern_build_destroy(b);
   if (pat) {
     test_assert(snobol_pattern_get_meta(pat) != NULL,
                 "search metadata derived");
     snobol_match_t *m = snobol_pattern_search(pat, "say hello world", 15);
-    test_assert(m != NULL && snobol_match_success(m), "literal matches");
+    test_assert((m != NULL && snobol_match_success(m)) != 0, "literal matches");
     if (m) {
       test_assert(snobol_match_get_position(m) == 4,
                   "literal found at offset 4");
       snobol_match_free(m);
     }
     m = snobol_pattern_search(pat, "nope", 4);
-    test_assert(m != NULL && !snobol_match_success(m), "literal miss");
-    if (m)
+    test_assert((m != NULL && !snobol_match_success(m)) != 0, "literal miss");
+    if (m) {
       snobol_match_free(m);
+    }
     snobol_pattern_free(pat);
   }
 
@@ -95,16 +100,18 @@ static void test_builder_literal(void) {
   root = snobol_pattern_build_emit(b, lit);
   pat = snobol_pattern_build_compile(ctx, root, SNOBOL_FLAG_CASE_INSENSITIVE,
                                      &err);
-  test_assert(pat != NULL && err == NULL, "case-insensitive literal compiles");
+  test_assert((pat != NULL && err == NULL) != 0,
+              "case-insensitive literal compiles");
   free(err);
-  err = NULL;
+  err = nullptr;
   snobol_pattern_build_destroy(b);
   if (pat) {
     snobol_match_t *m = snobol_pattern_search(pat, "HELLO there", 11);
-    test_assert(m != NULL && snobol_match_success(m),
+    test_assert((m != NULL && snobol_match_success(m)) != 0,
                 "case-insensitive literal matches");
-    if (m)
+    if (m) {
       snobol_match_free(m);
+    }
     snobol_pattern_free(pat);
   }
 
@@ -124,15 +131,17 @@ static void test_builder_composed(void) {
 
   snobol_context_t *ctx = snobol_context_create();
   test_assert(ctx != NULL, "context created");
-  if (!ctx)
+  if (!ctx) {
     return;
+  }
 
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *from_source =
       snobol_pattern_compile_ex(ctx, src, strlen(src), 0, &err);
-  test_assert(from_source != NULL && err == NULL, "source pattern compiles");
+  test_assert((from_source != NULL && err == NULL) != 0,
+              "source pattern compiles");
   free(err);
-  err = NULL;
+  err = nullptr;
 
   snobol_pattern_build_t *b = snobol_pattern_build_create();
   ast_node_t **parts = (ast_node_t **)malloc(7 * sizeof(ast_node_t *));
@@ -160,9 +169,10 @@ static void test_builder_composed(void) {
       snobol_pattern_build_emit(b, snobol_pattern_build_concat(b, parts, 7));
   snobol_pattern_t *from_builder =
       snobol_pattern_build_compile(ctx, root, 0, &err);
-  test_assert(from_builder != NULL && err == NULL, "builder pattern compiles");
+  test_assert((from_builder != NULL && err == NULL) != 0,
+              "builder pattern compiles");
   free(err);
-  err = NULL;
+  err = nullptr;
   snobol_pattern_build_destroy(b);
 
   if (from_source && from_builder) {
@@ -193,10 +203,11 @@ static void test_builder_compile_failure(void) {
 
   snobol_context_t *ctx = snobol_context_create();
   test_assert(ctx != NULL, "context created");
-  if (!ctx)
+  if (!ctx) {
     return;
+  }
 
-  char *err = NULL;
+  char *err = nullptr;
 
   /* Undefined label reference fails the label-table validation. */
   snobol_pattern_build_t *b = snobol_pattern_build_create();
@@ -204,15 +215,15 @@ static void test_builder_compile_failure(void) {
   ast_node_t *root = snobol_pattern_build_emit(b, g);
   snobol_pattern_t *pat = snobol_pattern_build_compile(ctx, root, 0, &err);
   test_assert(pat == NULL, "undefined label returns NULL");
-  test_assert(err != NULL && strlen(err) > 0, "error string provided");
+  test_assert((err != NULL && strlen(err) > 0) != 0, "error string provided");
   free(err);
-  err = NULL;
+  err = nullptr;
   snobol_pattern_build_destroy(b);
 
   /* A NULL root fails cleanly (no dereference, no leak). */
-  pat = snobol_pattern_build_compile(ctx, NULL, 0, &err);
+  pat = snobol_pattern_build_compile(ctx, nullptr, 0, &err);
   test_assert(pat == NULL, "NULL root returns NULL");
-  test_assert(err != NULL && strlen(err) > 0, "NULL root error string");
+  test_assert((err != NULL && strlen(err) > 0) != 0, "NULL root error string");
   free(err);
 
   snobol_context_destroy(ctx);
@@ -226,55 +237,59 @@ static void test_builder_ast_consumed(void) {
 
   snobol_context_t *ctx = snobol_context_create();
   test_assert(ctx != NULL, "context created");
-  if (!ctx)
+  if (!ctx) {
     return;
+  }
 
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_build_t *b = snobol_pattern_build_create();
 
   ast_node_t *lit = snobol_pattern_build_lit(b, "ab", 2);
   ast_node_t *root = snobol_pattern_build_emit(b, lit);
   snobol_pattern_t *pat = snobol_pattern_build_compile(ctx, root, 0, &err);
-  test_assert(pat != NULL && err == NULL, "first tree compiles");
+  test_assert((pat != NULL && err == NULL) != 0, "first tree compiles");
   free(err);
-  err = NULL;
+  err = nullptr;
 
   /* Builder reuse after compile: build and compile a second tree. */
   ast_node_t *span = snobol_pattern_build_span(b, "0-9", 3);
   root = snobol_pattern_build_emit(b, span);
   snobol_pattern_t *pat2 = snobol_pattern_build_compile(ctx, root, 0, &err);
-  test_assert(pat2 != NULL && err == NULL, "second tree compiles");
+  test_assert((pat2 != NULL && err == NULL) != 0, "second tree compiles");
   free(err);
-  err = NULL;
+  err = nullptr;
 
   /* A NULL error out-param is supported (set_error no-op path); the tree is
    * still consumed on the failure path. */
   ast_node_t *bad = snobol_pattern_build_goto(b, "no_such_label");
   root = snobol_pattern_build_emit(b, bad);
-  snobol_pattern_t *pat3 = snobol_pattern_build_compile(ctx, root, 0, NULL);
+  snobol_pattern_t *pat3 = snobol_pattern_build_compile(ctx, root, 0, nullptr);
   test_assert(pat3 == NULL, "NULL error param on failure is safe");
 
   /* NULL error out-param on the success path too. */
   ast_node_t *suc = snobol_pattern_build_succeed(b);
   root = snobol_pattern_build_emit(b, suc);
-  snobol_pattern_t *pat4 = snobol_pattern_build_compile(ctx, root, 0, NULL);
+  snobol_pattern_t *pat4 = snobol_pattern_build_compile(ctx, root, 0, nullptr);
   test_assert(pat4 != NULL, "NULL error param on success is safe");
   snobol_pattern_free(pat4);
   snobol_pattern_build_destroy(b);
 
   if (pat) {
     snobol_match_t *m = snobol_pattern_search(pat, "xab", 3);
-    test_assert(m != NULL && snobol_match_success(m),
+    test_assert((m != NULL && snobol_match_success(m)) != 0,
                 "first pattern still matches");
-    if (m)
+    if (m) {
       snobol_match_free(m);
+    }
     snobol_pattern_free(pat);
   }
   if (pat2) {
     snobol_match_t *m = snobol_pattern_search(pat2, "z42", 3);
-    test_assert(m != NULL && snobol_match_success(m), "second pattern matches");
-    if (m)
+    test_assert((m != NULL && snobol_match_success(m)) != 0,
+                "second pattern matches");
+    if (m) {
       snobol_match_free(m);
+    }
     snobol_pattern_free(pat2);
   }
 

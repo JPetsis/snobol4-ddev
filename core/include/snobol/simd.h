@@ -26,7 +26,7 @@ extern "C" {
 
 /** @def SNOBOL_HAS_AVX2
  *  Defined to 1 when AVX2 is available (x86-64 with -mavx2). */
-#if defined(__AVX2__)
+#ifdef __AVX2__
 #define SNOBOL_HAS_AVX2 1
 #else
 #define SNOBOL_HAS_AVX2 0

@@ -40,5 +40,5 @@ void test_string_size_suite(void) {
   test_assert(snobol_size(emoji, 4) == 1, "SIZE: 4-byte emoji = 1 codepoint");
 
   /* NULL safety */
-  test_assert(snobol_size(NULL, 0) == 0, "SIZE: NULL string = 0");
+  test_assert(snobol_size(nullptr, 0) == 0, "SIZE: NULL string = 0");
 }

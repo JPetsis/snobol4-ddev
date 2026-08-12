@@ -23,7 +23,7 @@ void test_api_search_next_suite(void) {
 
   /* Single-byte literal: find 'a' at advancing offsets */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'a'", 3, &error);
     test_assert(pat != NULL, "literal 'a' compiled");
 
@@ -33,7 +33,8 @@ void test_api_search_next_suite(void) {
         snobol_pattern_search_state_create(bc, bc_len);
     test_assert(state != NULL, "state created");
 
-    size_t pos, len;
+    size_t pos;
+    size_t len;
     bool ok = snobol_pattern_search_next(state, "ababa", 5, 0, &pos, &len);
     test_assert(ok, "next finds first 'a' at offset 0");
     test_assert(pos == 0, "first match at position 0");
@@ -50,7 +51,7 @@ void test_api_search_next_suite(void) {
     test_assert(len == 1, "third match length 1");
 
     ok = snobol_pattern_search_next(state, "ababa", 5, 5, &pos, &len);
-    test_assert(!ok, "no match at or past subject end");
+    test_assert((!ok) != 0, "no match at or past subject end");
 
     snobol_pattern_search_state_destroy(state);
     snobol_pattern_free(pat);
@@ -58,7 +59,7 @@ void test_api_search_next_suite(void) {
 
   /* Multi-byte literal: find 'hello' */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'hello'", 7, &error);
     test_assert(pat != NULL, "literal 'hello' compiled");
 
@@ -68,7 +69,8 @@ void test_api_search_next_suite(void) {
         snobol_pattern_search_state_create(bc, bc_len);
     test_assert(state != NULL, "state created");
 
-    size_t pos, len;
+    size_t pos;
+    size_t len;
     bool ok =
         snobol_pattern_search_next(state, "hi hello hey", 12, 0, &pos, &len);
     test_assert(ok, "next finds 'hello'");
@@ -81,7 +83,7 @@ void test_api_search_next_suite(void) {
 
   /* Non-literal pattern returns false */
   {
-    char *error = NULL;
+    char *error = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'a' | 'b'", 9, &error);
     test_assert(pat != NULL, "alternation compiled");
 
@@ -91,9 +93,10 @@ void test_api_search_next_suite(void) {
         snobol_pattern_search_state_create(bc, bc_len);
     test_assert(state != NULL, "state created");
 
-    size_t pos = 99, len = 99;
+    size_t pos = 99;
+    size_t len = 99;
     bool ok = snobol_pattern_search_next(state, "ab", 2, 0, &pos, &len);
-    test_assert(!ok, "non-literal returns false");
+    test_assert((!ok) != 0, "non-literal returns false");
     test_assert(pos == 99, "out params unchanged on false");
     test_assert(len == 99, "out params unchanged on false");
 
@@ -103,20 +106,22 @@ void test_api_search_next_suite(void) {
 
   /* NULL guards */
   {
-    size_t pos, len;
-    bool ok = snobol_pattern_search_next(NULL, "x", 1, 0, &pos, &len);
-    test_assert(!ok, "NULL state returns false");
+    size_t pos;
+    size_t len;
+    bool ok = snobol_pattern_search_next(nullptr, "x", 1, 0, &pos, &len);
+    test_assert((!ok) != 0, "NULL state returns false");
 
     snobol_context_t *local_ctx = snobol_context_create();
-    snobol_pattern_t *pat = snobol_pattern_compile(local_ctx, "'x'", 3, NULL);
+    snobol_pattern_t *pat =
+        snobol_pattern_compile(local_ctx, "'x'", 3, nullptr);
     const uint8_t *bc = snobol_pattern_get_bc(pat);
     snobol_pattern_search_state_t *state =
         snobol_pattern_search_state_create(bc, snobol_pattern_get_bc_len(pat));
-    ok = snobol_pattern_search_next(state, NULL, 0, 0, &pos, &len);
-    test_assert(!ok, "NULL subject returns false");
+    ok = snobol_pattern_search_next(state, nullptr, 0, 0, &pos, &len);
+    test_assert((!ok) != 0, "NULL subject returns false");
 
-    ok = snobol_pattern_search_next(state, "x", 1, 0, NULL, &len);
-    test_assert(!ok, "NULL out_pos returns false");
+    ok = snobol_pattern_search_next(state, "x", 1, 0, nullptr, &len);
+    test_assert((!ok) != 0, "NULL out_pos returns false");
 
     snobol_pattern_search_state_destroy(state);
     snobol_pattern_free(pat);
@@ -126,14 +131,16 @@ void test_api_search_next_suite(void) {
   /* start_offset past end returns false */
   {
     snobol_context_t *local_ctx = snobol_context_create();
-    snobol_pattern_t *pat = snobol_pattern_compile(local_ctx, "'x'", 3, NULL);
+    snobol_pattern_t *pat =
+        snobol_pattern_compile(local_ctx, "'x'", 3, nullptr);
     const uint8_t *bc = snobol_pattern_get_bc(pat);
     snobol_pattern_search_state_t *state =
         snobol_pattern_search_state_create(bc, snobol_pattern_get_bc_len(pat));
 
-    size_t pos, len;
+    size_t pos;
+    size_t len;
     bool ok = snobol_pattern_search_next(state, "x", 1, 5, &pos, &len);
-    test_assert(!ok, "start_offset past end returns false");
+    test_assert((!ok) != 0, "start_offset past end returns false");
 
     snobol_pattern_search_state_destroy(state);
     snobol_pattern_free(pat);

@@ -47,7 +47,7 @@ dynamic_pattern_t *dynamic_pattern_create(const char *source, uint8_t *bc,
   pattern->bc = bc;
   pattern->bc_len = bc_len;
   pattern->refcount = 1;
-  pattern->is_valid = (bc != nullptr && bc_len > 0);
+  pattern->is_valid = ((bc != nullptr && bc_len > 0) != 0);
   pattern->source = nullptr;
   pattern->hash = 0;
 
@@ -381,14 +381,18 @@ void dynamic_pattern_cache_clear(dynamic_pattern_cache_t *cache) {
 void dynamic_pattern_cache_stats(const dynamic_pattern_cache_t *cache,
                                  size_t *out_size, size_t *out_max) {
   if (cache) {
-    if (out_size)
+    if (out_size) {
       *out_size = cache->size;
-    if (out_max)
+    }
+    if (out_max) {
       *out_max = cache->max_size;
+    }
   } else {
-    if (out_size)
+    if (out_size) {
       *out_size = 0;
-    if (out_max)
+    }
+    if (out_max) {
       *out_max = 0;
+    }
   }
 }

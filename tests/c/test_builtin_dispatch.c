@@ -38,8 +38,9 @@ static bool run_eval_builtin(const char *subject, size_t subject_len,
       header_size + subject_len + 16; /* +16 for charclass tail */
 
   uint8_t *bc = (uint8_t *)snobol_malloc(total_size);
-  if (!bc)
+  if (!bc) {
     return false;
+  }
   memset(bc, 0, total_size);
 
   size_t off = 0;
@@ -75,13 +76,13 @@ static bool run_eval_builtin(const char *subject, size_t subject_len,
   bc[bc_total - 2] = 0;
   bc[bc_total - 1] = 0;
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm.bc = bc;
   vm.bc_len = bc_total;
   vm.s = subject;
   vm.len = subject_len;
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {nullptr};
   snobol_buf_init(&out_buf);
   vm.out = &out_buf;
 
@@ -116,25 +117,25 @@ void test_builtin_dispatch_suite(void) {
   out_len = sizeof(out);
   ok = run_eval_builtin("hello", 5, SNOBOL_FN_UPPER, out, &out_len);
   test_assert(ok, "OP_EVAL SNOBOL_FN_UPPER: succeeds");
-  test_assert(out_len == 5 && memcmp(out, "HELLO", 5) == 0,
+  test_assert((out_len == 5 && memcmp(out, "HELLO", 5) == 0) != 0,
               "OP_EVAL SNOBOL_FN_UPPER: 'hello' → 'HELLO'");
 
   /* SNOBOL_FN_LOWER */
   out_len = sizeof(out);
   ok = run_eval_builtin("WORLD", 5, SNOBOL_FN_LOWER, out, &out_len);
   test_assert(ok, "OP_EVAL SNOBOL_FN_LOWER: succeeds");
-  test_assert(out_len == 5 && memcmp(out, "world", 5) == 0,
+  test_assert((out_len == 5 && memcmp(out, "world", 5) == 0) != 0,
               "OP_EVAL SNOBOL_FN_LOWER: 'WORLD' → 'world'");
 
   /* SNOBOL_FN_INTEGER: type predicate */
-  ok = run_eval_builtin("123", 3, SNOBOL_FN_INTEGER, NULL, NULL);
+  ok = run_eval_builtin("123", 3, SNOBOL_FN_INTEGER, nullptr, nullptr);
   test_assert(ok, "OP_EVAL SNOBOL_FN_INTEGER: '123' succeeds");
 
-  ok = run_eval_builtin("abc", 3, SNOBOL_FN_INTEGER, NULL, NULL);
-  test_assert(!ok, "OP_EVAL SNOBOL_FN_INTEGER: 'abc' fails");
+  ok = run_eval_builtin("abc", 3, SNOBOL_FN_INTEGER, nullptr, nullptr);
+  test_assert((!ok) != 0, "OP_EVAL SNOBOL_FN_INTEGER: 'abc' fails");
 
   /* SNOBOL_FN_NUMERIC */
-  ok = run_eval_builtin("12.34", 5, SNOBOL_FN_NUMERIC, NULL, NULL);
+  ok = run_eval_builtin("12.34", 5, SNOBOL_FN_NUMERIC, nullptr, nullptr);
   test_assert(ok, "OP_EVAL SNOBOL_FN_NUMERIC: '12.34' succeeds");
 
   /* No host eval_fn required (built-in dispatch bypasses it) */

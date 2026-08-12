@@ -29,8 +29,6 @@ extern void test_assert(bool condition, const char *message);
 #include "../../core/include/snobol/vm.h"
 #include "../../core/include/snobol/snobol.h"
 
-extern void test_suite(const char *name);
-extern void test_assert(bool condition, const char *message);
 
 /* ── Helpers ──────────────────────────────────────────────────────────────── */
 
@@ -83,7 +81,7 @@ void test_cov_meta_root_classification(void) {
     bc[ip++] = OP_ACCEPT;
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, ip, &meta);
-    test_assert(meta.has_literal_prefix && meta.literal_prefix_len == 2,
+    test_assert((meta.has_literal_prefix && meta.literal_prefix_len == 2) != 0,
                 "TAB prefix skipped, literal prefix kept");
     snobol_search_meta_free(&meta);
   }
@@ -135,7 +133,7 @@ void test_cov_meta_root_classification(void) {
     covm_emit_u32_be(bc, &at, 1);                  /* class_count */
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, at, &meta);
-    test_assert(meta.has_candidate_bitmap && meta.is_single_char_alt,
+    test_assert((meta.has_candidate_bitmap && meta.is_single_char_alt) != 0,
                 "ANY root builds candidate bitmap");
     test_assert(meta.ascii_class_only, "ANY ASCII class flagged");
     snobol_search_meta_free(&meta);
@@ -157,7 +155,8 @@ void test_cov_meta_root_classification(void) {
     covm_emit_u32_be(bc, &at, 1);            /* class_count */
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, at, &meta);
-    test_assert(!meta.ascii_class_only, "NOTANY non-ASCII class flagged");
+    test_assert((!meta.ascii_class_only) != 0,
+                "NOTANY non-ASCII class flagged");
     snobol_search_meta_free(&meta);
   }
 
@@ -187,7 +186,7 @@ void test_cov_meta_root_classification(void) {
     covm_emit_u32_be(bc, &b_at, (uint32_t)branch_b);
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, ip, &meta);
-    test_assert(!meta.is_single_char_alt,
+    test_assert((!meta.is_single_char_alt) != 0,
                 "multi-byte branch rejects single-char alt");
     snobol_search_meta_free(&meta);
   }
@@ -217,7 +216,7 @@ void test_cov_meta_root_classification(void) {
     covm_emit_u32_be(bc, &b_at, (uint32_t)branch_b);
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, ip, &meta);
-    test_assert(meta.is_single_char_alt && meta.has_candidate_bitmap,
+    test_assert((meta.is_single_char_alt && meta.has_candidate_bitmap) != 0,
                 "single-char alt detected");
     test_assert(meta.candidate_bitmap[1] != 0, "upper-word candidate bits set");
     snobol_search_meta_free(&meta);
@@ -238,7 +237,7 @@ void test_cov_meta_start_bitmap(void) {
     uint8_t bc[9] = {OP_SPLIT, 0, 0, 0, 0, 0, 0, 0, 0};
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, 9, &meta);
-    test_assert(meta.has_start_bitmap && meta.start_bitmap[0] == 0xFF,
+    test_assert((meta.has_start_bitmap && meta.start_bitmap[0] == 0xFF) != 0,
                 "split cycle trips step guard");
     snobol_search_meta_free(&meta);
   }
@@ -321,7 +320,7 @@ void test_cov_meta_start_bitmap(void) {
 
   /* SPLIT alternation-stack overflow (>2048 pending branches). */
   {
-    uint8_t bc[2048 * 9 + 64]; /* room for 2050 SPLITs + ACCEPT */
+    uint8_t bc[(2048 * 9) + 64]; /* room for 2050 SPLITs + ACCEPT */
     size_t ip = 0;
     for (int i = 0; i < 2050; i++) {
       bc[ip++] = OP_SPLIT;
@@ -494,7 +493,8 @@ void test_cov_meta_eligibility(void) {
     bc[519] = OP_ACCEPT;
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, 520, &meta);
-    test_assert(!meta.automaton_eligible, "long bytecode not automaton-safe");
+    test_assert((!meta.automaton_eligible) != 0,
+                "long bytecode not automaton-safe");
     snobol_search_meta_free(&meta);
   }
 
@@ -503,38 +503,40 @@ void test_cov_meta_eligibility(void) {
     snobol_search_meta_t meta;
     uint8_t bc1[1] = {OP_JMP};
     snobol_search_derive_meta(bc1, 1, &meta);
-    test_assert(!meta.automaton_eligible && !meta.search_vm_eligible,
+    test_assert((!meta.automaton_eligible && !meta.search_vm_eligible) != 0,
                 "truncated JMP ineligible");
     snobol_search_meta_free(&meta);
 
     uint8_t bc2[1] = {OP_SPLIT};
     snobol_search_derive_meta(bc2, 1, &meta);
-    test_assert(!meta.automaton_eligible, "truncated SPLIT ineligible");
+    test_assert((!meta.automaton_eligible) != 0, "truncated SPLIT ineligible");
     snobol_search_meta_free(&meta);
 
     uint8_t bc3[2] = {OP_LIT, 0};
     snobol_search_derive_meta(bc3, 2, &meta);
-    test_assert(!meta.automaton_eligible, "truncated LIT ineligible");
+    test_assert((!meta.automaton_eligible) != 0, "truncated LIT ineligible");
     snobol_search_meta_free(&meta);
 
     uint8_t bc4[1] = {OP_ANY};
     snobol_search_derive_meta(bc4, 1, &meta);
-    test_assert(!meta.automaton_eligible, "truncated ANY ineligible");
+    test_assert((!meta.automaton_eligible) != 0, "truncated ANY ineligible");
     snobol_search_meta_free(&meta);
 
     uint8_t bc5[1] = {OP_LEN};
     snobol_search_derive_meta(bc5, 1, &meta);
-    test_assert(!meta.automaton_eligible, "truncated LEN ineligible");
+    test_assert((!meta.automaton_eligible) != 0, "truncated LEN ineligible");
     snobol_search_meta_free(&meta);
 
     uint8_t bc6[1] = {OP_REPEAT_INIT};
     snobol_search_derive_meta(bc6, 1, &meta);
-    test_assert(!meta.automaton_eligible, "truncated REPEAT_INIT ineligible");
+    test_assert((!meta.automaton_eligible) != 0,
+                "truncated REPEAT_INIT ineligible");
     snobol_search_meta_free(&meta);
 
     uint8_t bc7[1] = {OP_REPEAT_STEP};
     snobol_search_derive_meta(bc7, 1, &meta);
-    test_assert(!meta.automaton_eligible, "truncated REPEAT_STEP ineligible");
+    test_assert((!meta.automaton_eligible) != 0,
+                "truncated REPEAT_STEP ineligible");
     snobol_search_meta_free(&meta);
   }
 
@@ -543,7 +545,8 @@ void test_cov_meta_eligibility(void) {
     snobol_search_meta_t meta;
     uint8_t bc1[1] = {OP_ACCEPT};
     snobol_search_derive_meta(bc1, 1, &meta);
-    test_assert(!meta.search_vm_eligible, "len<2 not search-VM eligible");
+    test_assert((!meta.search_vm_eligible) != 0,
+                "len<2 not search-VM eligible");
     snobol_search_meta_free(&meta);
 
     uint8_t bc2[1] = {OP_JMP};
@@ -599,22 +602,23 @@ void test_cov_meta_alt_and_literal_only(void) {
     snobol_search_meta_t meta;
     uint8_t bc1[1] = {OP_ACCEPT};
     snobol_search_derive_meta(bc1, 1, &meta);
-    test_assert(!meta.is_alt_literals, "tiny bytecode not alt-literals");
+    test_assert((!meta.is_alt_literals) != 0, "tiny bytecode not alt-literals");
     snobol_search_meta_free(&meta);
 
     uint8_t bc2[6] = {OP_LIT, 0, 0, 0, 0, 0};
     snobol_search_derive_meta(bc2, 6, &meta);
-    test_assert(!meta.is_alt_literals, "truncated LIT not alt-literals");
+    test_assert((!meta.is_alt_literals) != 0, "truncated LIT not alt-literals");
     snobol_search_meta_free(&meta);
 
     uint8_t bc3[8] = {OP_SPLIT, 0, 0, 0, 0, 0, 0, 0};
     snobol_search_derive_meta(bc3, 8, &meta);
-    test_assert(!meta.is_alt_literals, "truncated SPLIT not alt-literals");
+    test_assert((!meta.is_alt_literals) != 0,
+                "truncated SPLIT not alt-literals");
     snobol_search_meta_free(&meta);
 
     uint8_t bc4[6] = {OP_ANY, 0, 1, OP_ACCEPT, 0, 0};
     snobol_search_derive_meta(bc4, 6, &meta);
-    test_assert(!meta.is_alt_literals, "non-LIT root not alt-literals");
+    test_assert((!meta.is_alt_literals) != 0, "non-LIT root not alt-literals");
     snobol_search_meta_free(&meta);
   }
 
@@ -632,7 +636,7 @@ void test_cov_meta_alt_and_literal_only(void) {
     bc[ip++] = OP_NOP; /* not ACCEPT */
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, ip, &meta);
-    test_assert(!meta.is_alt_literals, "non-ACCEPT tail rejected");
+    test_assert((!meta.is_alt_literals) != 0, "non-ACCEPT tail rejected");
     snobol_search_meta_free(&meta);
   }
 
@@ -660,7 +664,7 @@ void test_cov_meta_alt_and_literal_only(void) {
     snobol_search_meta_t meta;
     uint8_t bc1[6] = {OP_NOP, OP_LEN, 0, 0, 0, 1};
     snobol_search_derive_meta(bc1, 6, &meta);
-    test_assert(!meta.is_literal_only, "no LIT → not literal-only");
+    test_assert((!meta.is_literal_only) != 0, "no LIT → not literal-only");
     snobol_search_meta_free(&meta);
 
     uint8_t bc2[12];
@@ -671,7 +675,8 @@ void test_cov_meta_alt_and_literal_only(void) {
     bc2[ip++] = 'a';
     bc2[ip++] = OP_ACCEPT;
     snobol_search_derive_meta(bc2, ip, &meta);
-    test_assert(!meta.is_literal_only, "bad LIT offset → not literal-only");
+    test_assert((!meta.is_literal_only) != 0,
+                "bad LIT offset → not literal-only");
     snobol_search_meta_free(&meta);
 
     uint8_t bc3[32];
@@ -682,7 +687,8 @@ void test_cov_meta_alt_and_literal_only(void) {
     bc3[ip++] = 'a';
     /* no ACCEPT at the end */
     snobol_search_derive_meta(bc3, ip, &meta);
-    test_assert(!meta.is_literal_only, "missing ACCEPT → not literal-only");
+    test_assert((!meta.is_literal_only) != 0,
+                "missing ACCEPT → not literal-only");
     snobol_search_meta_free(&meta);
   }
 }
@@ -698,13 +704,13 @@ void test_cov_meta_fusion_failures(void) {
     uint8_t bc[4] = {OP_FAIL, OP_ACCEPT};
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, 2, &meta);
-    test_assert(!meta.fusion_eligible, "FAIL not fusible");
+    test_assert((!meta.fusion_eligible) != 0, "FAIL not fusible");
     snobol_search_meta_free(&meta);
   }
 
   /* More than MAX_FUSION_SEGMENTS (32) segments. */
   {
-    uint8_t bc[33 * 11 + 1];
+    uint8_t bc[(33 * 11) + 1];
     size_t ip = 0;
     for (int i = 0; i < 33; i++) {
       bc[ip++] = OP_LIT;
@@ -715,7 +721,8 @@ void test_cov_meta_fusion_failures(void) {
     bc[ip++] = OP_ACCEPT;
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, ip, &meta);
-    test_assert(!meta.fusion_eligible, "over-capacity chain not fusible");
+    test_assert((!meta.fusion_eligible) != 0,
+                "over-capacity chain not fusible");
     snobol_search_meta_free(&meta);
   }
 
@@ -735,7 +742,7 @@ void test_cov_meta_fusion_failures(void) {
     bc2[ip++] = 'a';
     bc2[ip++] = OP_ACCEPT;
     snobol_search_derive_meta(bc2, ip, &meta);
-    test_assert(!meta.fusion_eligible, "bad LIT offset not fusible");
+    test_assert((!meta.fusion_eligible) != 0, "bad LIT offset not fusible");
     snobol_search_meta_free(&meta);
 
     /* Non-ASCII charclass ops reject fusion. */
@@ -752,13 +759,13 @@ void test_cov_meta_fusion_failures(void) {
     covm_emit_u32_be(bc3, &at, 1);
     covm_emit_u32_be(bc3, &at, 1);
     snobol_search_derive_meta(bc3, at, &meta);
-    test_assert(!meta.fusion_eligible, "non-ASCII SPAN not fusible");
+    test_assert((!meta.fusion_eligible) != 0, "non-ASCII SPAN not fusible");
     snobol_search_meta_free(&meta);
 
     /* Unresolved charclass set id rejects fusion. */
     uint8_t bc4[8] = {OP_ANY, 0, 9, OP_LIT, 0, 0, 0, 0};
     snobol_search_derive_meta(bc4, 8, &meta);
-    test_assert(!meta.fusion_eligible, "unresolved ANY not fusible");
+    test_assert((!meta.fusion_eligible) != 0, "unresolved ANY not fusible");
     snobol_search_meta_free(&meta);
   }
 
@@ -783,7 +790,7 @@ void test_cov_meta_fusion_failures(void) {
     covm_emit_u32_be(bc, &b_at, (uint32_t)branch_b);
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, ip, &meta);
-    test_assert(!meta.fusion_eligible, "invalid alt branch not fusible");
+    test_assert((!meta.fusion_eligible) != 0, "invalid alt branch not fusible");
     snobol_search_meta_free(&meta);
   }
 
@@ -826,7 +833,8 @@ void test_cov_meta_fusion_failures(void) {
     covm_emit_u32_be(bc2, &ip, 99);
     covm_emit_u32_be(bc2, &ip, 99);
     snobol_search_derive_meta(bc2, 10, &meta);
-    test_assert(!meta.fusion_eligible, "SPLIT targets beyond not fusible");
+    test_assert((!meta.fusion_eligible) != 0,
+                "SPLIT targets beyond not fusible");
     snobol_search_meta_free(&meta);
   }
 }
@@ -842,7 +850,7 @@ void test_cov_meta_derive_tail(void) {
     uint8_t bc[2] = {OP_REM, OP_ACCEPT};
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, 2, &meta);
-    test_assert(meta.automaton_eligible && !meta.search_vm_eligible,
+    test_assert((meta.automaton_eligible && !meta.search_vm_eligible) != 0,
                 "REM automaton-safe, not search-VM-safe");
     test_assert(meta.tier == TIER_AUTOMATON, "tier classified as AUTOMATON");
     snobol_search_meta_free(&meta);
@@ -881,7 +889,7 @@ void test_cov_meta_derive_tail(void) {
     covm_emit_u32_be(bc, &b_at, (uint32_t)final_accept);
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, ip, &meta);
-    test_assert(!meta.has_required_lit,
+    test_assert((!meta.has_required_lit) != 0,
                 "branch bypassing last literal clears required-lit");
     snobol_search_meta_free(&meta);
   }
@@ -991,7 +999,8 @@ void test_cov_engine2_derive(void) {
     cove_emit_u32_be(bc3, &a_at, (uint32_t)br_a);
     cove_emit_u32_be(bc3, &b_at, (uint32_t)br_b);
     snobol_search_derive_meta(bc3, ip, &meta);
-    test_assert(!meta.is_single_char_alt, "empty literal not single-char");
+    test_assert((!meta.is_single_char_alt) != 0,
+                "empty literal not single-char");
     snobol_search_meta_free(&meta);
   }
 
@@ -1045,7 +1054,8 @@ void test_cov_engine2_derive(void) {
     cove_emit_u32_be(bc, &jmp2_at, (uint32_t)final_accept);
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, ip, &meta);
-    test_assert(!meta.has_required_lit, "JMP-led branch bypasses literal");
+    test_assert((!meta.has_required_lit) != 0,
+                "JMP-led branch bypasses literal");
     snobol_search_meta_free(&meta);
   }
 }
@@ -1063,7 +1073,7 @@ void test_cov_meta_malformed_bytecode(void) {
     uint8_t bc[8] = {OP_JMP, 0, 0, 0, 0};
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, 5, &meta);
-    test_assert(meta.minlength == 0 && !meta.has_literal_prefix,
+    test_assert((meta.minlength == 0 && !meta.has_literal_prefix) != 0,
                 "JMP self-loop terminates, minlength conservative");
     snobol_search_meta_free(&meta);
   }
@@ -1090,7 +1100,7 @@ void test_cov_meta_malformed_bytecode(void) {
     uint8_t bc[8] = {OP_POS, 0};
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, 2, &meta);
-    test_assert(!meta.has_literal_prefix,
+    test_assert((!meta.has_literal_prefix) != 0,
                 "truncated POS prefix claims no literal prefix");
     snobol_search_meta_free(&meta);
   }
@@ -1101,7 +1111,7 @@ void test_cov_meta_malformed_bytecode(void) {
     uint8_t bc[8] = {OP_NOP, OP_NOP};
     snobol_search_meta_t meta;
     snobol_search_derive_meta(bc, 2, &meta);
-    test_assert(!meta.has_literal_prefix,
+    test_assert((!meta.has_literal_prefix) != 0,
                 "NOP-to-end claims no literal prefix");
     snobol_search_meta_free(&meta);
   }
@@ -1109,14 +1119,14 @@ void test_cov_meta_malformed_bytecode(void) {
   /* Well-formed compiler output equivalence: classification unchanged. */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "'hello' SPAN('0-9')", 19, &err);
     test_assert(pat != NULL, "well-formed pattern compiles");
     if (pat) {
       const snobol_search_meta_t *meta = snobol_pattern_get_meta(pat);
-      test_assert(meta->has_literal_prefix && meta->literal_prefix_len == 5 &&
-                      meta->has_bmh_skip,
+      test_assert((meta->has_literal_prefix && meta->literal_prefix_len == 5 &&
+                   meta->has_bmh_skip) != 0,
                   "well-formed bytecode keeps literal prefix + BMH skip");
       snobol_pattern_free(pat);
     }
@@ -1131,7 +1141,7 @@ void test_search_meta_cache_suite(void) {
   /* Simple literal search */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile_ex(ctx, "'pqr'", 5, 0, &err);
     test_assert(pat != NULL, "compile succeeds");
     if (pat) {
@@ -1151,7 +1161,7 @@ void test_search_meta_cache_suite(void) {
   /* SPAN search-mode */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "SPAN(',')", 9, &err);
     test_assert(pat != NULL, "compile SPAN succeeds");
     if (pat) {
@@ -1171,7 +1181,7 @@ void test_search_meta_cache_suite(void) {
   /* Alternation: split-any-fused path */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat =
         snobol_pattern_compile(ctx, "'a' | 'b' | 'c'", 15, &err);
     test_assert(pat != NULL, "compile alternation succeeds");
@@ -1193,7 +1203,7 @@ void test_search_meta_cache_suite(void) {
    * meta pointer and the JIT should fire. */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "SPAN('a')", 9, &err);
     test_assert(pat != NULL, "compile hot-loop pattern succeeds");
     if (pat) {
@@ -1201,14 +1211,16 @@ void test_search_meta_cache_suite(void) {
       for (int i = 0; i < 100; i++) {
         snobol_match_t *m =
             snobol_pattern_search(pat, "aaaaaaaaaaaaaaaaaa", 18);
-        if (m)
+        if (m) {
           snobol_match_free(m);
+        }
       }
       for (int i = 0; i < 50; i++) {
         snobol_match_t *m =
             snobol_pattern_search(pat, "aaaaaaaaaaaaaaaaaa", 18);
-        if (m)
+        if (m) {
           snobol_match_free(m);
+        }
       }
       snobol_pattern_free(pat);
     }

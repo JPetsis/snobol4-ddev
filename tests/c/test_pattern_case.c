@@ -25,10 +25,11 @@ extern void test_assert(bool condition, const char *message);
 static bool compile_and_match(const char *pattern_src, const char *subject,
                               uint32_t flags) {
   snobol_context_t *ctx = snobol_context_create();
-  if (!ctx)
+  if (!ctx) {
     return false;
+  }
 
-  char *err = NULL;
+  char *err = nullptr;
   snobol_pattern_t *pat = snobol_pattern_compile_ex(
       ctx, pattern_src, strlen(pattern_src), flags, &err);
   if (!pat) {
@@ -63,7 +64,7 @@ void test_pattern_case_suite(void) {
       "CI: 'hello' matches \"HeLLo\" (case-insensitive)");
 
   /* --- flags=0 identical to snobol_pattern_compile (case-sensitive) --- */
-  test_assert(!compile_and_match("'hello'", "HELLO", 0),
+  test_assert((!compile_and_match("'hello'", "HELLO", 0)) != 0,
               "CS: 'hello' does NOT match \"HELLO\" with flags=0");
 
   test_assert(compile_and_match("'hello'", "hello", 0),
@@ -72,7 +73,7 @@ void test_pattern_case_suite(void) {
   /* --- Unknown flag bits are tolerated (shouldn't crash or fail) --- */
   /* Pattern is valid; unknown bits ignored; case-insensitive still active */
   test_assert(compile_and_match("'hello'", "HELLO",
-                                0xFFFEu | SNOBOL_FLAG_CASE_INSENSITIVE),
+                                0xFFFEU | SNOBOL_FLAG_CASE_INSENSITIVE),
               "CI: unknown flag bits tolerated (flags=0xFFFF)");
 
   test_suite("Pattern: snobol_pattern_compile (no flags)");
@@ -81,7 +82,7 @@ void test_pattern_case_suite(void) {
    */
   {
     snobol_context_t *ctx = snobol_context_create();
-    char *err = NULL;
+    char *err = nullptr;
     snobol_pattern_t *pat = snobol_pattern_compile(ctx, "'hello'", 7, &err);
     test_assert(pat != NULL, "snobol_pattern_compile returns non-NULL");
     if (pat) {
@@ -91,7 +92,7 @@ void test_pattern_case_suite(void) {
       snobol_match_free(m);
 
       m = snobol_pattern_match(pat, "HELLO", 5);
-      test_assert(!snobol_match_success(m),
+      test_assert((!snobol_match_success(m)) != 0,
                   "compile: 'hello' does NOT match \"HELLO\" (case-sensitive)");
       snobol_match_free(m);
 
@@ -145,11 +146,11 @@ void test_pattern_case_suite(void) {
 
   /* Cyrillic lowercase should NOT match different uppercase */
   /* а (U+0430) should NOT match Б (U+0411) */
-  test_assert(!compile_and_match("'\xD0\xB0'", "\xD0\x91",
-                                 SNOBOL_FLAG_CASE_INSENSITIVE),
+  test_assert((!compile_and_match("'\xD0\xB0'", "\xD0\x91",
+                                  SNOBOL_FLAG_CASE_INSENSITIVE)) != 0,
               "CI: Cyrillic а does NOT match Б (different letter)");
 
   /* Case-sensitive: α (U+03B1) should NOT match Α (U+0391) */
-  test_assert(!compile_and_match("'\xCE\xB1'", "\xCE\x91", 0),
+  test_assert((!compile_and_match("'\xCE\xB1'", "\xCE\x91", 0)) != 0,
               "CS: Greek α does NOT match Α (case-sensitive)");
 }

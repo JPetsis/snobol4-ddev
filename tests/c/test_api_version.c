@@ -19,7 +19,7 @@ void test_api_version_suite(void) {
   uint32_t ver = snobol_get_api_version();
 
   /* For v1.0.2: (1 << 16) | (0 << 8) | 2 == 0x00010002 */
-  test_assert(ver == 0x00010002u,
+  test_assert(ver == 0x00010002U,
               "snobol_get_api_version() == 0x00010002u (v1.0.2)");
 
   /* Major version extraction */
@@ -38,10 +38,12 @@ void test_api_version_suite(void) {
               "snobol_get_api_version() patch field == SNOBOL_VERSION_PATCH");
 
   /* Consistency with snobol_version() */
-  int vi_major, vi_minor, vi_patch;
+  int vi_major;
+  int vi_minor;
+  int vi_patch;
   snobol_version(&vi_major, &vi_minor, &vi_patch);
-  test_assert((int)major == vi_major && (int)minor == vi_minor &&
-                  (int)patch == vi_patch,
+  test_assert(((int)major == vi_major && (int)minor == vi_minor &&
+               (int)patch == vi_patch) != 0,
               "snobol_get_api_version() consistent with snobol_version()");
 
   /* ABI version */

@@ -106,13 +106,13 @@ static bool run_breakx_match(const char *subject, size_t subj_len,
   bc_buf[bc_off++] = 0;
   bc_buf[bc_off++] = 1;
 
-  VM vm = {0};
+  VM vm = {nullptr};
   vm.bc = bc_buf;
   vm.bc_len = bc_off;
   vm.s = subject;
   vm.len = subj_len;
 
-  snobol_buf out_buf = {0};
+  snobol_buf out_buf = {nullptr};
   snobol_buf_init(&out_buf);
   vm.out = &out_buf;
 
