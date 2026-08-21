@@ -166,6 +166,10 @@ jobs:
         run: |
           git fetch origin "${BASE_REF}:refs/remotes/origin/${BASE_REF}" --quiet
           CHANGED=$(git diff --name-only "origin/${BASE_REF}...HEAD" | grep -E '\.(c|h)$' || true)
+          if [ -z "$CHANGED" ]; then
+            echo "✓ no C/C++ files changed"
+            exit 0
+          fi
           FAIL=0
           while IFS= read -r f; do
             if grep -F "$f" /tmp/warnings.log | grep -q "warning:"; then
