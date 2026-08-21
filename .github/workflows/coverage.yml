@@ -44,7 +44,7 @@ jobs:
           lcov --list coverage-filtered.info
 
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: coverage-filtered.info
           flags: c-core
@@ -117,7 +117,7 @@ jobs:
           lcov --list php-ext-filtered.info
 
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           files: php-ext-filtered.info
           flags: php-binding
