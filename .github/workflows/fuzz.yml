@@ -31,7 +31,7 @@ jobs:
 
       - name: Upload compiler crash artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-compiler-artifacts
           path: build/artifacts-compiler/
@@ -63,7 +63,7 @@ jobs:
 
       - name: Upload oracle disagreement artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-oracle-artifacts
           path: build/artifacts-oracle/
@@ -95,7 +95,7 @@ jobs:
 
       - name: Upload VM crash artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: fuzz-vm-artifacts
           path: build/artifacts-vm/
