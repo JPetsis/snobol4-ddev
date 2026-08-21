@@ -437,6 +437,15 @@ bool vm_run(VM *vm) {
   }
 
 #ifndef _MSC_VER
+  /* Computed-goto dispatch (GNU extension): the label-address table and the
+   * indirect jump trip -Wpedantic ("taking the address of a label is
+   * non-standard") on GCC and the -Wgnu-label-as-value group on Clang.
+   * Suppress that diagnostic group for these declarations only; the MSVC
+   * switch fallback stays unaffected. */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
   static void *opcode_table[] = {
       [OP_ACCEPT] = &&op_accept,
       [OP_FAIL] = &&op_fail,
@@ -498,6 +507,9 @@ bool vm_run(VM *vm) {
     uint8_t op = vm->bc[vm->ip++];
 #ifndef _MSC_VER
     goto *opcode_table[op];
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #else
     switch (op) {
 #endif

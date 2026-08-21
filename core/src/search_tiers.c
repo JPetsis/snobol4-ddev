@@ -952,6 +952,14 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
 
   /* ---- Computed-goto dispatch table ---- */
 #ifndef _MSC_VER
+  /* Computed goto (GNU extension): the label-address table and the indirect
+   * jump trip -Wpedantic on GCC and the -Wgnu-label-as-value group on
+   * Clang. Suppress that diagnostic group for these declarations only; the
+   * MSVC switch fallback stays unaffected. */
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wpedantic"
+#endif
   static void *search_opcode_table[] = {
       [OP_ACCEPT] = &&svm_accept,
       [OP_FAIL] = &&svm_fail,
@@ -993,6 +1001,9 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
     uint8_t op = bc[ip++];
 #ifndef _MSC_VER
     goto *search_opcode_table[op];
+#if defined(__GNUC__) || defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 #else
     switch (op) {
 #endif

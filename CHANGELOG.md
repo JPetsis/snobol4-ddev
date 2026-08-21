@@ -81,6 +81,14 @@ tagged `php/vX.Y.Z`.
   `bench/BENCHMARKS.md`, `bench/README.md` scenario table). The
   `pike_overflow` anchored row (~2.6 µs) is the intentionally unoptimized
   anchored BREAKX byte-walk (design non-goal).
+- **Computed-goto dispatch suppresses the pedantic diagnostics**
+  (`core/src/vm_exec.c`, `core/src/search_tiers.c`): the label-address
+  dispatch tables and their indirect jumps are wrapped in
+  `#pragma GCC diagnostic ignored "-Wpedantic"` (GCC/Clang, scoped to the
+  declarations), so `-Wall -Wextra -Wpedantic` builds — `make warnings` and
+  the PR hygiene gate in `pr-hygiene.yml` — no longer report
+  "taking the address of a label is non-standard". The MSVC switch
+  fallback is unchanged.
 
 ### Added
 
