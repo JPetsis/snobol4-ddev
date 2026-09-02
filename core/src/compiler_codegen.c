@@ -184,18 +184,26 @@ static int emit_table_access_c(const char *table, ast_node_t *key, CodeBuf *c) {
   /* To support table access in patterns:
    * 1. Capture key into reg 0
    * 2. Emit OP_TABLE_GET with unbound ID and the name
-   */
-  cb_emit_u8(c, OP_CAP_START);
-  cb_emit_u8(c, 0);
-  if (emit_node_c(key, c) != 0) {
-    return -1;
+   *
+   * A register-reference key (AST_REG_REF, source form `TABLE[$vN]`) skips
+   * the capture wrap: the key register already holds the captured subject
+   * range, so OP_TABLE_GET reads it directly. */
+  uint8_t key_reg = 0;
+  if (key && key->type == AST_REG_REF) {
+    key_reg = (uint8_t)key->data.reg_ref.reg;
+  } else {
+    cb_emit_u8(c, OP_CAP_START);
+    cb_emit_u8(c, 0);
+    if (emit_node_c(key, c) != 0) {
+      return -1;
+    }
+    cb_emit_u8(c, OP_CAP_END);
+    cb_emit_u8(c, 0);
   }
-  cb_emit_u8(c, OP_CAP_END);
-  cb_emit_u8(c, 0);
 
   cb_emit_u8(c, OP_TABLE_GET);
   cb_emit_u16(c, 0xFFFF); /* unbound */
-  cb_emit_u8(c, 0);       /* kreg */
+  cb_emit_u8(c, key_reg); /* kreg */
   cb_emit_u8(c, 0);       /* dreg */
   size_t nlen = strlen(table);
   cb_emit_u8(c, (uint8_t)nlen);
@@ -205,14 +213,20 @@ static int emit_table_access_c(const char *table, ast_node_t *key, CodeBuf *c) {
 
 static int emit_table_update_c(const char *table, ast_node_t *key,
                                ast_node_t *value, CodeBuf *c) {
-  /* Capture key into reg 0 */
-  cb_emit_u8(c, OP_CAP_START);
-  cb_emit_u8(c, 0);
-  if (emit_node_c(key, c) != 0) {
-    return -1;
+  /* Capture key into reg 0 (or reference an existing register for
+   * AST_REG_REF keys), then capture the value into reg 1. */
+  uint8_t key_reg = 0;
+  if (key && key->type == AST_REG_REF) {
+    key_reg = (uint8_t)key->data.reg_ref.reg;
+  } else {
+    cb_emit_u8(c, OP_CAP_START);
+    cb_emit_u8(c, 0);
+    if (emit_node_c(key, c) != 0) {
+      return -1;
+    }
+    cb_emit_u8(c, OP_CAP_END);
+    cb_emit_u8(c, 0);
   }
-  cb_emit_u8(c, OP_CAP_END);
-  cb_emit_u8(c, 0);
 
   /* Capture value into reg 1 */
   cb_emit_u8(c, OP_CAP_START);
@@ -225,7 +239,7 @@ static int emit_table_update_c(const char *table, ast_node_t *key,
 
   cb_emit_u8(c, OP_TABLE_SET);
   cb_emit_u16(c, 0xFFFF); /* unbound */
-  cb_emit_u8(c, 0);       /* kreg */
+  cb_emit_u8(c, key_reg); /* kreg */
   cb_emit_u8(c, 1);       /* vreg */
   size_t nlen = strlen(table);
   cb_emit_u8(c, (uint8_t)nlen);

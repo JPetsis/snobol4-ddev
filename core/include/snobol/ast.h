@@ -107,7 +107,12 @@ typedef enum {
   AST_TAB,    /* TAB(n) – advance cursor to n codepoints from start */
   AST_ABORT,  /* ABORT – terminate entire match */
   AST_FAIL,   /* FAIL – force failure / backtrack */
-  AST_SUCCEED /* SUCCEED – force immediate success */
+  AST_SUCCEED, /* SUCCEED – force immediate success */
+
+  /* Register reference (one of the v0..v63 variable registers).  Used as a
+   * table key (`TABLE[$vN]`) where the key text is the previously captured
+   * value of the register.  Appended last so existing tag values are stable. */
+  AST_REG_REF
 } ast_type_t;
 
 /**
@@ -260,6 +265,11 @@ struct ast_node {
     struct {
       int32_t n; /* Distance from end */
     } rpos_rtab;
+
+    /* AST_REG_REF */
+    struct {
+      int reg; /* Register number (0..63) */
+    } reg_ref;
   } data;
 };
 
@@ -482,6 +492,9 @@ ast_node_t *snobol_ast_create_fail(void);
 
 /** Create AST_SUCCEED node (no args) */
 ast_node_t *snobol_ast_create_succeed(void);
+
+/** Create AST_REG_REF node (value of register vN as a table key). */
+ast_node_t *snobol_ast_create_regref(int reg);
 
 #ifdef __cplusplus
 }

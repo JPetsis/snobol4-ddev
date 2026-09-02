@@ -910,6 +910,193 @@ void test_cov_parser_source_primitives(void) {
   }
 }
 
+void test_cov_parser_emit_table_assign(void) {
+  test_suite("Coverage: parser EMIT / TABLE / assignment");
+
+  /* EMIT('text') → AST_EMIT with text; EMIT(@vN) / EMIT(@name) → reg form. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "EMIT('X')", &err);
+    test_assert((ast && !err && ast->type == AST_EMIT) != 0, "EMIT('X') parses");
+    if (ast && ast->type == AST_EMIT) {
+      test_assert(ast->data.emit.reg == -1, "literal EMIT has no register");
+      test_assert(ast->data.emit.len == 1 && ast->data.emit.text &&
+                      ast->data.emit.text[0] == 'X',
+                  "literal EMIT carries the text");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "@x 'ab' EMIT(@v1)", &err);
+    test_assert((ast && !err) != 0, "EMIT(@v1) parses");
+    if (ast) {
+      ast_node_t *emit = ast;
+      if (emit->type == AST_CONCAT && emit->data.concat.count == 2) {
+        emit = emit->data.concat.parts[1];
+      }
+      test_assert(emit->type == AST_EMIT && emit->data.emit.reg == 1,
+                  "EMIT(@v1) carries register 1");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+  {
+    /* EMIT(@name) resolves the capture allocated for @name (register 0). */
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "@name 'ab' EMIT(@name)", &err);
+    test_assert((ast && !err) != 0, "EMIT(@name) parses with prior capture");
+    if (ast) {
+      ast_node_t *emit = ast;
+      if (emit->type == AST_CONCAT && emit->data.concat.count == 2) {
+        emit = emit->data.concat.parts[1];
+      }
+      test_assert(emit->type == AST_EMIT && emit->data.emit.reg == 0,
+                  "EMIT(@name) resolves to the name's register 0");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* TABLE['k'] → table_access with literal key. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "T['k']", &err);
+    test_assert((ast && !err && ast->type == AST_TABLE_ACCESS) != 0,
+                "T['k'] parses as table access");
+    if (ast && ast->type == AST_TABLE_ACCESS) {
+      test_assert(strcmp(ast->data.table_access.table, "T") == 0,
+                  "table name is T");
+      test_assert(ast->data.table_access.key &&
+                      ast->data.table_access.key->type == AST_LITERAL,
+                  "literal key node");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* TABLE[$vN] → table access with a register-reference key. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "@w 'z' T[$v0]", &err);
+    test_assert((ast && !err) != 0, "T[$v0] parses");
+    if (ast) {
+      ast_node_t *acc = ast;
+      if (acc->type == AST_CONCAT && acc->data.concat.count == 2) {
+        acc = acc->data.concat.parts[1];
+      }
+      test_assert(acc->type == AST_TABLE_ACCESS, "T[$v0] is a table access");
+      if (acc->type == AST_TABLE_ACCESS && acc->data.table_access.key) {
+        test_assert(acc->data.table_access.key->type == AST_REG_REF &&
+                        acc->data.table_access.key->data.reg_ref.reg == 0,
+                    "T[$v0] key is a register reference to v0");
+      }
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* TABLE[key] = value → table update. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "T['k'] = 'v'", &err);
+    test_assert((ast && !err && ast->type == AST_TABLE_UPDATE) != 0,
+                "T['k'] = 'v' parses as table update");
+    if (ast && ast->type == AST_TABLE_UPDATE) {
+      test_assert(ast->data.table_update.value &&
+                      ast->data.table_update.value->type == AST_LITERAL,
+                  "update value is the literal 'v'");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* Register assignment: vN = <reg> and capture-name targets. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "@x 'ab' v1 = 0", &err);
+    test_assert((ast && !err) != 0, "v1 = 0 parses");
+    if (ast) {
+      ast_node_t *assign = ast;
+      if (assign->type == AST_CONCAT && assign->data.concat.count == 2) {
+        assign = assign->data.concat.parts[1];
+      }
+      test_assert(assign->type == AST_ASSIGN, "v1 = 0 is an ASSIGN node");
+      if (assign->type == AST_ASSIGN) {
+        test_assert(assign->data.assign.var == 1 &&
+                        assign->data.assign.reg == 0,
+                    "assign(var=1, reg=0)");
+      }
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+  {
+    /* name = <reg> resolves a registered capture name. */
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "@hold 'z' hold = 0", &err);
+    test_assert((ast && !err) != 0, "name = 0 parses for a capture name");
+    if (ast) {
+      ast_node_t *assign = ast;
+      if (assign->type == AST_CONCAT && assign->data.concat.count == 2) {
+        assign = assign->data.concat.parts[1];
+      }
+      test_assert(assign->type == AST_ASSIGN && assign->data.assign.var == 0,
+                  "name assignment targets the capture's register");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* Descriptive errors for malformed EMIT / TABLE / assignment forms. */
+  {
+    const char *bad[] = {"EMIT()",     "EMIT(5)",   "EMIT(@nope)",
+                         "T[ab]",      "T[]",       "T[$va]",
+                         "unknown = 0", "v1 = 'x'", "v1 = 99",
+                         "v1 = -1"};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+      snobol_parser_t *parser = snobol_parser_create();
+      bool err = false;
+      ast_node_t *ast = covp_parse(parser, bad[i], &err);
+      test_assert((ast == NULL && err) != 0, "malformed form rejected");
+      if (!ast && err) {
+        const char *msg = snobol_parser_get_error(parser);
+        test_assert(
+            (msg && (strstr(msg, "EMIT") || strstr(msg, "table") ||
+                     strstr(msg, "TABLE") || strstr(msg, "assign") ||
+                     strstr(msg, "value"))) != NULL,
+            "form error is descriptive");
+      }
+      snobol_parser_destroy(parser);
+    }
+  }
+}
+
 void test_parser_suite(void) {
   test_parser_create_destroy();
   test_parser_literal();
@@ -930,4 +1117,5 @@ void test_parser_suite(void) {
   test_cov_parser_functions();
   test_cov_parser_round3();
   test_cov_parser_source_primitives();
+  test_cov_parser_emit_table_assign();
 }

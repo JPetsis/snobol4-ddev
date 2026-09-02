@@ -27,6 +27,15 @@ struct snobol_parser {
    * next register (0-based), in order of appearance, matching the PHP
    * Builder::cap(reg, ...) convention. */
   int capture_reg_counter;
+  /* Capture-name registry: name -> register, so EMIT(@name) and
+   * `name = <value>` can resolve a capture by its source name.  A name
+   * re-registers to its newest register. */
+  struct capture_name_entry {
+    char *name; /* Owned */
+    int reg;
+  } *capture_names;
+  size_t capture_name_count;
+  size_t capture_name_capacity;
 };
 
 /* Forward declarations for recursive descent */
@@ -46,6 +55,15 @@ static ast_node_t *parse_function_call(snobol_parser_t *parser,
                                        snobol_lexer_t *lexer);
 static ast_node_t *parse_dynamic_eval(snobol_parser_t *parser,
                                       snobol_lexer_t *lexer);
+static ast_node_t *parse_table_or_assign(snobol_parser_t *parser,
+                                         snobol_lexer_t *lexer,
+                                         const char *name, size_t name_len);
+static ast_node_t *parse_emit(snobol_parser_t *parser, snobol_lexer_t *lexer);
+static bool ident_is_v_register(const char *text, size_t len, int *out_reg);
+static void register_capture_name(snobol_parser_t *parser, const char *text,
+                                  size_t len, int reg);
+static int find_capture_reg(snobol_parser_t *parser, const char *text,
+                            size_t len);
 
 /* Error handling helpers */
 static void set_error(snobol_parser_t *parser, const char *msg, size_t line,
@@ -190,6 +208,82 @@ static bool parse_integer_arg(snobol_parser_t *parser, snobol_lexer_t *lexer,
   return true;
 }
 
+/**
+ * Recognize the explicit-register identifier form `vN` (e.g. "v0", "v12").
+ * Returns true and sets *out_reg when the text is exactly 'v' + digits.
+ */
+static bool ident_is_v_register(const char *text, size_t len, int *out_reg) {
+  if (!text || len < 2 || text[0] != 'v' || text[1] < '0' || text[1] > '9') {
+    return false;
+  }
+  int32_t reg = 0;
+  for (size_t i = 1; i < len; i++) {
+    char c = text[i];
+    if (c < '0' || c > '9') {
+      return false;
+    }
+    reg = reg * 10 + (int32_t)(c - '0');
+    if (reg > MAX_VARS) {
+      return false; /* Out of range: not a valid register name */
+    }
+  }
+  if (out_reg) {
+    *out_reg = (int)reg;
+  }
+  return true;
+}
+
+/** Record (or refresh) the register allocated for a capture name. */
+static void register_capture_name(snobol_parser_t *parser, const char *text,
+                                  size_t len, int reg) {
+  if (!parser) {
+    return;
+  }
+  for (size_t i = 0; i < parser->capture_name_count; i++) {
+    if (strlen(parser->capture_names[i].name) == len &&
+        memcmp(parser->capture_names[i].name, text, len) == 0) {
+      parser->capture_names[i].reg = reg;
+      return;
+    }
+  }
+  if (parser->capture_name_count >= parser->capture_name_capacity) {
+    size_t new_cap = parser->capture_name_capacity
+                         ? parser->capture_name_capacity * 2
+                         : 8;
+    struct capture_name_entry *new_entries = (struct capture_name_entry *)
+        realloc((void *)parser->capture_names, new_cap * sizeof(*new_entries));
+    if (!new_entries) {
+      return;
+    }
+    parser->capture_names = new_entries;
+    parser->capture_name_capacity = new_cap;
+  }
+  char *name_copy = (char *)malloc(len + 1);
+  if (!name_copy) {
+    return;
+  }
+  memcpy(name_copy, text, len);
+  name_copy[len] = '\0';
+  parser->capture_names[parser->capture_name_count].name = name_copy;
+  parser->capture_names[parser->capture_name_count].reg = reg;
+  parser->capture_name_count++;
+}
+
+/** Look up a capture name; returns its register or -1 when unknown. */
+static int find_capture_reg(snobol_parser_t *parser, const char *text,
+                            size_t len) {
+  if (!parser) {
+    return -1;
+  }
+  for (size_t i = 0; i < parser->capture_name_count; i++) {
+    if (strlen(parser->capture_names[i].name) == len &&
+        memcmp(parser->capture_names[i].name, text, len) == 0) {
+      return parser->capture_names[i].reg;
+    }
+  }
+  return -1;
+}
+
 ast_node_t *snobol_parser_parse(snobol_parser_t *parser,
                                 snobol_lexer_t *lexer) {
   if (!parser || !lexer) {
@@ -204,6 +298,13 @@ ast_node_t *snobol_parser_parse(snobol_parser_t *parser,
     free(parser->seen_labels[i]);
   }
   parser->seen_label_count = 0;
+
+  /* Clear the capture-name registry and sequential register allocator */
+  for (size_t i = 0; i < parser->capture_name_count; i++) {
+    free(parser->capture_names[i].name);
+  }
+  parser->capture_name_count = 0;
+  parser->capture_reg_counter = 0;
 
   /* Parse the pattern */
   ast_node_t *ast = parse_pattern(parser, lexer);
@@ -587,6 +688,11 @@ static ast_node_t *parse_primary(snobol_parser_t *parser,
         }
         int reg = parser->capture_reg_counter++;
 
+        /* Remember the name so EMIT(@name) / `name = <value>` can resolve
+         * this capture's register later in the pattern. */
+        register_capture_name(parser, tok.data.string.text,
+                              tok.data.string.len, reg);
+
         ast_node_t *sub = parse_primary(parser, lexer);
         if (!sub) {
           return nullptr;
@@ -635,6 +741,21 @@ static ast_node_t *parse_function_call(snobol_parser_t *parser,
   /* Look ahead for '(' */
   advance(lexer);
   token_t next = peek(lexer);
+
+  if (next.type == TOKEN_EQUALS || next.type == TOKEN_LBRACKET) {
+    /* Register assignment (`v1 = 0`) or table access (`T['k']`). */
+    return parse_table_or_assign(parser, lexer, name, name_len);
+  }
+
+  if (next.type == TOKEN_CHARCLASS) {
+    /* `T[ab]` — the lexer only emits LBRACKET for quoted / $vN keys, so a
+     * charclass directly after an identifier is an invalid table key. */
+    set_error(parser,
+              "invalid table key after identifier: expected 'literal' or "
+              "$vN register reference",
+              snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+    return nullptr;
+  }
 
   if (next.type != TOKEN_LPAREN) {
     /* Not a function call: bare pattern primitives ARB / FENCE / REM. */
@@ -758,6 +879,10 @@ static ast_node_t *parse_function_call(snobol_parser_t *parser,
 
   if (strncmp(name, "EVAL", name_len) == 0) {
     return parse_dynamic_eval(parser, lexer);
+  }
+
+  if (strncmp(name, "EMIT", name_len) == 0) {
+    return parse_emit(parser, lexer);
   }
 
   if (strncmp(name, "POS", name_len) == 0) {
@@ -1030,6 +1155,213 @@ static ast_node_t *parse_dynamic_eval(snobol_parser_t *parser,
   return node;
 }
 
+/**
+ * Parse the two identifier-prefixed forms that are not function calls:
+ * register assignment (`v1 = 0`, `name = 0`) and table access/update
+ * (`T['k']`, `T['k'] = <value>`, `T[$vN]`).  The identifier was already
+ * consumed by the caller; the current token is '=' or '['.
+ */
+static ast_node_t *parse_table_or_assign(snobol_parser_t *parser,
+                                         snobol_lexer_t *lexer,
+                                         const char *name, size_t name_len) {
+  token_t tok = peek(lexer);
+
+  if (tok.type == TOKEN_EQUALS) {
+    /* Register assignment: <target> = <register-number> */
+    advance(lexer);
+
+    int var = -1;
+    if (ident_is_v_register(name, name_len, &var)) {
+      /* Explicit register target: v1 = 0 assigns to register v1. */
+    } else {
+      var = find_capture_reg(parser, name, name_len);
+      if (var < 0) {
+        char msg[192];
+        snprintf(msg, sizeof(msg),
+                 "assignment target '%.*s' is not a capture name (register "
+                 "variables are v0..v%d)",
+                 (int)name_len, name, MAX_VARS - 1);
+        set_error(parser, msg, snobol_lexer_get_line(lexer),
+                  snobol_lexer_get_pos(lexer));
+        return nullptr;
+      }
+    }
+
+    tok = peek(lexer);
+    if (tok.type != TOKEN_INTEGER) {
+      set_error(parser,
+                "assignment expects a register number after '=' "
+                "(e.g. v1 = 0 copies capture register 0 into v1)",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    int64_t reg = tok.data.integer.value;
+    if (reg < 0 || reg >= MAX_VARS) {
+      char msg[160];
+      snprintf(msg, sizeof(msg),
+               "assignment register %lld out of range (v0..v%d)", (long long)reg,
+               MAX_VARS - 1);
+      set_error(parser, msg, snobol_lexer_get_line(lexer),
+                snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    advance(lexer);
+
+    return snobol_ast_create_assign(var, (int)reg);
+  }
+
+  /* Table access / update: IDENT '[' key ']' [ '=' value ]
+   * The AST creators NUL-terminate the table name via strlen, so a
+   * NUL-terminated copy of the identifier slice is required. */
+  char *table_name = (char *)malloc(name_len + 1);
+  if (!table_name) {
+    set_error(parser, "out of memory", snobol_lexer_get_line(lexer),
+              snobol_lexer_get_pos(lexer));
+    return nullptr;
+  }
+  memcpy(table_name, name, name_len);
+  table_name[name_len] = '\0';
+
+  advance(lexer); /* Consume '[' */
+
+  ast_node_t *key = nullptr;
+  tok = peek(lexer);
+  if (tok.type == TOKEN_ERROR && snobol_lexer_has_error(lexer)) {
+    set_error(parser, snobol_lexer_get_error(lexer),
+              snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+    return nullptr;
+  } else if (tok.type == TOKEN_LIT) {
+    /* Literal key: TABLE['k'] */
+    advance(lexer);
+    key = snobol_ast_create_lit(tok.data.string.text, tok.data.string.len);
+  } else if (tok.type == TOKEN_ANCHOR_END) {
+    /* Capture-derived key: TABLE[$vN] */
+    advance(lexer);
+    tok = peek(lexer);
+    int reg = -1;
+    if (tok.type != TOKEN_IDENT ||
+        !ident_is_v_register(tok.data.string.text, tok.data.string.len,
+                             &reg)) {
+      set_error(parser,
+                "table key register must be $vN (e.g. $v0 for the value "
+                "captured into register 0)",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    if (reg >= MAX_VARS) {
+      char msg[160];
+      snprintf(msg, sizeof(msg),
+               "table key register v%d out of range (v0..v%d)", reg,
+               MAX_VARS - 1);
+      set_error(parser, msg, snobol_lexer_get_line(lexer),
+                snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    advance(lexer);
+    key = snobol_ast_create_regref(reg);
+  } else {
+    char msg[192];
+    snprintf(msg, sizeof(msg),
+             "invalid key in '%.*s[...]': expected a quoted literal ('k') or "
+             "$vN register reference",
+             (int)name_len, name);
+    set_error(parser, msg, snobol_lexer_get_line(lexer),
+              snobol_lexer_get_pos(lexer));
+    return nullptr;
+  }
+
+  if (!expect(parser, lexer, TOKEN_RBRACKET)) {
+    free(table_name);
+    snobol_ast_free(key);
+    return nullptr;
+  }
+
+  /* Optional update: TABLE[key] = <value-pattern> */
+  if (match(lexer, TOKEN_EQUALS)) {
+    advance(lexer);
+    if (peek(lexer).type == TOKEN_EOF) {
+      set_error(parser, "expected a value pattern after '=' in 'TABLE[key] = '",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      free(table_name);
+      snobol_ast_free(key);
+      return nullptr;
+    }
+    ast_node_t *value = parse_repetition(parser, lexer);
+    if (!value) {
+      free(table_name);
+      snobol_ast_free(key);
+      return nullptr;
+    }
+    ast_node_t *node = snobol_ast_create_table_update(table_name, key, value);
+    free(table_name);
+    return node;
+  }
+
+  {
+    ast_node_t *node = snobol_ast_create_table_access(table_name, key);
+    free(table_name);
+    return node;
+  }
+}
+
+/**
+ * Parse the EMIT core: EMIT('text') or EMIT(@name / @vN).  The '(' was
+ * already consumed by the caller.
+ */
+static ast_node_t *parse_emit(snobol_parser_t *parser, snobol_lexer_t *lexer) {
+  token_t tok = peek(lexer);
+
+  if (tok.type == TOKEN_LIT) {
+    /* EMIT('text'): append literal text to the match output. */
+    advance(lexer);
+    if (!expect(parser, lexer, TOKEN_RPAREN)) {
+      return nullptr;
+    }
+    return snobol_ast_create_emit(tok.data.string.text, tok.data.string.len,
+                                  -1);
+  }
+
+  if (tok.type == TOKEN_AT) {
+    /* EMIT(@vN): append the captured value of register N.
+     * EMIT(@name): append the value of the capture allocated for name. */
+    advance(lexer);
+    tok = peek(lexer);
+    if (tok.type != TOKEN_IDENT) {
+      set_error(parser,
+                "EMIT(@...) expects a capture name or register: "
+                "EMIT(@name) or EMIT(@vN)",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    int reg = -1;
+    if (!ident_is_v_register(tok.data.string.text, tok.data.string.len,
+                             &reg)) {
+      reg = find_capture_reg(parser, tok.data.string.text,
+                             tok.data.string.len);
+      if (reg < 0) {
+        char msg[192];
+        snprintf(msg, sizeof(msg),
+                 "EMIT(@%.*s): unknown capture name (capture it earlier in "
+                 "the pattern with @%.*s ...)",
+                 (int)tok.data.string.len, tok.data.string.text,
+                 (int)tok.data.string.len, tok.data.string.text);
+        set_error(parser, msg, snobol_lexer_get_line(lexer),
+                  snobol_lexer_get_pos(lexer));
+        return nullptr;
+      }
+    }
+    advance(lexer);
+    if (!expect(parser, lexer, TOKEN_RPAREN)) {
+      return nullptr;
+    }
+    return snobol_ast_create_emit(nullptr, 0, reg);
+  }
+
+  set_error(parser, "EMIT expects an argument: EMIT('text') or EMIT(@reg)",
+            snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+  return nullptr;
+}
+
 bool snobol_parser_has_error(snobol_parser_t *parser) {
   if (!parser) {
     return false;
@@ -1073,6 +1405,10 @@ void snobol_parser_destroy(snobol_parser_t *parser) {
       free(parser->seen_labels[i]);
     }
     free((void *)parser->seen_labels);
+    for (size_t i = 0; i < parser->capture_name_count; i++) {
+      free(parser->capture_names[i].name);
+    }
+    free((void *)parser->capture_names);
     free(parser);
   }
 }

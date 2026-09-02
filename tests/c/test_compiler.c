@@ -563,6 +563,209 @@ static void test_cov_source_primitives_behavior(void) {
   snobol_context_destroy(ctx);
 }
 
+static void test_cov_source_emit_table_assign(void) {
+  test_suite("Compiler: source EMIT / TABLE / assignment");
+
+  snobol_context_t *ctx = snobol_context_create();
+  char *err = nullptr;
+
+  /* EMIT('X') appends to the match output buffer. */
+  {
+    snobol_pattern_t *p =
+        snobol_pattern_compile_ex(ctx, "'h' EMIT('X') 'i'", 17, 0, &err);
+    test_assert(p != NULL, "'h' EMIT('X') 'i' compiles");
+    if (p) {
+      snobol_match_t *m = snobol_pattern_match(p, "hi", 2);
+      test_assert((m && m->success && m->length == 2) != 0,
+                  "EMIT pattern matches 'hi'");
+      if (m && m->success) {
+        test_assert(m->output_len == 1 && m->output && m->output[0] == 'X',
+                    "EMIT('X') output buffer contains 'X'");
+      }
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(p);
+    free(err);
+    err = nullptr;
+  }
+
+  /* EMIT(@name) and EMIT(@vN) append the captured value. */
+  {
+    snobol_pattern_t *p =
+        snobol_pattern_compile_ex(ctx, "@name 'ab' EMIT(@name)", 22, 0, &err);
+    test_assert(p != NULL, "@name 'ab' EMIT(@name) compiles");
+    if (p) {
+      snobol_match_t *m = snobol_pattern_match(p, "ab", 2);
+      test_assert((m && m->success) != 0, "EMIT(@name) pattern matches");
+      if (m && m->success) {
+        test_assert(m->output_len == 2 && m->output &&
+                        memcmp(m->output, "ab", 2) == 0,
+                    "EMIT(@name) emits the captured 'ab'");
+      }
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(p);
+    free(err);
+    err = nullptr;
+  }
+  {
+    /* Bytecode parity: source EMIT('X') == builder emit text node;
+     * source EMIT(@v1) == builder emit-register node. */
+    snobol_pattern_t *src =
+        snobol_pattern_compile_ex(ctx, "'h' EMIT('X')", 13, 0, &err);
+    snobol_pattern_build_t *b = snobol_pattern_build_create();
+    ast_node_t **parts = (ast_node_t **)malloc(2 * sizeof(ast_node_t *));
+    parts[0] = snobol_pattern_build_lit(b, "h", 1);
+    parts[1] = snobol_ast_create_emit("X", 1, -1);
+    ast_node_t *root = snobol_pattern_build_emit(
+        b, snobol_pattern_build_concat(b, parts, 2));
+    snobol_pattern_t *built = snobol_pattern_build_compile(ctx, root, 0, &err);
+    snobol_pattern_build_destroy(b);
+    test_assert((src && built) != 0, "EMIT source + builder compile");
+    if (src && built) {
+      size_t al = snobol_pattern_get_bc_len(src);
+      size_t bl = snobol_pattern_get_bc_len(built);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(src),
+                                      snobol_pattern_get_bc(built), al) == 0) != 0,
+                  "EMIT('X') bytecode == builder emit text bytecode");
+    }
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+    free(err);
+    err = nullptr;
+  }
+
+  /* Assignment: '@x 'ab' v1 = 0' copies capture register 0 into v1. */
+  {
+    snobol_pattern_t *p = snobol_pattern_compile_ex(
+        ctx, "@x 'ab' v1 = 0", 14, 0, &err);
+    test_assert(p != NULL, "@x 'ab' v1 = 0 compiles");
+    if (p) {
+      snobol_match_t *m = snobol_pattern_match(p, "ab", 2);
+      test_assert((m && m->success) != 0, "assignment pattern matches");
+      if (m && m->success) {
+        size_t vlen = 0;
+        const char *v = snobol_match_get_variable(m, "v1", &vlen);
+        test_assert((v && vlen == 2 && memcmp(v, "ab", 2) == 0) != 0,
+                    "OP_ASSIGN binds 'ab' into v1");
+      }
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(p);
+    free(err);
+    err = nullptr;
+  }
+  {
+    /* Bytecode parity: source assignment == builder assign(var, reg). */
+    snobol_pattern_t *src =
+        snobol_pattern_compile_ex(ctx, "@x 'ab' v1 = 0", 14, 0, &err);
+    snobol_pattern_build_t *b = snobol_pattern_build_create();
+    ast_node_t *cap = snobol_pattern_build_cap(b, 0, snobol_pattern_build_lit(b, "ab", 2));
+    ast_node_t *assign = snobol_pattern_build_assign(b, 1, 0);
+    ast_node_t **parts = (ast_node_t **)malloc(2 * sizeof(ast_node_t *));
+    parts[0] = cap;
+    parts[1] = assign;
+    ast_node_t *root = snobol_pattern_build_emit(
+        b, snobol_pattern_build_concat(b, parts, 2));
+    snobol_pattern_t *built = snobol_pattern_build_compile(ctx, root, 0, &err);
+    snobol_pattern_build_destroy(b);
+    test_assert((src && built) != 0, "assignment source + builder compile");
+    if (src && built) {
+      size_t al = snobol_pattern_get_bc_len(src);
+      size_t bl = snobol_pattern_get_bc_len(built);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(src),
+                                      snobol_pattern_get_bc(built), al) == 0) != 0,
+                  "source assignment bytecode == builder assign bytecode");
+    }
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+    free(err);
+    err = nullptr;
+  }
+
+  /* TABLE['k'] / TABLE['k'] = 'v' / TABLE[$v0]: bytecode parity with the
+   * Builder table nodes (literal-key forms compile through the same path;
+   * the $vN key takes the register-reference key encoding). */
+  {
+    snobol_pattern_t *src = snobol_pattern_compile_ex(ctx, "T['k']", 6, 0, &err);
+    snobol_pattern_build_t *b = snobol_pattern_build_create();
+    ast_node_t *root = snobol_pattern_build_emit(
+        b, snobol_ast_create_table_access("T", snobol_ast_create_lit("k", 1)));
+    snobol_pattern_t *built = snobol_pattern_build_compile(ctx, root, 0, &err);
+    snobol_pattern_build_destroy(b);
+    test_assert((src && built) != 0, "table access source + builder compile");
+    if (src && built) {
+      size_t al = snobol_pattern_get_bc_len(src);
+      size_t bl = snobol_pattern_get_bc_len(built);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(src),
+                                      snobol_pattern_get_bc(built), al) == 0) != 0,
+                  "T['k'] bytecode == builder tableAccess bytecode");
+    }
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+    free(err);
+    err = nullptr;
+  }
+  {
+    snobol_pattern_t *src = snobol_pattern_compile_ex(ctx, "T['k'] = 'v'", 11, 0, &err);
+    snobol_pattern_build_t *b = snobol_pattern_build_create();
+    ast_node_t *root = snobol_pattern_build_emit(
+        b, snobol_ast_create_table_update("T", snobol_ast_create_lit("k", 1),
+                                          snobol_ast_create_lit("v", 1)));
+    snobol_pattern_t *built = snobol_pattern_build_compile(ctx, root, 0, &err);
+    snobol_pattern_build_destroy(b);
+    test_assert((src && built) != 0, "table update source + builder compile");
+    if (src && built) {
+      size_t al = snobol_pattern_get_bc_len(src);
+      size_t bl = snobol_pattern_get_bc_len(built);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(src),
+                                      snobol_pattern_get_bc(built), al) == 0) != 0,
+                  "T['k'] = 'v' bytecode == builder tableUpdate bytecode");
+    }
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+    free(err);
+    err = nullptr;
+  }
+  {
+    /* $vN key: emits OP_TABLE_GET with kreg=N directly (no capture wrap),
+     * identical to the Builder AST twin with a register-reference key. */
+    snobol_pattern_t *src =
+        snobol_pattern_compile_ex(ctx, "@w 'z' T[$v0]", 13, 0, &err);
+    snobol_pattern_build_t *b = snobol_pattern_build_create();
+    ast_node_t *cap = snobol_pattern_build_cap(b, 0, snobol_pattern_build_lit(b, "z", 1));
+    ast_node_t *acc = snobol_ast_create_table_access(
+        "T", snobol_ast_create_regref(0));
+    ast_node_t **parts = (ast_node_t **)malloc(2 * sizeof(ast_node_t *));
+    parts[0] = cap;
+    parts[1] = acc;
+    ast_node_t *root = snobol_pattern_build_emit(
+        b, snobol_pattern_build_concat(b, parts, 2));
+    snobol_pattern_t *built = snobol_pattern_build_compile(ctx, root, 0, &err);
+    snobol_pattern_build_destroy(b);
+    test_assert((src && built) != 0, "T[$v0] source + builder compile");
+    if (src && built) {
+      size_t al = snobol_pattern_get_bc_len(src);
+      size_t bl = snobol_pattern_get_bc_len(built);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(src),
+                                      snobol_pattern_get_bc(built), al) == 0) != 0,
+                  "T[$v0] bytecode == builder regref-key bytecode");
+    }
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+    free(err);
+    err = nullptr;
+  }
+
+  snobol_context_destroy(ctx);
+}
+
 void test_compiler_suite(void) {
   test_suite("Compiler Tests");
 
@@ -654,4 +857,5 @@ void test_compiler_suite(void) {
   test_cov_engine2_fuse_shapes();
   test_cov_len_real_semantics();
   test_cov_source_primitives_behavior();
+  test_cov_source_emit_table_assign();
 }

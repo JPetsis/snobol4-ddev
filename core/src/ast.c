@@ -332,6 +332,8 @@ ast_node_t *snobol_ast_clone(const ast_node_t *node) {
       clone->data.assign.reg = node->data.assign.reg;
       break;
 
+    case AST_REG_REF: clone->data.reg_ref.reg = node->data.reg_ref.reg; break;
+
     case AST_LEN: clone->data.len.n = node->data.len.n; break;
 
     case AST_EVAL:
@@ -425,6 +427,7 @@ void snobol_ast_free(ast_node_t *node) {
     case AST_ABORT:
     case AST_FAIL:
     case AST_SUCCEED:
+    case AST_REG_REF:
       /* no owned pointers */
       break;
 
@@ -472,6 +475,7 @@ const char *snobol_ast_type_name(ast_type_t type) {
     case AST_ABORT: return "ABORT";
     case AST_FAIL: return "FAIL";
     case AST_SUCCEED: return "SUCCEED";
+    case AST_REG_REF: return "REG_REF";
     default: return "UNKNOWN";
   }
 }
@@ -541,6 +545,10 @@ void snobol_ast_dump(const ast_node_t *node, FILE *out, int indent) {
 
     case AST_TAB:
       fprintf(out, "%*sTAB(%d)\n", indent, "", node->data.rpos_rtab.n);
+      break;
+
+    case AST_REG_REF:
+      fprintf(out, "%*sREG_REF(v%d)\n", indent, "", node->data.reg_ref.reg);
       break;
 
     default: fprintf(out, "%*s%s\n", indent, "", type_name); break;
@@ -793,5 +801,15 @@ ast_node_t *snobol_ast_create_succeed(void) {
     return nullptr;
   }
   node->type = AST_SUCCEED;
+  return node;
+}
+
+ast_node_t *snobol_ast_create_regref(int reg) {
+  ast_node_t *node = ast_node_alloc();
+  if (!node) {
+    return nullptr;
+  }
+  node->type = AST_REG_REF;
+  node->data.reg_ref.reg = reg;
   return node;
 }
