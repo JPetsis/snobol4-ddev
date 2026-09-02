@@ -707,9 +707,20 @@ Quick reference:
 | `'a' 'b'` | Concatenation |
 | `'a' \| 'b'` | Alternation |
 | `P+` / `P?` / `P*` | One-or-more / optional / zero-or-more |
-| `@r1(P)` | Capture P into register 1 |
+| `@name` | Capture the following pattern into the next register |
 | `SPAN('0-9')` | Match 1+ chars in set |
 | `BREAK(',')` / `BREAKX(',')` | Consume until char (greedy / retry) |
-| `LEN(n)`, `POS(n)`, `RPOS(n)`, `TAB(n)`, `RTAB(n)` | Length & position primitives |
+| `LEN(n)`, `POS(n)`, `RPOS(n)`, `TAB(n)`, `RTAB(n)` | Length & position primitives (real integer arguments) |
 | `ARB`, `BAL('(',')')`, `FENCE`, `REM`, `ABORT`, `FAIL`, `SUCCEED` | Extended primitives |
-| `^` / `$` | Start / end anchor |
+| `ARBNO(p)`, `repeat(p, min, max)` | Zero-or-more / bounded repetition |
+| `@name` | Capture the following pattern into the next register (`v0`, `v1`, …) |
+| `P . @name` / `P $ vN` | Match-naming: capture the match of `P` into a register (extension) |
+| `EMIT('text')`, `EMIT(@vN)`, `T['k']`, `T['k'] = p`, `vN = <reg>` | Output, table, and assignment forms (extension) |
+| `^` / `$` | Start / end anchor (extension) |
+
+> **SNOBOL4 compatibility:** `match()` is anchored at offset 0 by default
+> (classic SNOBOL4 scans unanchored; use the `search*` API family for that
+> model), `BREAK` is deterministic-greedy (classic retry semantics live in
+> `BREAKX`), and `RTAB(n)` clamps on overshoot instead of failing. The full
+> faithful/divergence/extension/gap classification is the ledger:
+> [docs/SNOBOL4_COMPATIBILITY.md](SNOBOL4_COMPATIBILITY.md).

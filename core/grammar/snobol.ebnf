@@ -1,179 +1,202 @@
 (* SNOBOL4 Pattern Grammar *)
-(* Formal EBNF specification for the SNOBOL pattern syntax *)
-(* Used as the canonical reference for parser implementation *)
+(* Canonical EBNF of the grammar implemented by core/src/parser.c.
+   Every production below is accepted by the source parser; constructs the
+   parser rejects are not advertised here.  Constructs marked "extension"
+   do not exist in classic SNOBOL4.  The compatibility ledger is
+   docs/SNOBOL4_COMPATIBILITY.md. *)
 
 (* ============================================================================ *)
-(* Core Pattern Structure *)
+(* Core Pattern Structure                                                        *)
 (* ============================================================================ *)
 
 pattern         = statement , EOF ;
 
 statement       = [ label ] , pattern_expr , [ goto ] ;
-
 label           = IDENT , ":" ;
-
 goto            = ":" , "(" , IDENT , ")" ;
 
 pattern_expr    = alternation ;
 
 (* ============================================================================ *)
-(* Pattern Operators (precedence: lowest to highest) *)
+(* Pattern Operators (precedence: lowest to highest)                            *)
 (* ============================================================================ *)
 
 (* Alternation: lowest precedence *)
 alternation     = concatenation , { "|" , concatenation } ;
 
-(* Concatenation: higher precedence than alternation *)
-concatenation   = repetition , { repetition } ;
+(* Concatenation *)
+concatenation   = repetition , { repetition | naming } ;
 
-(* Repetition operators: higher precedence than concatenation *)
+(* Repetition: postfix operators bind to the preceding primary (extension:
+   classic SNOBOL4 has no postfix repetition operators) *)
 repetition      = primary , [ ( "*" | "+" | "?" ) ] ;
 
-(* Bounded repetition: repeat(P, min, max) *)
-bounded_repeat = "repeat" , "(" , primary , "," , integer , "," , integer , ")" ;
+(* Match-naming (extension): binds tighter than concatenation and wraps the
+   most recent part.  '.' is unambiguous; '$' doubles as the end anchor and
+   only acts as the naming operator when a target follows. *)
+naming          = ( "." | "$" ) , naming_target ;
+naming_target   = "@" , IDENT                  (* sequential register *)
+                | [ "$" ] , IDENT_vN ;         (* explicit register *)
 
-(* Primary patterns: highest precedence *)
+(* ============================================================================ *)
+(* Primary Patterns (highest precedence)                                        *)
+(* ============================================================================ *)
+
 primary         = literal
                 | charclass
-                | anchored_pattern
+                | anchor
                 | parenthesized
-                | function_call
-                | dynamic_eval
-                | table_access
                 | capture
+                | builtin_call
+                | table_access
+                | table_update
                 | assignment
-                | length_match
-                | emit_directive
                 ;
-
-(* ============================================================================ *)
-(* Primary Pattern Types *)
-(* ============================================================================ *)
 
 (* Literal string match *)
 literal         = "'" , { character } , "'" ;
 
-(* Character class: match any character in set *)
+(* Character class (extension): match any character in set.  After an
+   identifier, '[' denotes table access (see table_access/table_update) and
+   any other bracketed span is rejected. *)
 charclass       = "[" , { class_char } , "]" ;
 
-(* Anchored patterns *)
-anchored_pattern = ( "^" | "$" ) ;
+(* Anchors (extension; classic SNOBOL4 has no anchor operators).  A '$'
+   followed by an identifier that is not a vN register is rejected as an
+   unsupported indirect reference. *)
+anchor          = "^" | "$" ;
 
 (* Parenthesized pattern for grouping *)
 parenthesized   = "(" , pattern_expr , ")" ;
 
-(* Function calls: SPAN, ANY, NOTANY, BREAK, LEN, EVAL *)
-function_call   = func_name , "(" , [ arg_list ] , ")" ;
-
-func_name       = "SPAN" | "ANY" | "NOTANY" | "BREAK" | "LEN" | "EVAL" ;
-
-arg_list        = arg , { "," , arg } ;
-
-arg             = literal
-                | IDENT
-                | variable_ref
-                | integer
-                ;
-
-(* Dynamic evaluation: EVAL(pattern_expr) *)
-dynamic_eval    = "EVAL" , "(" , pattern_expr , ")" ;
-
-(* Table access: TABLE[key] *)
-table_access    = IDENT , "[" , arg , "]" ;
-
-(* Capture: @variable or @register *)
-capture         = "@" , ( IDENT | integer ) ;
-
-(* Assignment: variable = register *)
-assignment      = IDENT , "=" , integer ;
-
-(* Length match: LEN(n) *)
-length_match    = "LEN" , "(" , integer , ")" ;
-
-(* Emit directive for output construction *)
-emit_directive  = "EMIT" , ( literal | "@" , integer ) ;
+(* Capture: @IDENT captures the following primary into the next sequential
+   register (v0, v1, ...).  Classic-compatible in effect, register-model in
+   implementation. *)
+capture         = "@" , IDENT , primary ;
 
 (* ============================================================================ *)
-(* Lexical Elements *)
+(* Builtin Calls                                                                *)
 (* ============================================================================ *)
 
-(* Single character - any valid UTF-8 character *)
+builtin_call    = string_builtin | int_builtin | pattern_builtin
+                | zero_arg_builtin | eval_call | emit_call ;
+
+string_builtin  = ( "SPAN" | "ANY" | "NOTANY" | "BREAK" | "BREAKX" )
+                , "(" , literal , ")" ;
+
+int_builtin     = ( "LEN" | "POS" | "TAB" | "RPOS" | "RTAB" )
+                , "(" , integer , ")" ;
+
+pattern_builtin = "ARBNO" , "(" , pattern_expr , ")"
+                | "repeat" , "(" , pattern_expr , "," , integer , ","
+                , integer , ")"
+                | "BAL" , [ "(" , literal , [ "," , literal ] , ")" ] ;
+
+zero_arg_builtin = "ARB" | "ARB" , "(" , ")"
+                | "FENCE" | "FENCE" , "(" , ")"
+                | "REM" | "REM" , "(" , ")"
+                | "ABORT" , "(" , ")" | "FAIL" , "(" , ")"
+                | "SUCCEED" , "(" , ")" ;
+
+eval_call       = "EVAL" , "(" , pattern_expr , ")" ;
+
+(* EMIT appends text or a captured register's content to the match output
+   buffer (extension) *)
+emit_call       = "EMIT" , "(" , ( literal | "@" , IDENT ) , ")" ;
+
+(* ============================================================================ *)
+(* Tables and Assignment (extension)                                            *)
+(* ============================================================================ *)
+
+table_access    = IDENT , "[" , table_key , "]" ;
+table_update    = IDENT , "[" , table_key , "]" , "=" , pattern_expr ;
+table_key       = literal | "$" , IDENT_vN ;
+
+(* Register assignment: vN = <reg> binds register <reg> (directly or via a
+   registered capture name) into register vN *)
+assignment      = IDENT_vN , "=" , ( IDENT_vN | IDENT | integer ) ;
+
+(* ============================================================================ *)
+(* Lexical Elements                                                             *)
+(* ============================================================================ *)
+
 character       = ? any UTF-8 character except single quote ? ;
-
-(* Character class content - any character except ] *)
 class_char      = ? any UTF-8 character except ] ? ;
 
-(* Identifier: variable or function names *)
 IDENT           = letter , { letter | digit | "_" } ;
+IDENT_vN        = "v" , digit , { digit } ;   (* register name, 0..63 *)
 
 letter          = "a" | ... | "z" | "A" | ... | "Z" | "_" ;
-
 digit           = "0" | ... | "9" ;
 
-(* Integer literal *)
-integer         = digit , { digit } ;
+(* Signed integer literal (int32 range; used by LEN/POS/TAB/RPOS/RTAB and
+   repeat bounds) *)
+integer         = [ "-" ] , digit , { digit } ;
 
-(* Variable reference: $varname *)
-variable_ref    = "$" , IDENT ;
-
-(* Whitespace - ignored between tokens *)
-whitespace      = " " | "\t" | "\n" | "\r" ;
+whitespace      = " " | "\t" | "\n" | "\r" ;  (* ignored between tokens *)
 
 (* ============================================================================ *)
-(* Operator Precedence Summary (lowest to highest) *)
+(* Operator Precedence Summary (lowest to highest)                              *)
 (* ============================================================================ *)
 (*
   1. Alternation (|)
   2. Concatenation (juxtaposition)
-  3. Repetition (*, +, ?)
-  4. Primary patterns (literals, classes, functions, etc.)
-  
+  3. Naming (. and $, binds to the most recent part), Repetition (*, +, ?)
+  4. Primary patterns (literals, classes, captures, builtins, tables)
+
   Example: 'A' | 'B' 'C'*
   Parses as: ALT(LIT('A'), CONCAT(LIT('B'), ARBNO(LIT('C'))))
+
+  Example: 'id:' SPAN('0-9') $v1
+  Parses as: CONCAT(LIT('id:'), CAP(1, SPAN('0-9')))
 *)
 
 (* ============================================================================ *)
-(* AST Mapping Reference *)
+(* AST Mapping Reference                                                        *)
 (* ============================================================================ *)
 (*
-  pattern          → AST node (type depends on content)
-  alternation      → AST_ALT (left-recursive → left-associated tree)
-  concatenation    → AST_CONCAT (flattened array of parts)
-  repetition       → AST_ARBNO (*), AST_REPETITION (+, ?, bounded)
-  literal          → AST_LITERAL
-  charclass        → AST_SPAN, AST_ANY, AST_NOTANY, AST_BREAK
-  function_call    → Depends on function name
-  dynamic_eval     → AST_DYNAMIC_EVAL
-  capture          → AST_CAP
-  anchor           → AST_ANCHOR
-  emit_directive   → AST_EMIT
-  table_access     → AST_TABLE_ACCESS
+  pattern          -> AST node (type depends on content)
+  alternation      -> AST_ALT (left-recursive -> left-associated tree)
+  concatenation    -> AST_CONCAT (flattened array of parts)
+  repetition (*)   -> AST_ARBNO(primary)
+  repetition (+)   -> AST_CONCAT(primary, AST_ARBNO(primary))
+  repetition (?)   -> AST_REPETITION(primary, 0, 1)
+  repeat(p,m,x)    -> AST_REPETITION(p, m, x)
+  literal          -> AST_LITERAL
+  charclass        -> AST_SPAN          ([a-z] is a span)
+  anchor           -> AST_ANCHOR (start/end)
+  capture          -> AST_CAP(reg, sub)   (sequential register)
+  naming           -> AST_CAP(reg, part)  (names compile to captures)
+  ARB              -> AST_ARBNO(AST_LEN(1))
+  string_builtin   -> AST_SPAN/AST_BREAK/AST_BREAKX/AST_ANY/AST_NOTANY
+  int_builtin      -> AST_LEN/AST_POS/AST_TAB/AST_RPOS/AST_RTAB
+  BAL              -> AST_BAL(open_cp, close_cp)
+  EMIT(literal)    -> AST_EMIT(text)
+  EMIT(@IDENT)     -> AST_EMIT(reg)
+  table_access     -> AST_TABLE_ACCESS(name, key)   (literal or AST_REG_REF key)
+  table_update     -> AST_TABLE_UPDATE(name, key, value)
+  assignment       -> AST_ASSIGN(dst, src)
+  FENCE/REM/ABORT/FAIL/SUCCEED -> AST_FENCE/AST_REM/AST_ABORT/AST_FAIL/AST_SUCCEED
+  EVAL             -> AST_DYNAMIC_EVAL
+  label/goto       -> AST_LABEL / AST_GOTO
 *)
 
 (* ============================================================================ *)
-(* Error Recovery Rules *)
+(* Error Model                                                                  *)
 (* ============================================================================ *)
 (*
-  1. On unexpected token in pattern_expr: report error, skip to next | or end
-  2. On unmatched (: report error, insert closing )
-  3. On unmatched ': report error, insert closing '
-  4. On unknown function name: report error, treat as IDENT
-  5. On invalid character: report error, skip character
-*)
+  The lexer never skips characters silently: any unrecognized byte or an
+  unterminated literal/class/comment is a positioned lexical error
+  (TOKEN_ERROR).  The parser surfaces descriptive errors that name the
+  offending builtin/construct:
 
-(* ============================================================================ *)
-(* Examples *)
-(* ============================================================================ *)
-(*
-  'hello'                     → LITERAL("hello")
-  'A' | 'B'                   → ALT(LIT("A"), LIT("B"))
-  'A' 'B'                     → CONCAT(LIT("A"), LIT("B"))
-  'x'*                        → ARBNO(LIT("x"))
-  'x'+                        → REPETITION(LIT("x"), 1, -1)
-  SPAN('0-9')                 → SPAN("0-9")
-  ANY('aeiou')                → ANY("aeiou")
-  @1 'hello'                  → CAP(1, LIT("hello"))
-  EVAL('A' | 'B')             → DYNAMIC_EVAL(ALT(LIT("A"), LIT("B")))
-  LABEL: 'A' :(END)           → LABEL("LABEL", LIT("A")), GOTO("END")
-  TABLE['key']                → TABLE_ACCESS("TABLE", LIT("key"))
+  - missing/quoted/overflowing integer arguments: "LEN expects an integer
+    argument", "integer too large", "repeat min/max out of range"
+  - arity violations: "ARBNO expects one pattern argument", "repeat(...)"
+  - unary '$' indirect reference: "indirect reference is not supported"
+  - invalid naming targets: "naming target must be @name or $vN"
+  - capture target missing/too many: "Expected capture target",
+    "Too many captures (max 64)"
+  - invalid table/assignment forms: "expected a value pattern after '='",
+    "unknown assignment target"
 *)

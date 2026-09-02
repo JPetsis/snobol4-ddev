@@ -2526,28 +2526,46 @@ PHP overhead adds ~50–300 ns per call depending on the tier. The PHP/C couplin
 
 The `Pattern::fromString()` method accepts SNOBOL4 pattern syntax:
 
-| Syntax           | Builder Equivalent       | Description                    |
-|------------------|--------------------------|--------------------------------|
-| `'hello'`        | `Builder::lit("hello")`  | Literal string (single quotes) |
-| `SPAN('abc')`    | `Builder::span("abc")`   | Span characters                |
-| `BREAK('x')`     | `Builder::brk("x")`      | Break at character             |
-| `ANY('abc')`     | `Builder::any("abc")`    | Any character in set           |
-| `NOTANY('abc')`  | `Builder::notany("abc")` | Not any character in set       |
-| `LEN(5)`         | `len(5)` via AST         | Match N characters             |
-| `POS(0)`         | `Builder::pos(0)`        | Position assertion             |
-| `RPOS(0)`        | `Builder::rpos(0)`       | Reverse position assertion     |
-| `TAB(5)`         | `Builder::tab(5)`        | Tab to position                |
-| `RTAB(5)`        | `Builder::rtab(5)`       | Reverse tab                    |
-| `REM`            | `Builder::rem()`         | Remainder                      |
-| `FENCE`          | `Builder::fence()`       | Cut                            |
-| `ARB`            | `Builder::arb()`         | Arbitrary (0+ any)             |
-| `ARBNO(pattern)` | `Builder::arbno(sub)`    | Zero or more of pattern        |
-| `BAL('(', ')')`  | `Builder::bal('(', ')')` | Balanced                       |
-| `A \| B`         | `Builder::alt(a, b)`     | Alternation                    |
-| `$v0` / `${v0}`  | `${v0}` in templates     | Variable reference             |
-| `@r0(pattern)`   | `Builder::cap(0, sub)`   | Capture into register 0        |
-| `. v0`           | `Builder::assign(0, 0)`  | Assignment                     |
+| Syntax               | Builder Equivalent       | Description                          |
+|----------------------|--------------------------|--------------------------------------|
+| `'hello'`            | `Builder::lit("hello")`  | Literal string (single quotes)       |
+| `SPAN('abc')`        | `Builder::span("abc")`   | Span characters                      |
+| `BREAK('x')`         | `Builder::brk("x")`      | Break at character                   |
+| `BREAKX('x')`        | `Builder::breakx("x")`   | Break with retry (classic semantics) |
+| `ANY('abc')`         | `Builder::any("abc")`    | Any character in set                 |
+| `NOTANY('abc')`      | `Builder::notany("abc")` | Not any character in set             |
+| `LEN(n)`             | `Builder::len(n)`        | Match n characters (int32 `n`)       |
+| `POS(n)`             | `Builder::pos(n)`        | Position assertion                   |
+| `TAB(n)`             | `Builder::tab(n)`        | Tab to position                      |
+| `RPOS(n)`            | `Builder::rpos(n)`       | Reverse position assertion           |
+| `RTAB(n)`            | `Builder::rtab(n)`       | Reverse tab                          |
+| `ARB`                | `Builder::arb()`         | Arbitrary (0+ any, `ARBNO(LEN(1))`)  |
+| `ARBNO(pattern)`     | `Builder::arbno(sub)`    | Zero or more of pattern              |
+| `repeat(p, min, max)`| `Builder::repeat(p, min, max)` | Bounded repetition              |
+| `BAL()` / `BAL('(')` / `BAL('(', ')')` | `Builder::bal(...)` | Balanced delimiters         |
+| `FENCE`              | `Builder::fence()`       | Cut                                 |
+| `REM`                | `Builder::rem()`         | Remainder                           |
+| `A \| B`             | `Builder::alt(a, b)`     | Alternation                         |
+| `P*` / `P+` / `P?`   | `arbno` / `concat(p, arbno(p))` / `repeat(p, 0, 1)` | Repetition |
+| `^` / `$`            | `Builder::anchor()`      | Start / end anchor                  |
+| `@name`              | `Builder::cap(N, sub)`   | Capture following pattern into next register (`v0`, `v1`, …) |
+| `P . @name` / `P $ v1` | `Builder::name(P, N)`  | Match-naming: capture `P`'s match into a register |
+| `EMIT('text')` / `EMIT(@v1)` | `Builder::emit(...)` / `Builder::emitRef(1)` | Emit into the output buffer |
+| `T['k']` / `T['k'] = p` | `Builder::tableAccess(...)` / `tableUpdate(...)` | Table read / update |
+| `T[$v0]`             | `Builder::tableAccess(..., regref)` | Capture-derived table key  |
+| `v1 = 0` / `name = 0`| `Builder::assign(1, 0)`  | Register assignment                 |
+| `( P )`              | —                        | Grouping                            |
 
 ### Notes on SNOBOL4 Syntax Support
 
-The string parser covers the most common patterns but may not support all SNOBOL4 features. For full access, use the Builder API, which covers all 29 AST node types and 42 opcodes.
+- Integer arguments (`LEN`, `POS`, `TAB`, `RPOS`, `RTAB`, `repeat` bounds) must
+  be unquoted numbers; quoted/missing/overflowing arguments are parse errors.
+- `$` is the end anchor unless followed by a naming target; a unary `$X`
+  indirect reference is rejected ("not supported").
+- Source syntax compiles to the same bytecode as the Builder surface (verified
+  byte-for-byte by the C parity suite), so `fromString()` and `Builder` are
+  interchangeable. The Builder API covers all 32 AST node types and 42 opcodes.
+- Classic-SNOBOL4 divergences (`match()` anchored by default, deterministic
+  `BREAK`, clamping `RTAB`) are documented in the manual sections that describe
+  them; the full classification is the ledger:
+  [docs/SNOBOL4_COMPATIBILITY.md](SNOBOL4_COMPATIBILITY.md).

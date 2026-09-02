@@ -32,7 +32,7 @@ The engine now supports full SNOBOL language compatibility including:
 | Helper API: `PatternHelper::formattedSubst()` | ✅ Complete | Formatted template helper                         |
 | Helper API: `DynamicPatternCache`             | ✅ Complete | Truthful runtime-backed cache interface           |
 | Compatibility fixtures                        | ✅ Complete | Use runtime-backed semantics (no fallback)        |
-| Test coverage                                 | ✅ Complete | 568 PHP tests, 72970 C assertions (custom runner) |
+| Test coverage                                 | ✅ Complete | 588 PHP tests, 73859 C assertions (custom runner) |
 
 ### ⚠️ Known Limitations
 
