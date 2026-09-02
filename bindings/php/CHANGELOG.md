@@ -15,6 +15,28 @@ core versions correspond 1:1.
 
 ## [Unreleased]
 
+### Added
+
+- **`Pattern::fromString()` source syntax is now a full Builder peer** —
+  every documented form compiles to byte-for-byte bytecode identical to
+  its Builder twin (verified by the C parity suite): real integer
+  arguments for `LEN`/`POS`/`TAB`/`RPOS`/`RTAB`/`repeat` bounds, source
+  primitives `ARB`/`ARBNO`/`BAL`/`FENCE`/`REM`/`repeat`, `EMIT`,
+  `T['k']` / `T['k'] = p` / `T[$vN]` table forms, register assignment
+  `vN = <reg>`, and the match-naming operators `P . @name` /
+  `P $ vN`. New `Builder::name($node, $reg)` compiles to the same CAP
+  bytecode as source naming; match results expose `v<reg>` keys
+  (`"SPAN('a-z') . @name"` → `v0`, `"'id:' SPAN('0-9') $v1"` → `v1`).
+  Descriptive parse errors (quoted/overflowing integer arguments,
+  unary-`$` indirect reference, invalid naming targets, repeat bounds)
+  surface as exceptions from `fromString()`.
+- **`SourceSyntaxTest`** — 20 tests covering the new syntax and naming
+  result shapes end to end through `Pattern::fromString()`.
+- **Docs** — `docs/php-manual.md` "SNOBOL4 compatibility" note + fully
+  rewritten source-syntax appendix (every listed form parses; 32 AST
+  node types / 42 opcodes); `docs/SNOBOL4_COMPATIBILITY.md` is the
+  classification ledger (faithful / divergence / extension / gap).
+
 ### Changed
 
 - **Anchored `match()` benefits from the core prefilter** — the required-byte

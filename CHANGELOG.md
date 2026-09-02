@@ -15,6 +15,40 @@ tagged `php/vX.Y.Z`.
 
 ### Added
 
+- **Source parser is now a full peer of the Builder API** — the pattern
+  source syntax (`Pattern::fromString()`, `snobol_pattern_compile*`)
+  compiles to byte-for-byte bytecode identical to its Builder twin:
+  - Lexer: digit sequences lex as real integer tokens, `.` and `$`
+    disambiguated, no more silent character skipping (sticky, positioned
+    `TOKEN_ERROR`s surfaced verbatim by the parser); NUL is end of input
+  - `LEN(n)`, `POS(n)`, `TAB(n)`, `RPOS(n)`, `RTAB(n)` and `repeat`
+    bounds take real signed integer arguments (int32) with descriptive
+    errors for missing/quoted/overflowing values; the `LEN` placeholder
+    (hardcoded length 1) is removed
+  - Source primitives `ARB` (= `ARBNO(LEN(1))`), `ARBNO(p)`,
+    `BAL(...)`, `FENCE`, `REM`, `repeat(p, min, max)` with bound
+    validation (`max >= min >= 0`)
+  - `EMIT('text')` / `EMIT(@vN)` / `EMIT(@name)`, `T['k']` reads,
+    `T['k'] = p` updates, `T[$vN]` capture-derived keys (new
+    `AST_REG_REF` node; `OP_TABLE_GET/SET` with `kreg=N`), and register
+    assignment `vN = <reg>` / `name = <reg>`
+  - Match-naming operators `P . @name`, `P $ vN`, `P . vN`, `P . $vN`
+    (naming binds tighter than concatenation, `$` stays the end anchor
+    without a target); unary `$X` indirect references fail with
+    "indirect reference is not supported"
+  - New Builder naming construct `snobol_pattern_build_name(build, reg,
+    sub)` (PHP `Builder::name($node, $reg)`)
+- **Source-vs-Builder parity harness** (`tests/c/test_source_parity.c`,
+  ~296 assertions): 32 source forms × Builder twins asserting byte-for-byte
+  `snobol_pattern_get_bc` equality, identical tier election, and matched
+  behavior pairs with capture contents; the search oracle stays green
+- **Compatibility docs**: `docs/SNOBOL4_COMPATIBILITY.md` ledger
+  classifying feature areas as faithful / deliberate divergence /
+  extension / known gap; both manuals carry "SNOBOL4 compatibility"
+  notes and source-syntax appendixes where every listed form parses;
+  `core/grammar/snobol.ebnf` rewritten to the implemented grammar
+  (integer tokens, naming operators, all primaries, extensions labeled)
+
 - **Release branching pipeline** — post-1.0 maintenance flow. CI now runs on
   `release/**` branches (push and PR) in `ci-core`, `ci-php`, `sanitizers`,
   `valgrind` and `codeql`; the dead `develop` trigger was dropped. The
@@ -142,7 +176,7 @@ tagged `php/vX.Y.Z`.
   was previously dropped and re-derived with `strlen`, truncating emitted
   output at the first NUL byte); `ast_clone` had the same bug and is fixed.
 
-C test suite: **366 cases / 72,970 assertions** (custom runner).
+C test suite: **378 cases / 73,859 assertions** (custom runner).
 
 ## [1.0.4] - 2026-08-11
 
