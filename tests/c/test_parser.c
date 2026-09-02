@@ -1097,6 +1097,153 @@ void test_cov_parser_emit_table_assign(void) {
   }
 }
 
+void test_cov_parser_naming_ops(void) {
+  test_suite("Coverage: parser match-naming operators");
+
+  /* SPAN('a-z') . @name → cap(0, span): sequential register allocation. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "SPAN('a-z') . @name", &err);
+    test_assert((ast && !err && ast->type == AST_CAP) != 0,
+                "SPAN('a-z') . @name wraps in a capture");
+    if (ast && ast->type == AST_CAP) {
+      test_assert(ast->data.cap.reg == 0, "naming target gets register 0");
+      test_assert(ast->data.cap.sub && ast->data.cap.sub->type == AST_SPAN,
+                  "captured sub-pattern is the SPAN");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* 'id:' SPAN('0-9') $v1 → concat(lit, cap(1, span)): explicit register. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "'id:' SPAN('0-9') $v1", &err);
+    test_assert((ast && !err && ast->type == AST_CONCAT) != 0,
+                "'id:' SPAN('0-9') $v1 parses");
+    if (ast && ast->type == AST_CONCAT && ast->data.concat.count == 2) {
+      ast_node_t *cap = ast->data.concat.parts[1];
+      test_assert(cap->type == AST_CAP && cap->data.cap.reg == 1,
+                  "$v1 naming targets explicit register 1");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* Naming binds tighter than concatenation: 'a' . @x 'b'. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "'a' . @x 'b'", &err);
+    test_assert((ast && !err && ast->type == AST_CONCAT &&
+                 ast->data.concat.count == 2) != 0,
+                "'a' . @x 'b' is a two-part concat");
+    if (ast && ast->type == AST_CONCAT && ast->data.concat.count == 2) {
+      test_assert(ast->data.concat.parts[0]->type == AST_CAP,
+                  "naming wraps only the immediately preceding part");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* Alternate target spellings: '. $vN', '. vN', '$ @name'. */
+  {
+    const char *forms[] = {"'a' . $v1", "'a' . v1", "'a' $ @x", "'a' $v1"};
+    for (size_t i = 0; i < sizeof(forms) / sizeof(forms[0]); i++) {
+      snobol_parser_t *parser = snobol_parser_create();
+      bool err = false;
+      ast_node_t *ast = covp_parse(parser, forms[i], &err);
+      test_assert((ast && !err) != 0, "alternate naming spelling parses");
+      if (ast) {
+        ast_node_t *cap = ast;
+        if (cap->type == AST_CONCAT && cap->data.concat.count == 1) {
+          cap = cap->data.concat.parts[0];
+        }
+        test_assert(cap->type == AST_CAP, "naming spelling wraps in a capture");
+      }
+      if (ast) {
+        snobol_ast_free(ast);
+      }
+      snobol_parser_destroy(parser);
+    }
+  }
+
+  /* '$' stays the end anchor when no naming target follows. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "'a'$", &err);
+    test_assert((ast && !err && ast->type == AST_CONCAT &&
+                 ast->data.concat.count == 2) != 0,
+                "'a'$ still parses as literal + anchor");
+    if (ast && ast->type == AST_CONCAT && ast->data.concat.count == 2) {
+      test_assert(ast->data.concat.parts[1]->type == AST_ANCHOR &&
+                      ast->data.concat.parts[1]->data.anchor.atype ==
+                          ANCHOR_END,
+                  "trailing $ is the end anchor");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "'a' $ 'b'", &err);
+    test_assert((ast && !err && ast->type == AST_CONCAT &&
+                 ast->data.concat.count == 3) != 0,
+                "'a' $ 'b' keeps the anchor between literals");
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* Unary '$' indirect references and bad targets fail descriptively. */
+  {
+    const char *bad[] = {"'a' . 'b'", "'a' . x",
+                         "SPAN('a-z') . $name",
+                         "'a' . @",    "'a' . v99", "'a' $x"};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+      snobol_parser_t *parser = snobol_parser_create();
+      bool err = false;
+      ast_node_t *ast = covp_parse(parser, bad[i], &err);
+      test_assert((ast == NULL && err) != 0, "invalid naming form rejected");
+      if (!ast && err) {
+        const char *msg = snobol_parser_get_error(parser);
+        test_assert(
+            (msg && (strstr(msg, "naming") || strstr(msg, "indirect") ||
+                     strstr(msg, "register") || strstr(msg, "capture"))) !=
+                NULL,
+            "naming failure is descriptive");
+      }
+      snobol_parser_destroy(parser);
+    }
+  }
+  {
+    /* Unary '$x' at pattern start → indirect-reference error. */
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "$x 'a'", &err);
+    test_assert((ast == NULL && err) != 0, "leading $x rejected");
+    if (!ast && err) {
+      const char *msg = snobol_parser_get_error(parser);
+      test_assert((msg && strstr(msg, "indirect") != NULL) != 0,
+                  "leading $x names indirect reference");
+    }
+    snobol_parser_destroy(parser);
+  }
+}
+
 void test_parser_suite(void) {
   test_parser_create_destroy();
   test_parser_literal();
@@ -1118,4 +1265,5 @@ void test_parser_suite(void) {
   test_cov_parser_round3();
   test_cov_parser_source_primitives();
   test_cov_parser_emit_table_assign();
+  test_cov_parser_naming_ops();
 }

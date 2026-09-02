@@ -1727,6 +1727,12 @@ ast_node_t *snobol_pattern_build_cap(snobol_pattern_build_t *build, int reg,
   return snobol_ast_create_cap(reg, sub);
 }
 
+ast_node_t *snobol_pattern_build_name(snobol_pattern_build_t *build, int reg,
+                                      ast_node_t *sub) {
+  (void)build;
+  return snobol_ast_create_cap(reg, sub);
+}
+
 ast_node_t *snobol_pattern_build_assign(snobol_pattern_build_t *build, int var,
                                         int reg) {
   (void)build;

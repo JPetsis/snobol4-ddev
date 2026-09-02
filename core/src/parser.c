@@ -64,6 +64,8 @@ static void register_capture_name(snobol_parser_t *parser, const char *text,
                                   size_t len, int reg);
 static int find_capture_reg(snobol_parser_t *parser, const char *text,
                             size_t len);
+static int parse_naming_target(snobol_parser_t *parser, snobol_lexer_t *lexer,
+                               bool dollar_already_consumed);
 
 /* Error handling helpers */
 static void set_error(snobol_parser_t *parser, const char *msg, size_t line,
@@ -284,6 +286,77 @@ static int find_capture_reg(snobol_parser_t *parser, const char *text,
   return -1;
 }
 
+/**
+ * Parse a match-naming target: `@name` (allocates the next sequential
+ * register and registers the name) or an explicit register identifier
+ * `vN` (optionally spelled `$vN`).  Returns the target register, or -1
+ * after setting a descriptive error.
+ *
+ * @param dollar_already_consumed  true when the caller already consumed a
+ *   `$` naming operator and the current token is the target itself.
+ */
+static int parse_naming_target(snobol_parser_t *parser, snobol_lexer_t *lexer,
+                               bool dollar_already_consumed) {
+  token_t tok = peek(lexer);
+
+  /* `@name`: allocate the next sequential capture register. */
+  if (tok.type == TOKEN_AT) {
+    advance(lexer);
+    tok = peek(lexer);
+    if (tok.type != TOKEN_IDENT) {
+      set_error(parser, "expected a capture name after '@' in a naming target",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return -1;
+    }
+    if (parser->capture_reg_counter >= MAX_VARS) {
+      set_error(parser, "Too many captures (max 64)",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return -1;
+    }
+    int reg = parser->capture_reg_counter++;
+    register_capture_name(parser, tok.data.string.text, tok.data.string.len,
+                          reg);
+    advance(lexer);
+    return reg;
+  }
+
+  /* Optional `$` prefix spelling of the explicit-register target. */
+  if (tok.type == TOKEN_ANCHOR_END) {
+    advance(lexer);
+    tok = peek(lexer);
+  }
+
+  if (tok.type == TOKEN_IDENT) {
+    int reg = -1;
+    if (ident_is_v_register(tok.data.string.text, tok.data.string.len, &reg)) {
+      if (reg >= MAX_VARS) {
+        char msg[160];
+        snprintf(msg, sizeof(msg),
+                 "naming register v%d out of range (v0..v%d)", reg,
+                 MAX_VARS - 1);
+        set_error(parser, msg, snobol_lexer_get_line(lexer),
+                  snobol_lexer_get_pos(lexer));
+        return -1;
+      }
+      advance(lexer);
+      return reg;
+    }
+    if (tok.data.string.len >= 2 && tok.data.string.text[0] == 'v' &&
+        tok.data.string.text[1] >= '0' && tok.data.string.text[1] <= '9') {
+      set_error(parser, "naming register out of range (v0..v63)",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return -1;
+    }
+  }
+
+  set_error(parser,
+            "naming target must be @name or $vN (e.g. 'a' . @word or "
+            "'a' $ v1)",
+            snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+  (void)dollar_already_consumed;
+  return -1;
+}
+
 ast_node_t *snobol_parser_parse(snobol_parser_t *parser,
                                 snobol_lexer_t *lexer) {
   if (!parser || !lexer) {
@@ -494,6 +567,63 @@ static ast_node_t *parse_concatenation(snobol_parser_t *parser,
   while (true) {
     token_t tok = peek(lexer);
 
+    /* Match-naming: <part> ('.' | '$') <target> binds tighter than
+     * concatenation, so it wraps the most recent part.  '$' is the end
+     * anchor unless a naming target follows. */
+    if (count > 0) {
+      bool naming = false;
+      if (tok.type == TOKEN_DOT) {
+        naming = true;
+      } else if (tok.type == TOKEN_ANCHOR_END) {
+        snobol_lexer_state_t saved_state = snobol_lexer_save(lexer);
+        advance(lexer);             /* Consume '$' */
+        token_t nxt = peek(lexer);
+        if (nxt.type == TOKEN_AT) {
+          naming = true;
+        } else if (nxt.type == TOKEN_IDENT) {
+          if (ident_is_v_register(nxt.data.string.text, nxt.data.string.len,
+                                  nullptr)) {
+            naming = true;
+          } else {
+            /* `P $ x`: unary-$ indirect reference, not a naming target. */
+            set_error(parser,
+                      "unary '$' indirect reference is not supported "
+                      "(naming targets are @name or $vN)",
+                      snobol_lexer_get_line(lexer),
+                      snobol_lexer_get_pos(lexer));
+            for (size_t i = 0; i < count; i++) {
+              snobol_ast_free(parts[i]);
+            }
+            free((void *)parts);
+            return nullptr;
+          }
+        }
+        if (!naming) {
+          /* Plain end anchor; leave '$' for parse_primary. */
+          snobol_lexer_restore(lexer, saved_state);
+        }
+      }
+
+      if (naming) {
+        /* The '$' operator is already consumed (naming lookahead); the
+         * '.' operator is still pending. */
+        if (tok.type == TOKEN_DOT) {
+          advance(lexer);
+        }
+        int reg = parse_naming_target(parser, lexer,
+                                      tok.type == TOKEN_ANCHOR_END);
+        if (reg < 0) {
+          for (size_t i = 0; i < count; i++) {
+            snobol_ast_free(parts[i]);
+          }
+          free((void *)parts);
+          return nullptr;
+        }
+        parts[count - 1] = snobol_ast_create_cap(reg, parts[count - 1]);
+        continue;
+      }
+    }
+
     /* Check if this token starts a primary pattern */
     bool is_primary =
         (tok.type == TOKEN_LIT || tok.type == TOKEN_CHARCLASS ||
@@ -658,6 +788,17 @@ static ast_node_t *parse_primary(snobol_parser_t *parser,
     case TOKEN_ANCHOR_END:
       advance(lexer);
       {
+        /* Unary '$' indirect reference (`$X`) is a classic-SNOBOL4 gap; the
+         * '$' here only denotes the end anchor, so reject the reference. */
+        token_t nxt = peek(lexer);
+        if (nxt.type == TOKEN_IDENT) {
+          set_error(parser,
+                    "unary '$' indirect reference is not supported "
+                    "(naming targets are @name or $vN)",
+                    snobol_lexer_get_line(lexer),
+                    snobol_lexer_get_pos(lexer));
+          return nullptr;
+        }
         ast_node_t *node = (ast_node_t *)calloc(1, sizeof(ast_node_t));
         if (node) {
           node->type = AST_ANCHOR;

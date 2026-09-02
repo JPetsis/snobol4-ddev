@@ -339,6 +339,7 @@ void test_reusable_match_suite(void);
 void test_reuse_search_suite(void);
 void test_break_grammar_suite(void);
 void test_property_based_suite(void);
+void test_source_parity_suite(void);
 void test_search_automaton_suite(void);
 void test_search_simd_suite(void);
 void test_search_alt_literals_suite(void);
@@ -461,6 +462,9 @@ int main(void) {
   RUN_SUITE("Reuse Search: _ex parity with search()", test_reuse_search_suite);
   RUN_SUITE("Grammar: BREAK / BREAKX", test_break_grammar_suite);
   RUN_SUITE("Property-Based Tests", test_property_based_suite);
+
+  /* Source-vs-Builder parity */
+  RUN_SUITE("Source-vs-Builder Parity", test_source_parity_suite);
 
   /* Differential search oracle */
   RUN_SUITE("Search Oracle: corpus equivalence", test_search_oracle_suite);

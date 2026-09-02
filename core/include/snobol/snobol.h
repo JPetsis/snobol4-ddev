@@ -847,6 +847,13 @@ ast_node_t *snobol_pattern_build_arbno(snobol_pattern_build_t *build,
 ast_node_t *snobol_pattern_build_cap(snobol_pattern_build_t *build, int reg,
                                      ast_node_t *sub);
 
+/** @brief Create a match-naming node: bind sub-pattern's match to register.
+ *
+ * Source-equivalent of `P . @vN` / `P $ vN`: compiles to the same
+ * CAP_START/CAP_END bytecode as snobol_pattern_build_cap. */
+ast_node_t *snobol_pattern_build_name(snobol_pattern_build_t *build, int reg,
+                                      ast_node_t *sub);
+
 /** @brief Create an ASSIGN AST node (assign register to variable). */
 ast_node_t *snobol_pattern_build_assign(snobol_pattern_build_t *build, int var,
                                         int reg);

@@ -291,6 +291,24 @@ PHP_METHOD(Snobol_Builder, cap) {
   snobol_assoc_zval(return_value, "sub", 3, sub);
 }
 
+/** @brief Builder::name(node, reg): array
+ *  Match-naming construct: binds the sub-pattern's match to register reg.
+ *  Source-equivalent of `P . @vN` / `P $ vN`; same 'cap' AST as cap(). */
+PHP_METHOD(Snobol_Builder, name) {
+  zend_long reg;
+  zval *node;
+  ZEND_PARSE_PARAMETERS_START(2, 2)
+  Z_PARAM_ARRAY(node)
+  Z_PARAM_LONG(reg)
+  ZEND_PARSE_PARAMETERS_END();
+  if (!php_builder_check_reg(reg))
+    RETURN_NULL();
+  array_init(return_value);
+  add_assoc_stringl(return_value, "type", "cap", 3);
+  add_assoc_long(return_value, "reg", reg);
+  snobol_assoc_zval(return_value, "sub", 3, node);
+}
+
 /** @brief Builder::assign(var, reg): array
  *  Emits a 'assign' AST node: variable id and capture register. */
 PHP_METHOD(Snobol_Builder, assign) {
@@ -728,7 +746,8 @@ static const zend_function_entry snobol_builder_methods[] = {
                 cap,
                 ai_builder_cap,
                 ZEND_ACC_PUBLIC |
-                    ZEND_ACC_STATIC) PHP_ME(Snobol_Builder, assign, ai_builder_assign, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+                    ZEND_ACC_STATIC) PHP_ME(Snobol_Builder, name, ai_builder_cap, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
+                    PHP_ME(Snobol_Builder, assign, ai_builder_assign, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC)
                 PHP_ME(Snobol_Builder, concat, ai_builder_concat, ZEND_ACC_PUBLIC | ZEND_ACC_STATIC) PHP_ME(
                     Snobol_Builder,
                     alt,

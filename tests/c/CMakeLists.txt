@@ -67,6 +67,7 @@ add_executable(snobol4_tests
     test_break_grammar.c
     test_compiler.c
     test_property_based.c
+    test_source_parity.c
     test_search_prefilter.c
     test_search_batch.c
     test_search_batch_ex.c

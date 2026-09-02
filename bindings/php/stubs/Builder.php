@@ -42,6 +42,9 @@ class Builder
     /** @param mixed $arg @return static Register in [0, 63]; ValueError outside */
     public static function cap($arg): static { return new static(); }
 
+    /** @param mixed $node @param mixed $reg @return static Register in [0, 63]; ValueError outside */
+    public static function name($node, $reg): static { return new static(); }
+
     /** @param mixed $name @param mixed $value @return static Registers in [0, 63]; ValueError outside */
     public static function assign($name, $value): static { return new static(); }
 
