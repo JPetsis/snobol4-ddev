@@ -133,7 +133,7 @@ final class SearchMethodConsistencyTest extends TestCase
         // POS-constrained patterns are not literal-only: match() takes the
         // general path; matchLiteral() reports its documented non-literal
         // result. Both fast paths reject the form consistently.
-        $p = Pattern::fromString("POS('2') 'ab'");
+        $p = Pattern::fromString("POS(2) 'ab'");
         $this->assertSame(['success' => false, 'position' => 0, 'length' => 0], $p->matchLiteral('xxab'));
         $m = $p->match('xxab');
         $this->assertFalse($m);

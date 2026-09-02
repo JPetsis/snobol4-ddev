@@ -508,7 +508,7 @@ void test_cov_parser_functions(void) {
 
   /* Argument-type errors for each builtin. */
   {
-    /* Bare digits are skipped by the lexer, so these must use identifiers. */
+    /* Integer builtins reject identifiers; string builtins reject them too. */
     const char *bad[] = {"SPAN(foo)", "BREAK(foo)",  "BREAKX(foo)",
                          "ANY(foo)",  "NOTANY(foo)", "POS(foo)",
                          "TAB(foo)",  "FOO('x')"};
@@ -570,8 +570,11 @@ void test_cov_parser_functions(void) {
   {
     snobol_parser_t *parser = snobol_parser_create();
     bool err = false;
-    ast_node_t *ast = covp_parse(parser, "POS('2')", &err);
-    test_assert((ast && !err && ast->type == AST_POS) != 0, "POS('2') parses");
+    ast_node_t *ast = covp_parse(parser, "POS(2)", &err);
+    test_assert((ast && !err && ast->type == AST_POS) != 0, "POS(2) parses");
+    if (ast && ast->type == AST_POS) {
+      test_assert(ast->data.rpos_rtab.n == 2, "POS(2) carries n=2");
+    }
     if (ast) {
       snobol_ast_free(ast);
     }
@@ -580,8 +583,11 @@ void test_cov_parser_functions(void) {
   {
     snobol_parser_t *parser = snobol_parser_create();
     bool err = false;
-    ast_node_t *ast = covp_parse(parser, "TAB('3')", &err);
-    test_assert((ast && !err && ast->type == AST_TAB) != 0, "TAB('3') parses");
+    ast_node_t *ast = covp_parse(parser, "TAB(3)", &err);
+    test_assert((ast && !err && ast->type == AST_TAB) != 0, "TAB(3) parses");
+    if (ast && ast->type == AST_TAB) {
+      test_assert(ast->data.rpos_rtab.n == 3, "TAB(3) carries n=3");
+    }
     if (ast) {
       snobol_ast_free(ast);
     }
@@ -590,8 +596,49 @@ void test_cov_parser_functions(void) {
   {
     snobol_parser_t *parser = snobol_parser_create();
     bool err = false;
-    ast_node_t *ast = covp_parse(parser, "LEN('5')", &err);
-    test_assert((ast && !err && ast->type == AST_LEN) != 0, "LEN('5') parses");
+    ast_node_t *ast = covp_parse(parser, "LEN(5)", &err);
+    test_assert((ast && !err && ast->type == AST_LEN) != 0, "LEN(5) parses");
+    if (ast && ast->type == AST_LEN) {
+      test_assert(ast->data.len.n == 5, "LEN(5) carries n=5 (not placeholder)");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* Numeric argument validation: missing, quoted, mis-typed, out of range. */
+  {
+    const char *bad[] = {"LEN()",      "POS()",    "TAB()",
+                         "LEN('5')",   "POS('2')", "TAB('3')",
+                         "POS(x3)",    "LEN(99999999999999999999)"};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+      snobol_parser_t *parser = snobol_parser_create();
+      bool err = false;
+      ast_node_t *ast = covp_parse(parser, bad[i], &err);
+      test_assert((ast == NULL && err) != 0, "invalid numeric argument rejected");
+      if (!ast && err) {
+        const char *msg = snobol_parser_get_error(parser);
+        test_assert(
+            (msg && (strstr(msg, "LEN") != NULL || strstr(msg, "POS") != NULL ||
+                     strstr(msg, "TAB") != NULL ||
+                     strstr(msg, "too large") != NULL)) != 0,
+            "numeric-argument error names the builtin or the overflow");
+      }
+      snobol_parser_destroy(parser);
+    }
+  }
+  {
+    /* Negative integers are accepted by the lexer (repeat bounds validate
+     * them later); POS(-5) never succeeds at match time. */
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "POS(-5)", &err);
+    test_assert((ast && !err && ast->type == AST_POS) != 0,
+                "POS(-5) parses (negative integer token)");
+    if (ast && ast->type == AST_POS) {
+      test_assert(ast->data.rpos_rtab.n == -5, "POS(-5) carries n=-5");
+    }
     if (ast) {
       snobol_ast_free(ast);
     }

@@ -23,6 +23,7 @@ extern void test_assert(bool condition, const char *message);
 #include "../../core/include/snobol/ast.h"
 #include "../../core/include/snobol/compiler.h"
 #include "../../core/include/snobol/vm.h"
+#include "../../core/include/snobol/snobol.h"
 
 
 /* Compile an AST; frees the AST and returns the bytecode buffer. */
@@ -286,6 +287,70 @@ void test_cov_engine2_fuse_shapes(void) {
   }
 }
 
+static void test_cov_len_real_semantics(void) {
+  test_suite("Compiler: LEN(n) real semantics");
+
+  snobol_context_t *ctx = snobol_context_create();
+  char *err = nullptr;
+
+  /* Source LEN(2) must honor n (previously the parser placeholder fixed
+   * the length at 1) and compile to bytecode identical to Builder len(2). */
+  snobol_pattern_t *src =
+      snobol_pattern_compile_ex(ctx, "LEN(2)", 6, 0, &err);
+  snobol_pattern_build_t *b = snobol_pattern_build_create();
+  ast_node_t *root = snobol_pattern_build_emit(b, snobol_pattern_build_len(b, 2));
+  snobol_pattern_t *built = snobol_pattern_build_compile(ctx, root, 0, &err);
+
+  test_assert((src && built) != 0, "source + builder LEN(2) both compile");
+  if (src && built) {
+    size_t al = snobol_pattern_get_bc_len(src);
+    size_t bl = snobol_pattern_get_bc_len(built);
+    test_assert(al == bl, "LEN(2) bytecode lengths match");
+    test_assert(
+        (al == bl && memcmp(snobol_pattern_get_bc(src),
+                            snobol_pattern_get_bc(built), al) == 0) != 0,
+        "LEN(2) source bytecode == builder bytecode");
+
+    snobol_match_t *m1 = snobol_pattern_match(src, "abc", 3);
+    snobol_match_t *m2 = snobol_pattern_match(built, "abc", 3);
+    test_assert((m1 && m1->success && m1->length == 2) != 0,
+                "source LEN(2) on 'abc' consumes exactly 2 characters");
+    test_assert((m2 && m2->success && m2->length == 2) != 0,
+                "builder len(2) on 'abc' consumes exactly 2 characters");
+    if (m1) {
+      snobol_match_free(m1);
+    }
+    if (m2) {
+      snobol_match_free(m2);
+    }
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+  } else {
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+  }
+  free(err);
+  err = nullptr;
+  snobol_pattern_build_destroy(b);
+
+  /* LEN() with no argument and LEN('5') with a quoted argument are both
+   * rejected with descriptive errors naming the integer requirement. */
+  {
+    const char *bad[] = {"LEN()", "LEN('5')"};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+      err = nullptr;
+      snobol_pattern_t *p =
+          snobol_pattern_compile_ex(ctx, bad[i], strlen(bad[i]), 0, &err);
+      test_assert(p == NULL, "malformed LEN argument rejected");
+      test_assert((err && strstr(err, "integer") != NULL) != 0,
+                  "LEN rejection names the integer requirement");
+      free(err);
+    }
+  }
+
+  snobol_context_destroy(ctx);
+}
+
 void test_compiler_suite(void) {
   test_suite("Compiler Tests");
 
@@ -375,4 +440,5 @@ void test_compiler_suite(void) {
   test_cov_codegen_emit_all();
   test_cov_codegen_labels();
   test_cov_engine2_fuse_shapes();
+  test_cov_len_real_semantics();
 }

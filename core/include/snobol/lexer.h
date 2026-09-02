@@ -26,6 +26,7 @@ typedef enum {
   TOKEN_LIT,          /* Literal string: 'text' */
   TOKEN_IDENT,        /* Identifier: name */
   TOKEN_CHARCLASS,    /* Character class: [abc] */
+  TOKEN_INTEGER,      /* Integer literal: 5, -1 */
   TOKEN_PIPE,         /* Alternation: | */
   TOKEN_LPAREN,       /* Left paren: ( */
   TOKEN_RPAREN,       /* Right paren: ) */
@@ -38,8 +39,10 @@ typedef enum {
   TOKEN_COLON,        /* Label/goto marker: : */
   TOKEN_LBRACKET,     /* Left bracket: [ */
   TOKEN_RBRACKET,     /* Right bracket: ] */
+  TOKEN_DOT,          /* Match naming: . */
   TOKEN_EQUALS,       /* Assignment: = */
-  TOKEN_COMMA         /* Comma: , */
+  TOKEN_COMMA,        /* Comma: , */
+  TOKEN_ERROR         /* Lexical error (see snobol_lexer_get_error) */
 } token_type_t;
 
 /**
@@ -54,6 +57,11 @@ typedef struct {
       const char *text; /* Pointer into source (not owned) */
       size_t len;       /* Length of token text */
     } string;
+
+    /* TOKEN_INTEGER */
+    struct {
+      int64_t value; /* Parsed integer value */
+    } integer;
 
     /* Single-character tokens use no additional data */
   } data;
@@ -109,7 +117,27 @@ typedef struct {
   size_t column;
   token_t peek_token;
   bool has_peek;
+  token_type_t prev_type; /* Type of the last returned token */
 } snobol_lexer_state_t;
+
+/** Maximum length of a lexer error message. */
+#define SNOBOL_LEXER_ERROR_MAX 160
+
+/**
+ * Check whether the lexer encountered an unrecognized character.
+ * Once an error is set it is sticky: all subsequent tokens are TOKEN_ERROR.
+ * @param lexer Lexer instance (NULL returns false)
+ * @return true if a lexical error has been recorded
+ */
+bool snobol_lexer_has_error(const snobol_lexer_t *lexer);
+
+/**
+ * Get the lexer's error message (describes the offending character and
+ * its position).  Valid only while snobol_lexer_has_error() is true.
+ * @param lexer Lexer instance
+ * @return Static message string (owned by the lexer, do not free)
+ */
+const char *snobol_lexer_get_error(const snobol_lexer_t *lexer);
 
 /**
  * Save lexer state for later restoration

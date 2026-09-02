@@ -9,6 +9,7 @@
 #include "snobol/parser.h"
 #include "snobol/snobol_internal.h"
 #include "snobol/vm.h"
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -110,6 +111,13 @@ static bool expect(snobol_parser_t *parser, snobol_lexer_t *lexer,
     return true;
   }
 
+  /* Surface a lexical error verbatim instead of a misleading expectation */
+  if (tok.type == TOKEN_ERROR && snobol_lexer_has_error(lexer)) {
+    set_error(parser, snobol_lexer_get_error(lexer),
+              snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+    return false;
+  }
+
   /* Error: unexpected token */
   char msg[128];
   snprintf(msg, sizeof(msg), "Expected %s, got %s", snobol_token_name(type),
@@ -117,6 +125,69 @@ static bool expect(snobol_parser_t *parser, snobol_lexer_t *lexer,
   set_error(parser, msg, snobol_lexer_get_line(lexer),
             snobol_lexer_get_pos(lexer));
   return false;
+}
+
+/**
+ * Parse a mandatory integer argument for a builtin function.
+ * Emits a descriptive error naming the function when the argument is
+ * missing, not an integer, or outside the int32 range the AST accepts.
+ */
+static bool parse_integer_arg(snobol_parser_t *parser, snobol_lexer_t *lexer,
+                              const char *func, int32_t *out) {
+  token_t tok = peek(lexer);
+
+  if (tok.type == TOKEN_ERROR && snobol_lexer_has_error(lexer)) {
+    set_error(parser, snobol_lexer_get_error(lexer),
+              snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+    return false;
+  }
+
+  if (tok.type != TOKEN_INTEGER) {
+    char msg[192];
+    const char *token_desc;
+    char lit_buf[48];
+    if (tok.type == TOKEN_LIT) {
+      size_t n = tok.data.string.len;
+      if (n > sizeof(lit_buf) - 3) {
+        n = sizeof(lit_buf) - 3;
+      }
+      lit_buf[0] = '\'';
+      memcpy(lit_buf + 1, tok.data.string.text, n);
+      lit_buf[n + 1] = '\'';
+      lit_buf[n + 2] = '\0';
+      token_desc = lit_buf;
+    } else if (tok.type == TOKEN_IDENT) {
+      size_t n = tok.data.string.len;
+      if (n > sizeof(lit_buf) - 1) {
+        n = sizeof(lit_buf) - 1;
+      }
+      memcpy(lit_buf, tok.data.string.text, n);
+      lit_buf[n] = '\0';
+      token_desc = lit_buf;
+    } else {
+      token_desc = snobol_token_name(tok.type);
+    }
+    snprintf(msg, sizeof(msg), "%s expects an integer argument, got %s", func,
+             token_desc);
+    set_error(parser, msg, snobol_lexer_get_line(lexer),
+              snobol_lexer_get_pos(lexer));
+    return false;
+  }
+
+  int64_t value = tok.data.integer.value;
+  if (value < INT32_MIN || value > INT32_MAX) {
+    char msg[192];
+    snprintf(msg, sizeof(msg),
+             "%s integer argument %lld is out of range (int32)", func,
+             (long long)value);
+    set_error(parser, msg, snobol_lexer_get_line(lexer),
+              snobol_lexer_get_pos(lexer));
+    return false;
+  }
+
+  advance(lexer);
+  *out = (int32_t)value;
+  return true;
 }
 
 ast_node_t *snobol_parser_parse(snobol_parser_t *parser,
@@ -140,6 +211,12 @@ ast_node_t *snobol_parser_parse(snobol_parser_t *parser,
   /* Check for trailing tokens */
   if (!parser->error.has_error) {
     token_t tok = peek(lexer);
+    if (tok.type == TOKEN_ERROR && snobol_lexer_has_error(lexer)) {
+      set_error(parser, snobol_lexer_get_error(lexer),
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      snobol_ast_free(ast);
+      return nullptr;
+    }
     if (tok.type != TOKEN_EOF) {
       set_error(parser, "Unexpected token after pattern",
                 snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
@@ -514,6 +591,18 @@ static ast_node_t *parse_primary(snobol_parser_t *parser,
       return parse_function_call(parser, lexer);
 
     default:
+      if (tok.type == TOKEN_ERROR && snobol_lexer_has_error(lexer)) {
+        set_error(parser, snobol_lexer_get_error(lexer),
+                  snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+        return nullptr;
+      }
+      if (tok.type == TOKEN_INTEGER) {
+        set_error(parser,
+                  "Integer literal is not valid here (digits only appear "
+                  "inside builtin argument lists)",
+                  snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+        return nullptr;
+      }
       set_error(parser, "Unexpected token in pattern",
                 snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
       return nullptr;
@@ -636,22 +725,16 @@ static ast_node_t *parse_function_call(snobol_parser_t *parser,
   }
 
   if (strncmp(name, "LEN", name_len) == 0) {
-    /* Parse LEN(n) - argument is peeked but not used yet */
-    (void)peek(
-        lexer); /* Argument parsed but not used - placeholder for future */
-    advance(lexer);
+    int32_t n = 1;
+    if (!parse_integer_arg(parser, lexer, "LEN", &n)) {
+      return nullptr;
+    }
 
     if (!expect(parser, lexer, TOKEN_RPAREN)) {
       return nullptr;
     }
 
-    /* Simplified - would need proper integer parsing */
-    ast_node_t *node = (ast_node_t *)calloc(1, sizeof(ast_node_t));
-    if (node) {
-      node->type = AST_LEN;
-      node->data.len.n = 1; /* Placeholder */
-    }
-    return node;
+    return snobol_ast_create_len(n);
   }
 
   if (strncmp(name, "EVAL", name_len) == 0) {
@@ -659,36 +742,28 @@ static ast_node_t *parse_function_call(snobol_parser_t *parser,
   }
 
   if (strncmp(name, "POS", name_len) == 0) {
-    token_t arg = peek(lexer);
-    if (arg.type != TOKEN_LIT) {
-      set_error(parser, "POS expects integer argument",
-                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+    int32_t n = 0;
+    if (!parse_integer_arg(parser, lexer, "POS", &n)) {
       return nullptr;
     }
-    advance(lexer);
 
     if (!expect(parser, lexer, TOKEN_RPAREN)) {
       return nullptr;
     }
 
-    int32_t n = (int32_t)strtol(arg.data.string.text, nullptr, 10);
     return snobol_ast_create_pos(n);
   }
 
   if (strncmp(name, "TAB", name_len) == 0) {
-    token_t arg = peek(lexer);
-    if (arg.type != TOKEN_LIT) {
-      set_error(parser, "TAB expects integer argument",
-                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+    int32_t n = 0;
+    if (!parse_integer_arg(parser, lexer, "TAB", &n)) {
       return nullptr;
     }
-    advance(lexer);
 
     if (!expect(parser, lexer, TOKEN_RPAREN)) {
       return nullptr;
     }
 
-    int32_t n = (int32_t)strtol(arg.data.string.text, nullptr, 10);
     return snobol_ast_create_tab(n);
   }
 
