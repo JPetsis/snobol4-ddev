@@ -351,6 +351,218 @@ static void test_cov_len_real_semantics(void) {
   snobol_context_destroy(ctx);
 }
 
+static void test_cov_source_primitives_behavior(void) {
+  test_suite("Compiler: source primitives match + Builder parity");
+
+  snobol_context_t *ctx = snobol_context_create();
+  char *err = nullptr;
+
+  /* ARB: README quick-start 'abc' ARB 'def' — both compiles and behaves. */
+  {
+    snobol_pattern_t *src =
+        snobol_pattern_compile_ex(ctx, "'abc' ARB 'def'", 15, 0, &err);
+
+    snobol_pattern_build_t *b = snobol_pattern_build_create();
+    ast_node_t *l1 = snobol_pattern_build_lit(b, "abc", 3);
+    ast_node_t *arb = snobol_pattern_build_arbno(b, snobol_pattern_build_len(b, 1));
+    ast_node_t *l2 = snobol_pattern_build_lit(b, "def", 3);
+    ast_node_t **parts = (ast_node_t **)malloc(3 * sizeof(ast_node_t *));
+    parts[0] = l1;
+    parts[1] = arb;
+    parts[2] = l2;
+    ast_node_t *root = snobol_pattern_build_emit(b,
+                            snobol_pattern_build_concat(b, parts, 3));
+    snobol_pattern_t *built = snobol_pattern_build_compile(ctx, root, 0, &err);
+    snobol_pattern_build_destroy(b);
+
+    test_assert(src != NULL, "'abc' ARB 'def' compiles from source");
+    test_assert((src && built) != 0, "builder twin compiles");
+    if (src && built) {
+      size_t al = snobol_pattern_get_bc_len(src);
+      size_t bl = snobol_pattern_get_bc_len(built);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(src),
+                                      snobol_pattern_get_bc(built), al) == 0) != 0,
+                  "source ARB bytecode == builder arbno(len(1))");
+
+      snobol_match_t *m = snobol_pattern_match(src, "abc def xyz", 11);
+      test_assert((m && m->success && m->length == 7) != 0,
+                  "ARB matches ' ' between abc and def");
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+    free(err);
+    err = nullptr;
+  }
+
+  /* ARBNO('a') ≡ 'a'* bytecode and behavior. */
+  {
+    snobol_pattern_t *fn = snobol_pattern_compile_ex(ctx, "ARBNO('a')", 10, 0, &err);
+    free(err);
+    err = nullptr;
+    snobol_pattern_t *star = snobol_pattern_compile_ex(ctx, "'a'*", 4, 0, &err);
+    test_assert((fn && star) != 0, "ARBNO('a') and 'a'* both compile");
+    if (fn && star) {
+      size_t al = snobol_pattern_get_bc_len(fn);
+      size_t bl = snobol_pattern_get_bc_len(star);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(fn),
+                                      snobol_pattern_get_bc(star), al) == 0) != 0,
+                  "ARBNO('a') bytecode == 'a'* bytecode");
+      snobol_match_t *m = snobol_pattern_match(fn, "aaa", 3);
+      test_assert((m && m->success && m->length == 3) != 0,
+                  "ARBNO('a') consumes all of 'aaa'");
+      if (m) {
+        snobol_match_free(m);
+      }
+      m = snobol_pattern_match(fn, "bb", 2);
+      test_assert((m && m->success && m->length == 0) != 0,
+                  "ARBNO('a') matches empty at 'bb'");
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(fn);
+    snobol_pattern_free(star);
+    free(err);
+    err = nullptr;
+  }
+
+  /* BAL('(', ')') nested-delimiter matching; BAL() equals explicit form. */
+  {
+    snobol_pattern_t *bal = snobol_pattern_compile_ex(ctx, "BAL('(', ')')", 13, 0, &err);
+    test_assert(bal != NULL, "BAL('(', ')') compiles");
+    if (bal) {
+      snobol_match_t *m = snobol_pattern_match(bal, "(outer (inner) outer)", 21);
+      test_assert((m && m->success && m->length == 21) != 0,
+                  "BAL matches the whole nested pair");
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(bal);
+    free(err);
+    err = nullptr;
+  }
+  {
+    snobol_pattern_t *bal0 = snobol_pattern_compile_ex(ctx, "BAL()", 5, 0, &err);
+    snobol_pattern_t *balx = snobol_pattern_compile_ex(ctx, "BAL('(', ')')", 13, 0, &err);
+    test_assert((bal0 && balx) != 0, "BAL() and BAL('(', ')') compile");
+    if (bal0 && balx) {
+      size_t al = snobol_pattern_get_bc_len(bal0);
+      size_t bl = snobol_pattern_get_bc_len(balx);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(bal0),
+                                      snobol_pattern_get_bc(balx), al) == 0) != 0,
+                  "BAL() bytecode == BAL('(', ')') bytecode");
+      snobol_match_t *m = snobol_pattern_match(bal0, "(a (b) c)", 9);
+      test_assert((m && m->success && m->length == 9) != 0,
+                  "BAL() with default delimiters matches '(a (b) c)'");
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(bal0);
+    snobol_pattern_free(balx);
+    free(err);
+    err = nullptr;
+  }
+
+  /* REM consumes the remainder; RTAB(2) + REM leaves the last 2. */
+  {
+    snobol_pattern_t *p = snobol_pattern_compile_ex(ctx, "'ab' REM", 8, 0, &err);
+    test_assert(p != NULL, "'ab' REM compiles");
+    if (p) {
+      snobol_match_t *m = snobol_pattern_match(p, "abcdef", 6);
+      test_assert((m && m->success && m->length == 6) != 0,
+                  "REM consumes 'cdef' after 'ab'");
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(p);
+    free(err);
+    err = nullptr;
+
+    p = snobol_pattern_compile_ex(ctx, "RTAB(2) REM", 11, 0, &err);
+    test_assert(p != NULL, "RTAB(2) REM compiles");
+    if (p) {
+      snobol_match_t *m = snobol_pattern_match(p, "abcdef", 6);
+      test_assert((m && m->success && m->length == 6) != 0,
+                  "RTAB(2) REM consumes everything, REM = 'ef'");
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(p);
+    free(err);
+    err = nullptr;
+  }
+
+  /* RPOS(0) succeeds with the cursor at the end. */
+  {
+    snobol_pattern_t *p =
+        snobol_pattern_compile_ex(ctx, "SPAN('a-z') RPOS(0)", 19, 0, &err);
+    test_assert(p != NULL, "SPAN('a-z') RPOS(0) compiles");
+    if (p) {
+      snobol_match_t *m = snobol_pattern_match(p, "abc", 3);
+      test_assert((m && m->success && m->length == 3) != 0,
+                  "RPOS(0) succeeds at the subject end");
+      if (m) {
+        snobol_match_free(m);
+      }
+    }
+    snobol_pattern_free(p);
+    free(err);
+    err = nullptr;
+  }
+
+  /* repeat('a', 2, 3) honors bounds; bytecode matches Builder repeat. */
+  {
+    snobol_pattern_t *src = snobol_pattern_compile_ex(ctx, "repeat('a', 2, 3)", 17, 0, &err);
+    /* Builder twin: the C builder API has no repeat()-shaped helper, so
+     * construct the identical AST node directly (snobol_ast_create_repeat). */
+    snobol_pattern_build_t *b = snobol_pattern_build_create();
+    ast_node_t *rep = snobol_ast_create_repeat(snobol_ast_create_lit("a", 1), 2, 3);
+    ast_node_t *root = snobol_pattern_build_emit(b, rep);
+    snobol_pattern_t *built = snobol_pattern_build_compile(ctx, root, 0, &err);
+    snobol_pattern_build_destroy(b);
+
+    test_assert((src && built) != 0, "repeat source + builder compile");
+    if (src && built) {
+      size_t al = snobol_pattern_get_bc_len(src);
+      size_t bl = snobol_pattern_get_bc_len(built);
+      test_assert((al == bl && memcmp(snobol_pattern_get_bc(src),
+                                      snobol_pattern_get_bc(built), al) == 0) != 0,
+                  "repeat source bytecode == builder repeat bytecode");
+
+      struct {
+        const char *subj;
+        size_t len;
+        bool ok;
+        size_t mlen;
+      } cases[] = {{"a", 1, false, 0},   {"aa", 2, true, 2},
+                   {"aaa", 3, true, 3},  {"aaaa", 4, true, 3}};
+      for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+        snobol_match_t *m = snobol_pattern_match(src, cases[i].subj, cases[i].len);
+        test_assert((m && m->success) == cases[i].ok, "repeat bound outcome");
+        if (m && m->success) {
+          test_assert(m->length == cases[i].mlen, "repeat bound length");
+        }
+        if (m) {
+          snobol_match_free(m);
+        }
+      }
+    }
+    snobol_pattern_free(src);
+    snobol_pattern_free(built);
+    free(err);
+    err = nullptr;
+  }
+
+  snobol_context_destroy(ctx);
+}
+
 void test_compiler_suite(void) {
   test_suite("Compiler Tests");
 
@@ -441,4 +653,5 @@ void test_compiler_suite(void) {
   test_cov_codegen_labels();
   test_cov_engine2_fuse_shapes();
   test_cov_len_real_semantics();
+  test_cov_source_primitives_behavior();
 }

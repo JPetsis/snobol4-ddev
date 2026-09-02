@@ -745,6 +745,171 @@ void test_cov_parser_round3(void) {
   }
 }
 
+void test_cov_parser_source_primitives(void) {
+  test_suite("Coverage: parser source primitives");
+
+  /* ARB (bare and ARB()) → arbno(len(1)) */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "'abc' ARB 'def'", &err);
+    test_assert((ast && !err && ast->type == AST_CONCAT) != 0,
+                "'abc' ARB 'def' concatenates");
+    if (ast && ast->type == AST_CONCAT && ast->data.concat.count == 3) {
+      ast_node_t *arb = ast->data.concat.parts[1];
+      test_assert(arb->type == AST_ARBNO, "ARB maps to ARBNO");
+      if (arb->type == AST_ARBNO && arb->data.arbno.sub) {
+        test_assert(arb->data.arbno.sub->type == AST_LEN, "ARB sub is LEN");
+        test_assert(arb->data.arbno.sub->data.len.n == 1, "ARB is LEN(1)");
+      }
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* FENCE and REM as bare identifiers and as zero-arg calls. */
+  {
+    const char *forms[] = {"FENCE", "FENCE()", "REM", "REM()"};
+    for (size_t i = 0; i < sizeof(forms) / sizeof(forms[0]); i++) {
+      snobol_parser_t *parser = snobol_parser_create();
+      bool err = false;
+      ast_node_t *ast = covp_parse(parser, forms[i], &err);
+      ast_type_t want = (forms[i][0] == 'F') ? AST_FENCE : AST_REM;
+      test_assert((ast != NULL && !err && ast->type == want) != 0,
+                  "bare/zero-arg primitive parses");
+      if (ast) {
+        snobol_ast_free(ast);
+      }
+      snobol_parser_destroy(parser);
+    }
+  }
+
+  /* ARBNO(pattern) → arbno(node). */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "ARBNO('a')", &err);
+    test_assert((ast && !err && ast->type == AST_ARBNO) != 0,
+                "ARBNO('a') parses");
+    if (ast && ast->type == AST_ARBNO && ast->data.arbno.sub) {
+      test_assert(ast->data.arbno.sub->type == AST_LITERAL,
+                  "ARBNO sub is LITERAL");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* BAL() / BAL('(') / BAL('(', ')') / BAL('<', '>'). */
+  {
+    struct {
+      const char *src;
+      uint32_t open;
+      uint32_t close;
+    } cases[] = {{"BAL()", '(', ')'},   {"BAL('(')", '(', ')'},
+                 {"BAL('(', ')')", '(', ')'},
+                 {"BAL('<', '>')", '<', '>'}};
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++) {
+      snobol_parser_t *parser = snobol_parser_create();
+      bool err = false;
+      ast_node_t *ast = covp_parse(parser, cases[i].src, &err);
+      test_assert((ast && !err && ast->type == AST_BAL) != 0,
+                  "BAL form parses");
+      if (ast && ast->type == AST_BAL) {
+        test_assert(ast->data.bal.open_cp == cases[i].open,
+                    "BAL open delimiter");
+        test_assert(ast->data.bal.close_cp == cases[i].close,
+                    "BAL close delimiter");
+      }
+      if (ast) {
+        snobol_ast_free(ast);
+      }
+      snobol_parser_destroy(parser);
+    }
+  }
+
+  /* RPOS(n) / RTAB(n). */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "RPOS(0)", &err);
+    test_assert((ast && !err && ast->type == AST_RPOS) != 0, "RPOS(0) parses");
+    if (ast && ast->type == AST_RPOS) {
+      test_assert(ast->data.rpos_rtab.n == 0, "RPOS(0) carries n=0");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "RTAB(3)", &err);
+    test_assert((ast && !err && ast->type == AST_RTAB) != 0, "RTAB(3) parses");
+    if (ast && ast->type == AST_RTAB) {
+      test_assert(ast->data.rpos_rtab.n == 3, "RTAB(3) carries n=3");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* repeat(pattern, min, max) with bound validation. */
+  {
+    snobol_parser_t *parser = snobol_parser_create();
+    bool err = false;
+    ast_node_t *ast = covp_parse(parser, "repeat('a', 2, 3)", &err);
+    test_assert((ast && !err && ast->type == AST_REPETITION) != 0,
+                "repeat('a', 2, 3) parses");
+    if (ast && ast->type == AST_REPETITION) {
+      test_assert(ast->data.repetition.min == 2, "repeat min=2");
+      test_assert(ast->data.repetition.max == 3, "repeat max=3");
+    }
+    if (ast) {
+      snobol_ast_free(ast);
+    }
+    snobol_parser_destroy(parser);
+  }
+
+  /* Wrong argument count/type and invalid bounds are descriptive errors. */
+  {
+    const char *bad[] = {"ARBNO()",
+                         "ARBNO('a', 'b')",
+                         "repeat('a', 5, 2)",
+                         "repeat('a', -1, 2)",
+                         "repeat('a', 2)",
+                         "repeat()",
+                         "repeat('a', '2', 3)",
+                         "BAL(5)",
+                         "BAL('(',)",
+                         "FENCE('x')",
+                         "REM('x')",
+                         "RPOS('1')",
+                         "RTAB()"};
+    for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+      snobol_parser_t *parser = snobol_parser_create();
+      bool err = false;
+      ast_node_t *ast = covp_parse(parser, bad[i], &err);
+      test_assert((ast == NULL && err) != 0, "invalid primitive rejected");
+      if (!ast && err) {
+        const char *msg = snobol_parser_get_error(parser);
+        test_assert(
+            (msg && (strstr(msg, "ARBNO") || strstr(msg, "repeat") ||
+                     strstr(msg, "BAL") || strstr(msg, "FENCE") ||
+                     strstr(msg, "REM") || strstr(msg, "RPOS") ||
+                     strstr(msg, "RTAB")) != NULL) != 0,
+            "primitive error names the primitive");
+      }
+      snobol_parser_destroy(parser);
+    }
+  }
+}
+
 void test_parser_suite(void) {
   test_parser_create_destroy();
   test_parser_literal();
@@ -764,4 +929,5 @@ void test_parser_suite(void) {
   test_cov_parser_repetition_and_primary();
   test_cov_parser_functions();
   test_cov_parser_round3();
+  test_cov_parser_source_primitives();
 }

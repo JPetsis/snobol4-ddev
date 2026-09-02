@@ -400,13 +400,22 @@ static ast_node_t *parse_concatenation(snobol_parser_t *parser,
          tok.type == TOKEN_ANCHOR_END || tok.type == TOKEN_AT ||
          tok.type == TOKEN_IDENT) != 0;
 
-    /* Check for function calls */
+    /* Check for function calls, table accesses, assignments, or bare
+     * primitives (ARB, FENCE, REM) */
     if (tok.type == TOKEN_IDENT) {
-      /* Look ahead for '(' */
+      /* Look ahead for '(' / '[' / '=' or a bare primitive name */
       snobol_lexer_state_t saved_state = snobol_lexer_save(lexer);
       advance(lexer);             /* Consume IDENT */
       token_t next = peek(lexer); /* Peek at next token */
-      if (next.type == TOKEN_LPAREN) {
+      if (next.type == TOKEN_LPAREN || next.type == TOKEN_LBRACKET ||
+          next.type == TOKEN_EQUALS) {
+        is_primary = true;
+      } else if ((tok.data.string.len == 3 &&
+                  strncmp(tok.data.string.text, "ARB", 3) == 0) ||
+                 (tok.data.string.len == 5 &&
+                  strncmp(tok.data.string.text, "FENCE", 5) == 0) ||
+                 (tok.data.string.len == 3 &&
+                  strncmp(tok.data.string.text, "REM", 3) == 0)) {
         is_primary = true;
       }
       /* Restore lexer position */
@@ -628,7 +637,17 @@ static ast_node_t *parse_function_call(snobol_parser_t *parser,
   token_t next = peek(lexer);
 
   if (next.type != TOKEN_LPAREN) {
-    /* Not a function call, treat as identifier */
+    /* Not a function call: bare pattern primitives ARB / FENCE / REM. */
+    if (name_len == 3 && strncmp(name, "ARB", 3) == 0) {
+      /* ARB = arbitrary substring; PHP Builder::arb() is arbno(len(1)). */
+      return snobol_ast_create_arbno(snobol_ast_create_len(1));
+    }
+    if (name_len == 5 && strncmp(name, "FENCE", 5) == 0) {
+      return snobol_ast_create_fence();
+    }
+    if (name_len == 3 && strncmp(name, "REM", 3) == 0) {
+      return snobol_ast_create_rem();
+    }
     /* For now, return error - identifiers alone aren't valid patterns */
     set_error(parser, "Bare identifier is not a valid pattern",
               snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
@@ -765,6 +784,198 @@ static ast_node_t *parse_function_call(snobol_parser_t *parser,
     }
 
     return snobol_ast_create_tab(n);
+  }
+
+  /* --- Source-syntax primitive parity (see source-primitive-parity spec) --- */
+
+  if (strncmp(name, "ARB", name_len) == 0) {
+    /* ARB() — zero-argument function form of the primitive */
+    if (!expect(parser, lexer, TOKEN_RPAREN)) {
+      return nullptr;
+    }
+    return snobol_ast_create_arbno(snobol_ast_create_len(1));
+  }
+
+  if (strncmp(name, "ARBNO", name_len) == 0) {
+    if (match(lexer, TOKEN_RPAREN)) {
+      set_error(parser, "ARBNO expects one pattern argument: ARBNO(pattern)",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    ast_node_t *sub = parse_repetition(parser, lexer);
+    if (!sub) {
+      return nullptr;
+    }
+    if (match(lexer, TOKEN_COMMA)) {
+      set_error(parser, "ARBNO expects one pattern argument: ARBNO(pattern)",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    if (!expect(parser, lexer, TOKEN_RPAREN)) {
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    return snobol_ast_create_arbno(sub);
+  }
+
+  if (strncmp(name, "BAL", name_len) == 0) {
+    uint32_t open_cp = '(';
+    uint32_t close_cp = ')';
+    token_t arg = peek(lexer);
+    if (arg.type == TOKEN_RPAREN) {
+      /* BAL() — default parentheses delimiters */
+      advance(lexer);
+      return snobol_ast_create_bal(open_cp, close_cp);
+    }
+
+    /* First delimiter: BAL('(') / BAL('(', ')') */
+    if (arg.type != TOKEN_LIT) {
+      set_error(parser,
+                "BAL expects string delimiters: BAL() or BAL('(', ')')",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    advance(lexer);
+    int bytes = 0;
+    if (!utf8_peek_next(arg.data.string.text, arg.data.string.len, 0,
+                        &open_cp, &bytes)) {
+      set_error(parser, "BAL delimiter is not valid UTF-8",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+
+    if (match(lexer, TOKEN_COMMA)) {
+      advance(lexer);
+      arg = peek(lexer);
+      if (arg.type == TOKEN_RPAREN) {
+        set_error(parser,
+                  "BAL expects a closing delimiter after the comma: "
+                  "BAL('(', ')')",
+                  snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+        return nullptr;
+      }
+      if (arg.type != TOKEN_LIT) {
+        set_error(parser,
+                  "BAL expects string delimiters: BAL() or BAL('(', ')')",
+                  snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+        return nullptr;
+      }
+      advance(lexer);
+      if (!utf8_peek_next(arg.data.string.text, arg.data.string.len, 0,
+                          &close_cp, &bytes)) {
+        set_error(parser, "BAL delimiter is not valid UTF-8",
+                  snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+        return nullptr;
+      }
+    }
+
+    if (!expect(parser, lexer, TOKEN_RPAREN)) {
+      return nullptr;
+    }
+    return snobol_ast_create_bal(open_cp, close_cp);
+  }
+
+  if (strncmp(name, "FENCE", name_len) == 0) {
+    if (!match(lexer, TOKEN_RPAREN)) {
+      set_error(parser, "FENCE expects no arguments",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    advance(lexer);
+    return snobol_ast_create_fence();
+  }
+
+  if (strncmp(name, "REM", name_len) == 0) {
+    if (!match(lexer, TOKEN_RPAREN)) {
+      set_error(parser, "REM expects no arguments",
+                snobol_lexer_get_line(lexer), snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    advance(lexer);
+    return snobol_ast_create_rem();
+  }
+
+  if (strncmp(name, "RPOS", name_len) == 0) {
+    int32_t n = 0;
+    if (!parse_integer_arg(parser, lexer, "RPOS", &n)) {
+      return nullptr;
+    }
+    if (!expect(parser, lexer, TOKEN_RPAREN)) {
+      return nullptr;
+    }
+    return snobol_ast_create_rpos(n);
+  }
+
+  if (strncmp(name, "RTAB", name_len) == 0) {
+    int32_t n = 0;
+    if (!parse_integer_arg(parser, lexer, "RTAB", &n)) {
+      return nullptr;
+    }
+    if (!expect(parser, lexer, TOKEN_RPAREN)) {
+      return nullptr;
+    }
+    return snobol_ast_create_rtab(n);
+  }
+
+  if (strncmp(name, "repeat", name_len) == 0) {
+    const char *sig = "repeat expects three arguments: repeat(pattern, min, max)";
+    if (match(lexer, TOKEN_RPAREN)) {
+      set_error(parser, sig, snobol_lexer_get_line(lexer),
+                snobol_lexer_get_pos(lexer));
+      return nullptr;
+    }
+    ast_node_t *sub = parse_repetition(parser, lexer);
+    if (!sub) {
+      return nullptr;
+    }
+    if (!expect(parser, lexer, TOKEN_COMMA)) {
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    int32_t min = 0;
+    if (!parse_integer_arg(parser, lexer, "repeat", &min)) {
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    if (match(lexer, TOKEN_RPAREN)) {
+      set_error(parser, sig, snobol_lexer_get_line(lexer),
+                snobol_lexer_get_pos(lexer));
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    if (!expect(parser, lexer, TOKEN_COMMA)) {
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    int32_t max = 0;
+    if (!parse_integer_arg(parser, lexer, "repeat", &max)) {
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    if (!expect(parser, lexer, TOKEN_RPAREN)) {
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    if (min < 0) {
+      char msg[160];
+      snprintf(msg, sizeof(msg),
+               "repeat: min must be non-negative (got %d)", min);
+      set_error(parser, msg, snobol_lexer_get_line(lexer),
+                snobol_lexer_get_pos(lexer));
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    if (max < min) {
+      char msg[160];
+      snprintf(msg, sizeof(msg), "repeat: max (%d) must be >= min (%d)", max,
+               min);
+      set_error(parser, msg, snobol_lexer_get_line(lexer),
+                snobol_lexer_get_pos(lexer));
+      snobol_ast_free(sub);
+      return nullptr;
+    }
+    return snobol_ast_create_repeat(sub, min, max);
   }
 
   if (strncmp(name, "ABORT", name_len) == 0) {
