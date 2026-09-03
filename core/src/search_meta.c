@@ -1026,21 +1026,12 @@ static bool bc_has_capture(const uint8_t *bc, size_t bc_len) {
   return false;
 }
 
-/* Register-state liveness classes (D3).  Any register array the search-VM
- * restart loop zeroes is covered by exactly one class. */
-enum {
-  SNBL_REG_NONE = 0,
-  SNBL_REG_CAPTURE = 1 << 0, /* cap_start/cap_end + max_cap_used */
-  SNBL_REG_VARS = 1 << 1,    /* var_start/var_end + var_count */
-  SNBL_REG_COUNTERS = 1 << 2 /* counters + loop_last_pos + max_counter_used */
-};
-
 /* Conservative bytecode walk: report which register classes a pattern can
  * touch.  Mirrors bc_has_capture's arity table; unlike it, an op the walker
  * cannot classify marks EVERY class used (an unclassifiable op sits in a
  * region we must not assume register-free — under-classification would let
  * the restart loop zero too little and read stale stack state). */
-static uint8_t bc_uses_register_state(const uint8_t *bc, size_t bc_len) {
+uint8_t snobol_bc_register_classes(const uint8_t *bc, size_t bc_len) {
   if (!bc || bc_len < 2) {
     return SNBL_REG_CAPTURE | SNBL_REG_VARS | SNBL_REG_COUNTERS;
   }
@@ -2193,7 +2184,7 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
   out->has_capture = bc_has_capture(bc, bc_len);
   /* D3: fine-grained register liveness for the restart loop's lazy init. */
   {
-    uint8_t reg_classes = bc_uses_register_state(bc, bc_len);
+    uint8_t reg_classes = snobol_bc_register_classes(bc, bc_len);
     out->has_capture = out->has_capture ||
                        (reg_classes & SNBL_REG_CAPTURE) != 0;
     out->has_assign = (reg_classes & SNBL_REG_VARS) != 0;

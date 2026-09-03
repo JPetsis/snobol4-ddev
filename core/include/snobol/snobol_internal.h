@@ -11,6 +11,9 @@ extern "C" {
  */
 #include "snobol/c23_compat.h"
 
+#include <stdint.h>
+#include <stddef.h>
+
 /* C11 _Alignof: MSVC in default mode (without /std:c11+) does not recognise
  * _Alignof; use the MSVC-specific __alignof extension instead. */
 #if defined(_MSC_VER) && !defined(_Alignof)
@@ -88,6 +91,28 @@ static inline void snobol_log_impl(const char *file, int line, const char *fmt,
 #else
 #define SNOBOL_LOG(fmt, ...) ((void)0)
 #endif
+
+/* ---------------------------------------------------------------------------
+ * Register-state liveness classes (D3)
+ *
+ * A conservative bytecode walk reports which register classes a pattern can
+ * touch.  The search-VM restart loop uses this to zero only the classes the
+ * bytecode provably uses — caller-supplied snobol_search_meta_t descriptors
+ * are NOT trusted for this (raw-bytecode callers and tests build metas that
+ * only set eligibility bits; an uninitialized meta field would leave stack
+ * registers unzeroed and valgrind would flag uninitialised reads).
+ * ------------------------------------------------------------------------- */
+enum {
+  SNBL_REG_NONE = 0,
+  SNBL_REG_CAPTURE = 1 << 0, /* cap_start/cap_end + max_cap_used */
+  SNBL_REG_VARS = 1 << 1,    /* var_start/var_end + var_count */
+  SNBL_REG_COUNTERS = 1 << 2 /* counters + loop_last_pos + max_counter_used */
+};
+
+/* Report which register classes the bytecode can touch.  Conservative: an op
+ * the walker cannot classify marks EVERY class used.  Never under-classifies,
+ * so callers may zero exactly the returned classes and no more. */
+uint8_t snobol_bc_register_classes(const uint8_t *bc, size_t bc_len);
 
 #ifdef __cplusplus
 }

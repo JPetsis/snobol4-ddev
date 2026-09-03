@@ -825,7 +825,7 @@ static inline bool search_vm_pop_choice(search_vm_t *vm) {
  * ---------------------------------------------------------------------------
  */
 static inline void search_vm_init_from_vm(search_vm_t *svm, const VM *vm,
-                                          const snobol_search_meta_t *meta) {
+                                          uint8_t reg_classes) {
   svm->bc = vm->bc;
   svm->bc_len = vm->bc_len;
   svm->s = vm->s;
@@ -848,15 +848,21 @@ static inline void search_vm_init_from_vm(search_vm_t *svm, const VM *vm,
    * access to an uninitialized stack slot if the search-VM wrote a high
    * register without writing all lower ones. */
   {
-    /* D3: zero only the register classes the pattern provably uses
-     * (liveness from derive_meta).  Register-free patterns (the majority:
+    /* D3: zero only the register classes the bytecode provably uses.  Derived
+     * from the bytecode itself (not caller-supplied meta — crafted metas only
+     * set search_vm_eligible and would leave registers unzeroed, which
+     * valgrind flags as uninitialised reads).  Hoisted by tier_search_vm to
+     * one walk per search; register-free patterns (the majority:
      * literal/BREAK/SPAN chains) pay zero instead of 4x512 B per restart
-     * position.  Conservative derivation (bc_uses_register_state) never
-     * under-classifies, and svm field init below falls through to the same
-     * zeroing when meta is absent (raw bytecode callers). */
-    const bool zero_caps = !meta || meta->has_capture || meta->has_assign;
-    const bool zero_vars = !meta || meta->has_assign;
-    const bool zero_counters = !meta || meta->has_counter;
+     * position.  A NULL pc (no bytecode at all) conservatively zeroes
+     * everything. */
+    const uint8_t *pc = vm->bc;
+    const size_t pclen = vm->bc_len;
+    const bool zero_caps =
+        pc == nullptr || (reg_classes & SNBL_REG_CAPTURE) != 0;
+    const bool zero_vars = pc == nullptr || (reg_classes & SNBL_REG_VARS) != 0;
+    const bool zero_counters =
+        pc == nullptr || (reg_classes & SNBL_REG_COUNTERS) != 0;
     if (zero_caps) {
       memset(svm->cap_start, 0, sizeof(svm->cap_start));
       memset(svm->cap_end, 0, sizeof(svm->cap_end));
@@ -972,9 +978,17 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
       srange[i].ranges_ptr = vm->range_meta[i].ranges_ptr;
       srange[i].count = vm->range_meta[i].count;
       srange[i].case_flag = vm->range_meta[i].case_insensitive;
-      srange[i].has_ascii_map = vm->range_meta[i].has_ascii_map;
-      srange[i].ascii_map[0] = vm->range_meta[i].ascii_map[0];
-      srange[i].ascii_map[1] = vm->range_meta[i].ascii_map[1];
+      /* D5: derive the ASCII bitmap right here instead of trusting the
+       * caller's snobol_range_meta_t cache fields.  Raw-bytecode callers
+       * (and tests) build range tables by hand setting only ranges_ptr /
+       * count / case_insensitive; reading ascii_map / has_ascii_map from
+       * such a table reads uninitialised stack (valgrind UninitCondition).
+       * One ranges_to_ascii_bitmap per set per exec entry is still ~1000x
+       * cheaper than the old per-subject-byte rebuild. */
+      srange[i].has_ascii_map =
+          srange[i].ranges_ptr &&
+          ranges_to_ascii_bitmap(srange[i].ranges_ptr, srange[i].count,
+                                 srange[i].ascii_map);
     }
   }
 
@@ -3767,13 +3781,18 @@ static bool tier_search_vm(VM *vm, const char *subject, size_t subject_len,
   size_t offset = start_offset;
   out_result->aborted = false;
   search_vm_t svm;
+  /* D3: derive register liveness from the bytecode ONCE per search (not from
+   * the caller's meta — crafted metas omit the liveness fields).  The walk is
+   * cheap (few dozen ops) and the per-position init below then zeroes only
+   * what this pattern can touch. */
+  uint8_t reg_classes = snobol_bc_register_classes(vm->bc, vm->bc_len);
   while (offset <= subject_len) {
     if (diag) {
       diag->candidates_tested++;
       diag->search_vm_tests++;
     }
     search_reset_vm(vm, subject, subject_len, offset);
-    search_vm_init_from_vm(&svm, vm, meta);
+    search_vm_init_from_vm(&svm, vm, reg_classes);
     svm.choices_top = 0;
     out_result->aborted = false;
     bool ok = search_vm_exec(&svm, subject, subject_len, offset, out_result);
