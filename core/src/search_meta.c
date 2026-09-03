@@ -1040,8 +1040,15 @@ uint8_t snobol_bc_register_classes(const uint8_t *bc, size_t bc_len) {
   while (ip < bc_len) {
     uint8_t op = bc[ip];
     switch (op) {
-      case OP_CAP_START:
-      case OP_CAP_END: classes |= SNBL_REG_CAPTURE; ip += 2; break;
+      case OP_CAP_START: classes |= SNBL_REG_CAPTURE; ip += 2; break;
+      case OP_CAP_END:
+        /* CAP_END also exposes the capture as var<r> (svm_cap_end writes
+         * var_start/var_end and bumps var_count), so it needs the VARS
+         * class zeroed too — otherwise pure capture patterns copy
+         * uninitialised stack slots into the match result. */
+        classes |= SNBL_REG_CAPTURE | SNBL_REG_VARS;
+        ip += 2;
+        break;
       case OP_EMIT_CAPTURE: classes |= SNBL_REG_CAPTURE; ip += 2; break;
       case OP_ASSIGN: classes |= SNBL_REG_CAPTURE | SNBL_REG_VARS; ip += 4; break;
       case OP_REPEAT_INIT: classes |= SNBL_REG_COUNTERS; ip += 14; break;
