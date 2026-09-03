@@ -3010,10 +3010,14 @@ static bool tier_alt_literals(VM *vm, const char *subject, size_t subject_len,
 #ifdef SNOBOL_PIKE_SCAN
 #define PIKE_THREAD_BUF 64
 #define PIKE_DEFER_BUF 64
+/* D1/D2 hot/cold thread split: the per-position loop copies only the 32-byte
+ * hot struct.  Capture/variable/counter state lives in a cold slab that is
+ * materialized lazily from the pool on the first register op (CAP/ASSIGN/
+ * REPEAT) and returned to the pool when the thread dies.  Threads that never
+ * execute a register op pay zero cold-state cost.  Slabs are exclusively
+ * owned per thread: fork points (SPLIT, BREAKX retry) deep-copy the slab so
+ * branches diverge exactly like the fat-struct threads did. */
 typedef struct {
-  size_t ip;
-  size_t pos;
-  size_t match_start;
   size_t cap_start[MAX_CAPS];
   size_t cap_end[MAX_CAPS];
   uint8_t max_cap_used;
@@ -3023,7 +3027,53 @@ typedef struct {
   uint32_t counters[MAX_LOOPS];
   size_t loop_last_pos[MAX_LOOPS];
   uint8_t max_counter_used;
+} pike_cold_t;
+
+typedef struct {
+  size_t ip;
+  size_t pos;
+  size_t match_start;
+  pike_cold_t *cold; /* NULL until the first register op */
 } pike_thread_t;
+
+typedef struct {
+  pike_cold_t slabs[PIKE_THREAD_BUF];
+  uint64_t free_map; /* bit set = slot free */
+} pike_cold_pool_t;
+
+/* Lowest free slot index, or -1 when the pool is exhausted. */
+static inline int pike_free_slot(uint64_t free_map) {
+  int s = 0;
+  while (s < PIKE_THREAD_BUF && !(free_map & (1ULL << s))) {
+    s++;
+  }
+  return s < PIKE_THREAD_BUF ? s : -1;
+}
+
+/* Zero-on-materialize: a fresh slab is fully zeroed exactly once (the fat
+ * struct's per-spawn memset equivalent), then recycled without re-zeroing
+ * until the next materialization. */
+static inline pike_cold_t *pike_cold_acquire(pike_cold_pool_t *pool,
+                                             bool *overflowed) {
+  int s = pike_free_slot(pool->free_map);
+  if (s < 0) {
+    *overflowed = true;
+    return nullptr;
+  }
+  pool->free_map &= ~(1ULL << s);
+  pike_cold_t *c = &pool->slabs[s];
+  memset(c, 0, sizeof(*c));
+  return c;
+}
+
+static inline void pike_cold_release(pike_cold_pool_t *pool,
+                                     pike_cold_t *cold) {
+  if (!cold) {
+    return;
+  }
+  size_t s = (size_t)(cold - pool->slabs);
+  pool->free_map |= (1ULL << s);
+}
 
 bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
                size_t subject_len, const snobol_search_meta_t *meta,
@@ -3036,6 +3086,10 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
   pike_thread_t stack_defer[PIKE_DEFER_BUF];
   pike_thread_t *threads = stack_threads;
   pike_thread_t *defer = stack_defer;
+  pike_cold_pool_t local_pool;
+  memset(&local_pool, 0, sizeof(local_pool));
+  local_pool.free_map = ~(uint64_t)0;
+  pike_cold_pool_t *pool = &local_pool;
   if (vm) {
     if (!vm->pike_thread_buf) {
       vm->pike_thread_buf =
@@ -3045,8 +3099,13 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
       vm->pike_defer_buf =
           snobol_malloc(PIKE_DEFER_BUF * sizeof(pike_thread_t));
     }
+    if (!vm->pike_cold_pool) {
+      vm->pike_cold_pool = snobol_malloc(sizeof(pike_cold_pool_t));
+    }
     threads = (pike_thread_t *)vm->pike_thread_buf;
     defer = (pike_thread_t *)vm->pike_defer_buf;
+    pool = (pike_cold_pool_t *)vm->pike_cold_pool;
+    pool->free_map = ~(uint64_t)0; /* reset slot ownership per call */
   }
   size_t thread_n = 0;
   size_t defer_n = 0;
@@ -3086,12 +3145,14 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         }
       }
     }
-    /* Spawn a fresh thread at this start position. */
+    /* Spawn a fresh thread at this start position.  Hot-only init: 3 scalar
+     * writes, no 2.3 KB memset (D1/D2 — cold state is lazy). */
     if (work_n < PIKE_THREAD_BUF) {
       pike_thread_t fr;
-      memset(&fr, 0, sizeof(fr));
+      fr.ip = 0;
       fr.pos = pos;
       fr.match_start = pos;
+      fr.cold = NULL;
       work[work_n++] = fr;
     }
 
@@ -3172,9 +3233,16 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         if (op == OP_CAP_START) {
           uint8_t r = bc[ip + 1];
           if (r < MAX_CAPS) {
-            th.cap_start[r] = tp;
-            if (r >= th.max_cap_used) {
-              th.max_cap_used = r + 1;
+            /* Materialize cold state on the first register op (D1/D2). */
+            if (!th.cold) {
+              th.cold = pike_cold_acquire(pool, &overflowed);
+              if (!th.cold) {
+                goto pike_die; /* pool exhausted — overflow fallback */
+              }
+            }
+            th.cold->cap_start[r] = tp;
+            if (r >= th.cold->max_cap_used) {
+              th.cold->max_cap_used = r + 1;
             }
           }
           ip += 2;
@@ -3183,15 +3251,21 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
         if (op == OP_CAP_END) {
           uint8_t r = bc[ip + 1];
           if (r < MAX_CAPS) {
-            th.cap_end[r] = tp;
-            if (r >= th.max_cap_used) {
-              th.max_cap_used = r + 1;
+            if (!th.cold) {
+              th.cold = pike_cold_acquire(pool, &overflowed);
+              if (!th.cold) {
+                goto pike_die;
+              }
+            }
+            th.cold->cap_end[r] = tp;
+            if (r >= th.cold->max_cap_used) {
+              th.cold->max_cap_used = r + 1;
             }
             if (r < MAX_VARS) {
-              th.var_start[r] = th.cap_start[r];
-              th.var_end[r] = th.cap_end[r];
-              if ((size_t)r + 1 > th.var_count) {
-                th.var_count = (size_t)r + 1;
+              th.cold->var_start[r] = th.cold->cap_start[r];
+              th.cold->var_end[r] = th.cold->cap_end[r];
+              if ((size_t)r + 1 > th.cold->var_count) {
+                th.cold->var_count = (size_t)r + 1;
               }
             }
           }
@@ -3202,11 +3276,17 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
           uint16_t v = (uint16_t)((bc[ip + 1] << 8) | bc[ip + 2]);
           uint8_t r = bc[ip + 3];
           if (v < MAX_VARS && r < MAX_CAPS) {
-            if (v >= th.var_count) {
-              th.var_count = (size_t)v + 1;
+            if (!th.cold) {
+              th.cold = pike_cold_acquire(pool, &overflowed);
+              if (!th.cold) {
+                goto pike_die;
+              }
             }
-            th.var_start[v] = th.cap_start[r];
-            th.var_end[v] = th.cap_end[r];
+            if (v >= th.cold->var_count) {
+              th.cold->var_count = (size_t)v + 1;
+            }
+            th.cold->var_start[v] = th.cold->cap_start[r];
+            th.cold->var_end[v] = th.cold->cap_end[r];
           }
           ip += 4;
           continue;
@@ -3245,12 +3325,26 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
                         ((uint32_t)bc[ip + 7] << 8) | (uint32_t)bc[ip + 8];
           ip = (size_t)aa;
           /* Branch B runs at the same scan position (SPLIT is zero-width);
-           * append it to the work queue so it is tried after branch A. */
+           * append it to the work queue so it is tried after branch A.
+           * The fork gets an exclusive copy of the cold slab (deep copy) —
+           * each branch owns its registers like the fat-struct threads did. */
           if (work_n < PIKE_THREAD_BUF) {
             pike_thread_t nt = th;
-            nt.ip = (size_t)bb;
-            nt.pos = tp;
-            work[work_n++] = nt;
+            if (th.cold) {
+              nt.cold = pike_cold_acquire(pool, &overflowed);
+              if (!nt.cold) {
+                overflowed = true; /* pool exhausted — drop the fork */
+              } else {
+                memcpy(nt.cold, th.cold, sizeof(*nt.cold));
+              }
+            }
+            if (nt.cold || !th.cold) {
+              nt.ip = (size_t)bb;
+              nt.pos = tp;
+              work[work_n++] = nt;
+            } else {
+              overflowed = true;
+            }
           } else {
             overflowed = true;
           }
@@ -3260,10 +3354,15 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
           overflowed = true; /* pike_scan cannot backtrack REPEAT_STEP; signal
                               * fallback so tier_search_vm tries the restart
                               * loop which has a proper choice stack. */
-          uint8_t lid = bc[ip + 1];
-          if (lid < MAX_LOOPS) {
-            th.counters[lid] = 0;
-            th.loop_last_pos[lid] = 0;
+          if (!th.cold) {
+            th.cold = pike_cold_acquire(pool, &overflowed);
+          }
+          if (th.cold) {
+            uint8_t lid = bc[ip + 1];
+            if (lid < MAX_LOOPS) {
+              th.cold->counters[lid] = 0;
+              th.cold->loop_last_pos[lid] = 0;
+            }
           }
           ip += 14;
           continue;
@@ -3274,21 +3373,28 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
                          ((uint32_t)bc[ip + 3] << 16) |
                          ((uint32_t)bc[ip + 4] << 8) | (uint32_t)bc[ip + 5];
           if (lid < MAX_LOOPS) {
-            th.counters[lid]++;
-            /* Zero-progress guard (mirrors the full VM): an iteration that
-             * consumed nothing cannot repeat — exit the loop.  Without this,
-             * empty-body loops like `('')*` spin forever.
-             * A zero-progress exit also makes pike's match POSITION
-             * unreliable (the min==0 skip path can match empty at an
-             * earlier position), so signal overflow to force the restart
-             * loop — the same fallback as REPEAT_INIT. */
-            if (th.pos == th.loop_last_pos[lid]) {
-              overflowed = true;
-              out_result->pike_zero_progress = true;
-              ip += 6;
+            if (!th.cold) {
+              th.cold = pike_cold_acquire(pool, &overflowed);
+            }
+            if (th.cold) {
+              th.cold->counters[lid]++;
+              /* Zero-progress guard (mirrors the full VM): an iteration that
+               * consumed nothing cannot repeat — exit the loop.  Without this,
+               * empty-body loops like `('')*` spin forever.
+               * A zero-progress exit also makes pike's match POSITION
+               * unreliable (the min==0 skip path can match empty at an
+               * earlier position), so signal overflow to force the restart
+               * loop — the same fallback as REPEAT_INIT. */
+              if (th.pos == th.cold->loop_last_pos[lid]) {
+                overflowed = true;
+                out_result->pike_zero_progress = true;
+                ip += 6;
+              } else {
+                th.cold->loop_last_pos[lid] = tp;
+                ip = (size_t)tgt;
+              }
             } else {
-              th.loop_last_pos[lid] = tp;
-              ip = (size_t)tgt;
+              ip += 6;
             }
           } else {
             ip += 6;
@@ -3315,22 +3421,26 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
            * Thread positions are absolute in the subject; store them
            * relative to the match start like the restart loop and full VM do
            * (the match-window convention used by every capture reader). */
-          if (vm) {
+          if (vm && th.cold) {
             size_t base = th.match_start;
             for (size_t ci = 0; ci < MAX_CAPS; ci++) {
-              if (ci < th.max_cap_used) {
-                vm->cap_start[ci] = th.cap_start[ci] - base;
-                vm->cap_end[ci] = th.cap_end[ci] - base;
+              if (ci < th.cold->max_cap_used) {
+                vm->cap_start[ci] = th.cold->cap_start[ci] - base;
+                vm->cap_end[ci] = th.cold->cap_end[ci] - base;
               }
             }
-            vm->max_cap_used = th.max_cap_used;
+            vm->max_cap_used = th.cold->max_cap_used;
             for (size_t vi = 0; vi < MAX_VARS; vi++) {
-              if (vi < th.var_count) {
-                vm->var_start[vi] = th.var_start[vi] - base;
-                vm->var_end[vi] = th.var_end[vi] - base;
+              if (vi < th.cold->var_count) {
+                vm->var_start[vi] = th.cold->var_start[vi] - base;
+                vm->var_end[vi] = th.cold->var_end[vi] - base;
               }
             }
-            vm->var_count = th.var_count;
+            vm->var_count = th.cold->var_count;
+          } else if (vm) {
+            /* No capture state materialized — no registers in use. */
+            vm->max_cap_used = 0;
+            vm->var_count = 0;
           }
         }
         goto pike_die;
@@ -3513,11 +3623,26 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
           int bx_by = 1;
           utf8_peek_next(subject, subject_len, sp, &bx_cp, &bx_by);
           if (defer_n < PIKE_DEFER_BUF) {
+            /* Retry fork: re-executes BREAKX from after the break char.
+             * The fork gets an exclusive deep copy of the cold slab so it
+             * carries the same registers as the fat-struct thread did. */
             pike_thread_t rt = th;
-            rt.ip = ip - 3; /* re-execute the OP_BREAKX opcode (opcode sits at
-                             * ip-3 after the u16 operand read) */
-            rt.pos = sp + (size_t)bx_by;
-            defer[defer_n++] = rt;
+            bool rt_ready = true;
+            if (th.cold) {
+              rt.cold = pike_cold_acquire(pool, &overflowed);
+              if (!rt.cold) {
+                overflowed = true; /* pool exhausted — drop the retry */
+                rt_ready = false;
+              } else {
+                memcpy(rt.cold, th.cold, sizeof(*rt.cold));
+              }
+            }
+            if (rt_ready) {
+              rt.ip = ip - 3; /* re-execute the OP_BREAKX opcode (opcode sits
+                               * at ip-3 after the u16 operand read) */
+              rt.pos = sp + (size_t)bx_by;
+              defer[defer_n++] = rt;
+            }
           } else {
             overflowed = true;
           }
@@ -3541,7 +3666,10 @@ bool pike_scan(const uint8_t *bc, size_t bc_len, const char *subject,
       }
       goto pike_die;
     pike_die:
-      /* Thread failed/ended: discard it. */
+      /* Thread failed/ended: discard it and return its cold slab to the
+       * pool (D1/D2 — slab lifetime == thread lifetime). */
+      pike_cold_release(pool, th.cold);
+      th.cold = NULL;
       continue;
     pike_next:
         /* Thread advanced and was stored in defer[] above. */

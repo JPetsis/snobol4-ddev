@@ -2335,6 +2335,10 @@ void snobol_search_vm_cleanup(VM *vm) {
     snobol_free(vm->pike_defer_buf);
     vm->pike_defer_buf = NULL;
   }
+  if (vm->pike_cold_pool) {
+    snobol_free(vm->pike_cold_pool);
+    vm->pike_cold_pool = NULL;
+  }
   if (vm->choices_arena) {
     vm_arena_destroy(vm->choices_arena);
     vm->choices_arena = nullptr;
