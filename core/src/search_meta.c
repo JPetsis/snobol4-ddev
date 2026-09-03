@@ -1026,6 +1026,103 @@ static bool bc_has_capture(const uint8_t *bc, size_t bc_len) {
   return false;
 }
 
+/* Register-state liveness classes (D3).  Any register array the search-VM
+ * restart loop zeroes is covered by exactly one class. */
+enum {
+  SNBL_REG_NONE = 0,
+  SNBL_REG_CAPTURE = 1 << 0, /* cap_start/cap_end + max_cap_used */
+  SNBL_REG_VARS = 1 << 1,    /* var_start/var_end + var_count */
+  SNBL_REG_COUNTERS = 1 << 2 /* counters + loop_last_pos + max_counter_used */
+};
+
+/* Conservative bytecode walk: report which register classes a pattern can
+ * touch.  Mirrors bc_has_capture's arity table; unlike it, an op the walker
+ * cannot classify marks EVERY class used (an unclassifiable op sits in a
+ * region we must not assume register-free — under-classification would let
+ * the restart loop zero too little and read stale stack state). */
+static uint8_t bc_uses_register_state(const uint8_t *bc, size_t bc_len) {
+  if (!bc || bc_len < 2) {
+    return SNBL_REG_CAPTURE | SNBL_REG_VARS | SNBL_REG_COUNTERS;
+  }
+  uint8_t classes = SNBL_REG_NONE;
+  size_t ip = 0;
+  while (ip < bc_len) {
+    uint8_t op = bc[ip];
+    switch (op) {
+      case OP_CAP_START:
+      case OP_CAP_END: classes |= SNBL_REG_CAPTURE; ip += 2; break;
+      case OP_EMIT_CAPTURE: classes |= SNBL_REG_CAPTURE; ip += 2; break;
+      case OP_ASSIGN: classes |= SNBL_REG_CAPTURE | SNBL_REG_VARS; ip += 4; break;
+      case OP_REPEAT_INIT: classes |= SNBL_REG_COUNTERS; ip += 14; break;
+      case OP_REPEAT_STEP: classes |= SNBL_REG_COUNTERS; ip += 6; break;
+      case OP_ACCEPT:
+      case OP_SUCCEED:
+      case OP_ABORT:
+        /* Program terminator — stop before trailing class/label data so we
+         * don't misinterpret tail bytes as opcodes.  Reaching a terminator
+         * means no register op was seen on this path. */
+        return classes;
+      case OP_FAIL:
+      case OP_NOP:
+      case OP_FENCE:
+      case OP_REM:
+      case OP_DYNAMIC: ip += 1; break;
+      case OP_JMP:
+        ip += 5; /* op + u32 */
+        break;
+      case OP_SPLIT:
+        ip += 9; /* op + u32 + u32 */
+        break;
+      case OP_LIT:
+      case OP_EMIT_LITERAL: {
+        /* op + u32 offset + u32 len; when the offset points right after the
+         * operands the literal bytes are inline and must be skipped over,
+         * otherwise they sit in a shared pool elsewhere and the walk
+         * continues at the next instruction. */
+        if (ip + 9 > bc_len) {
+          return SNBL_REG_CAPTURE | SNBL_REG_VARS | SNBL_REG_COUNTERS;
+        }
+        uint32_t off = ((uint32_t)bc[ip + 1] << 24) |
+                       ((uint32_t)bc[ip + 2] << 16) |
+                       ((uint32_t)bc[ip + 3] << 8) | (uint32_t)bc[ip + 4];
+        uint32_t lit_len = ((uint32_t)bc[ip + 5] << 24) |
+                           ((uint32_t)bc[ip + 6] << 16) |
+                           ((uint32_t)bc[ip + 7] << 8) | (uint32_t)bc[ip + 8];
+        ip += 9;
+        if (off == ip) {
+          ip += lit_len; /* skip inline literal bytes */
+        }
+        break;
+      }
+      case OP_ANY:
+      case OP_NOTANY:
+      case OP_SPAN:
+      case OP_BREAK:
+      case OP_BREAKX:
+        ip += 3; /* op + u16 */
+        break;
+      case OP_EVAL:
+        ip += 4; /* op + u16 + u8 */
+        break;
+      case OP_LEN:
+      case OP_POS:
+      case OP_RPOS:
+      case OP_TAB:
+      case OP_RTAB:
+        ip += 5; /* op + u32 */
+        break;
+      case OP_ANCHOR:
+        ip += 2; /* op + u8 */
+        break;
+      default:
+        /* Variable-length / non-safe op: cannot advance or prove anything —
+         * conservatively assume every register class may be touched. */
+        return SNBL_REG_CAPTURE | SNBL_REG_VARS | SNBL_REG_COUNTERS;
+    }
+  }
+  return classes;
+}
+
 static bool check_search_vm_eligible(const uint8_t *bc, size_t bc_len) {
   if (!bc || bc_len < 2) {
     return false;
@@ -2094,6 +2191,14 @@ void SNOBOL_HOT snobol_search_derive_meta(const uint8_t *bc, size_t bc_len,
    * this gate, e.g. CAP_START SPAN would be misclassified as a pure span scan
    * and its capture would be lost in search mode. */
   out->has_capture = bc_has_capture(bc, bc_len);
+  /* D3: fine-grained register liveness for the restart loop's lazy init. */
+  {
+    uint8_t reg_classes = bc_uses_register_state(bc, bc_len);
+    out->has_capture = out->has_capture ||
+                       (reg_classes & SNBL_REG_CAPTURE) != 0;
+    out->has_assign = (reg_classes & SNBL_REG_VARS) != 0;
+    out->has_counter = (reg_classes & SNBL_REG_COUNTERS) != 0;
+  }
   if (out->has_capture) {
     out->is_span_family = false;
     out->is_break_family = false;

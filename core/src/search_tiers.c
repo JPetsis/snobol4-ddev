@@ -824,7 +824,8 @@ static inline bool search_vm_pop_choice(search_vm_t *vm) {
  * Copies only the fields needed by the search-VM (Tier 6).
  * ---------------------------------------------------------------------------
  */
-static inline void search_vm_init_from_vm(search_vm_t *svm, const VM *vm) {
+static inline void search_vm_init_from_vm(search_vm_t *svm, const VM *vm,
+                                          const snobol_search_meta_t *meta) {
   svm->bc = vm->bc;
   svm->bc_len = vm->bc_len;
   svm->s = vm->s;
@@ -847,18 +848,45 @@ static inline void search_vm_init_from_vm(search_vm_t *svm, const VM *vm) {
    * access to an uninitialized stack slot if the search-VM wrote a high
    * register without writing all lower ones. */
   {
-    memset(svm->cap_start, 0, sizeof(svm->cap_start));
-    memset(svm->cap_end, 0, sizeof(svm->cap_end));
-    memset(svm->var_start, 0, sizeof(svm->var_start));
-    memset(svm->var_end, 0, sizeof(svm->var_end));
+    /* D3: zero only the register classes the pattern provably uses
+     * (liveness from derive_meta).  Register-free patterns (the majority:
+     * literal/BREAK/SPAN chains) pay zero instead of 4x512 B per restart
+     * position.  Conservative derivation (bc_uses_register_state) never
+     * under-classifies, and svm field init below falls through to the same
+     * zeroing when meta is absent (raw bytecode callers). */
+    const bool zero_caps = !meta || meta->has_capture || meta->has_assign;
+    const bool zero_vars = !meta || meta->has_assign;
+    const bool zero_counters = !meta || meta->has_counter;
+    if (zero_caps) {
+      memset(svm->cap_start, 0, sizeof(svm->cap_start));
+      memset(svm->cap_end, 0, sizeof(svm->cap_end));
+    }
+    if (zero_vars) {
+      memset(svm->var_start, 0, sizeof(svm->var_start));
+      memset(svm->var_end, 0, sizeof(svm->var_end));
+    }
+    if (zero_counters) {
+      memset(svm->counters, 0, sizeof(svm->counters));
+      memset(svm->loop_min, 0, sizeof(svm->loop_min));
+      memset(svm->loop_max, 0, sizeof(svm->loop_max));
+      memset(svm->loop_last_pos, 0, sizeof(svm->loop_last_pos));
+    }
     size_t cap_copy = vm->max_cap_used * sizeof(size_t);
     size_t var_copy = vm->var_count * sizeof(size_t);
-    memcpy(svm->cap_start, vm->cap_start, cap_copy);
-    memcpy(svm->cap_end, vm->cap_end, cap_copy);
-    svm->max_cap_used = vm->max_cap_used;
-    memcpy(svm->var_start, vm->var_start, var_copy);
-    memcpy(svm->var_end, vm->var_end, var_copy);
-    svm->var_count = vm->var_count;
+    if (cap_copy > 0 && vm->max_cap_used > 0) {
+      memcpy(svm->cap_start, vm->cap_start, cap_copy);
+      memcpy(svm->cap_end, vm->cap_end, cap_copy);
+      svm->max_cap_used = vm->max_cap_used;
+    } else {
+      svm->max_cap_used = 0;
+    }
+    if (var_copy > 0 && vm->var_count > 0) {
+      memcpy(svm->var_start, vm->var_start, var_copy);
+      memcpy(svm->var_end, vm->var_end, var_copy);
+      svm->var_count = vm->var_count;
+    } else {
+      svm->var_count = 0;
+    }
   }
 }
 
@@ -3745,7 +3773,7 @@ static bool tier_search_vm(VM *vm, const char *subject, size_t subject_len,
       diag->search_vm_tests++;
     }
     search_reset_vm(vm, subject, subject_len, offset);
-    search_vm_init_from_vm(&svm, vm);
+    search_vm_init_from_vm(&svm, vm, meta);
     svm.choices_top = 0;
     out_result->aborted = false;
     bool ok = search_vm_exec(&svm, subject, subject_len, offset, out_result);

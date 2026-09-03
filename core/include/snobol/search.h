@@ -341,6 +341,16 @@ typedef struct {
    * never routed to a tier that would lose the capture. */
   bool has_capture;
 
+  /* Register-state usage (D3) ------------------------------------------------
+   * Fine-grained liveness for the register arrays a search-VM execution can
+   * touch.  has_assign is set when OP_ASSIGN can write variable registers;
+   * has_counter when REPEAT_INIT/REPEAT_STEP can touch loop counters.  The
+   * restart loop zeroes only the register classes the pattern provably uses
+   * (captures implied by has_capture).  Conservative derivation: an op the
+   * walker cannot classify marks every class used. */
+  bool has_assign;
+  bool has_counter;
+
   /* SIMD NFA eligibility -------------------------------------------------- */
   /* True when the pattern is eligible for the SIMD-accelerated NFA path:
    * ASCII-only character-class operations (SPAN, BREAK, ANY, NOTANY) with
