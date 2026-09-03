@@ -61,6 +61,16 @@ typedef struct {
   const uint8_t *ranges_ptr; /**< Pointer to packed range data in bytecode */
   uint16_t count;            /**< Number of CpRange entries */
   uint16_t case_insensitive; /**< Non-zero if case-insensitive */
+  /**
+   * Precomputed ASCII membership bitmap (bytes 0-127), derived once from
+   * ranges_ptr.  Valid only when has_ascii_map is set; ranges that exceed
+   * the ASCII range (start/end > 127) leave the flag clear and callers
+   * fall back to the range walk.  Lets the search-VM class ops (BREAKX,
+   * SPAN, ANY, NOTANY) test membership with a single bitmap load instead
+   * of rebuilding the bitmap per subject byte.
+   */
+  uint64_t ascii_map[2];
+  bool has_ascii_map;
 } snobol_range_meta_t;
 
 /**

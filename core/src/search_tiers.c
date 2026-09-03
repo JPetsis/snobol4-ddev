@@ -927,6 +927,11 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
     const uint8_t *ranges_ptr;
     uint16_t count;
     uint16_t case_flag;
+    /* D5: precomputed ASCII bitmap from range_meta (valid when
+     * has_ascii_map); lets the class ops test membership per byte with a
+     * bitmap load instead of rebuilding it from ranges every byte. */
+    uint64_t ascii_map[2];
+    bool has_ascii_map;
   } srange[SEARCH_VM_MAX_RANGES];
   size_t srange_count = 0;
 
@@ -939,6 +944,9 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
       srange[i].ranges_ptr = vm->range_meta[i].ranges_ptr;
       srange[i].count = vm->range_meta[i].count;
       srange[i].case_flag = vm->range_meta[i].case_insensitive;
+      srange[i].has_ascii_map = vm->range_meta[i].has_ascii_map;
+      srange[i].ascii_map[0] = vm->range_meta[i].ascii_map[0];
+      srange[i].ascii_map[1] = vm->range_meta[i].ascii_map[1];
     }
   }
 
@@ -1152,14 +1160,18 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
 #endif
   {
     /* BREAKX: like BREAK but pushes a retry choice point.
-       * When the choice is popped, pos advances past the break char. */
+       When the choice is popped, pos advances past the break char. */
     size_t breakx_ip = ip - 1; /* points to OP_BREAKX opcode */
     uint16_t set_id = read_u16(bc, bc_len, &ip);
     const uint8_t *rp = nullptr;
     uint16_t cnt = 0;
+    uint64_t amap_local[2];
+    const uint64_t *amap = nullptr;
     if (set_id > 0 && (size_t)(set_id - 1) < srange_count) {
       rp = srange[set_id - 1].ranges_ptr;
       cnt = srange[set_id - 1].count;
+      amap = srange[set_id - 1].has_ascii_map ? srange[set_id - 1].ascii_map
+                                              : nullptr;
     } else if (set_id > 0 && vm->bc) {
       uint16_t cflag;
       rp = search_vm_resolve_range(vm, set_id, &cnt, &cflag);
@@ -1169,9 +1181,11 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
       bool in_class = false;
       if (rp) {
         uint8_t c = (uint8_t)s[pos];
-        uint64_t map[2];
-        if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, map) &&
-            bitmap_test(map, c)) {
+        if (amap) {
+          /* D5: precomputed ASCII bitmap — no per-byte rebuild */
+          in_class = (c <= 127 && bitmap_test(amap, c)) != 0;
+        } else if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, amap_local) &&
+                   bitmap_test(amap_local, c)) {
           in_class = true;
         } else {
           uint32_t cp;
@@ -1284,9 +1298,13 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
     bool ok = false;
     const uint8_t *rp = nullptr;
     uint16_t cnt = 0;
+    uint64_t amap_local[2];
+    const uint64_t *amap = nullptr;
     if (set_id > 0 && (size_t)(set_id - 1) < srange_count) {
       rp = srange[set_id - 1].ranges_ptr;
       cnt = srange[set_id - 1].count;
+      amap = srange[set_id - 1].has_ascii_map ? srange[set_id - 1].ascii_map
+                                              : nullptr;
     } else if (set_id > 0 && vm->bc) {
       /* Range-resolve fallback from the bytecode trailer, like
        * SPAN/BREAK/BREAKX/NOTANY: callers passing raw bytecode without
@@ -1297,9 +1315,11 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
     if (rp) {
       if (pos < len) {
         uint8_t c = (uint8_t)s[pos];
-        uint64_t map[2];
-        if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, map) &&
-            bitmap_test(map, c)) {
+        if (amap) {
+          /* D5: precomputed ASCII bitmap — no per-byte rebuild */
+          ok = (c <= 127 && bitmap_test(amap, c)) != 0;
+        } else if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, amap_local) &&
+                   bitmap_test(amap_local, c)) {
           ok = true;
         } else {
           uint32_t cp;
@@ -1347,11 +1367,17 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
     if (set_id > 0 && (size_t)(set_id - 1) < srange_count) {
       const uint8_t *rp = srange[set_id - 1].ranges_ptr;
       uint16_t cnt = srange[set_id - 1].count;
+      uint64_t amap_local[2];
+      const uint64_t *amap = srange[set_id - 1].has_ascii_map
+                                 ? srange[set_id - 1].ascii_map
+                                 : nullptr;
       if (rp && pos < len) {
         uint8_t c = (uint8_t)s[pos];
-        uint64_t map[2];
-        if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, map) &&
-            bitmap_test(map, c)) {
+        if (amap) {
+          /* D5: precomputed ASCII bitmap — no per-byte rebuild */
+          in_class = (c <= 127 && bitmap_test(amap, c)) != 0;
+        } else if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, amap_local) &&
+                   bitmap_test(amap_local, c)) {
           in_class = true;
         } else {
           uint32_t cp;
@@ -1396,9 +1422,13 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
     uint16_t set_id = read_u16(bc, bc_len, &ip);
     const uint8_t *rp = nullptr;
     uint16_t cnt = 0;
+    uint64_t amap_local[2];
+    const uint64_t *amap = nullptr;
     if (set_id > 0 && (size_t)(set_id - 1) < srange_count) {
       rp = srange[set_id - 1].ranges_ptr;
       cnt = srange[set_id - 1].count;
+      amap = srange[set_id - 1].has_ascii_map ? srange[set_id - 1].ascii_map
+                                              : nullptr;
     } else if (set_id > 0 && vm->bc) {
       /* Fallback to bytecode-embedded ranges (mirrors the full VM's
          * get_ranges_ptr).  Keeps the search-VM correct even when the
@@ -1411,12 +1441,17 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
      * any byte > 127 stops the run (its UTF-8 codepoint must not be
      * considered, as an invalid sequence could decode into a class byte).
      * Non-ASCII classes use codepoint-wise membership. */
-    uint64_t amap[2];
-    bool ascii_class = (rp && ranges_to_ascii_bitmap(rp, cnt, amap)) != 0;
+    if (!amap && rp) {
+      /* D5: no cached bitmap (caller without range_meta or non-ASCII
+       * class) — build it once for this op execution. */
+      if (ranges_to_ascii_bitmap(rp, cnt, amap_local)) {
+        amap = amap_local;
+      }
+    }
     while (pos < len) {
       bool in_class = false;
       if (rp) {
-        if (ascii_class) {
+        if (amap) {
           uint8_t c = (uint8_t)s[pos];
           in_class = (((c <= 127) && bitmap_test(amap, c)) != 0);
         } else {
@@ -1460,9 +1495,13 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
     uint16_t set_id = read_u16(bc, bc_len, &ip);
     const uint8_t *rp = nullptr;
     uint16_t cnt = 0;
+    uint64_t amap_local[2];
+    const uint64_t *amap = nullptr;
     if (set_id > 0 && (size_t)(set_id - 1) < srange_count) {
       rp = srange[set_id - 1].ranges_ptr;
       cnt = srange[set_id - 1].count;
+      amap = srange[set_id - 1].has_ascii_map ? srange[set_id - 1].ascii_map
+                                              : nullptr;
     } else if (set_id > 0 && vm->bc) {
       uint16_t cflag;
       rp = search_vm_resolve_range(vm, set_id, &cnt, &cflag);
@@ -1471,9 +1510,11 @@ static bool SNOBOL_HOT search_vm_exec(search_vm_t *SNOBOL_RESTRICT vm,
       bool in_class = false;
       if (rp) {
         uint8_t c = (uint8_t)s[pos];
-        uint64_t map[2];
-        if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, map) &&
-            bitmap_test(map, c)) {
+        if (amap) {
+          /* D5: precomputed ASCII bitmap — no per-byte rebuild */
+          in_class = (c <= 127 && bitmap_test(amap, c)) != 0;
+        } else if (c <= 127 && ranges_to_ascii_bitmap(rp, cnt, amap_local) &&
+                   bitmap_test(amap_local, c)) {
           in_class = true;
         } else {
           uint32_t cp;
