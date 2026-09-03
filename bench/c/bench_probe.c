@@ -1122,6 +1122,61 @@ static void run_zero_progress_all(int64_t iters, probe_result_t *r) {
     run_search_all_scenario("('a'*) 'b'", 10, subj, 64, iters, r);
 }
 
+/* pike_spawn: unanchored tier-6 pattern WITHOUT REPEAT over a 900-byte subject.
+ * The @r1 capture forces TIER_SEARCH_VM (has_capture gates off the prefix/
+ * span/break tiers), so unanchored search runs pike_scan. Every position
+ * spawns a fresh pike thread; threads die quickly (LIT 'ab' guard fails at
+ * most positions, only the tail positions survive), so pike runs the FULL
+ * per-position spawn loop without buffer overflow (checksum accumulates
+ * result.pike_overflowed — must stay 0). Unit: match (one unanchored search
+ * per iteration). Measures the D1/D2 spawn/carry traffic. */
+static void run_pike_spawn(int64_t iters, probe_result_t *r) {
+    char subj[901];
+    memset(subj, 'x', 900);
+    subj[893] = 'a';
+    subj[894] = 'b';
+    subj[900] = '\0';
+
+    snobol_context_t *ctx = snobol_context_create();
+    snobol_pattern_t *pat = compile_or_die(ctx, "@r1 'ab' ANY('xyz') LEN(2)", 26);
+    const snobol_search_meta_t *meta = snobol_pattern_get_meta(pat);
+    const uint8_t *bc = snobol_pattern_get_bc(pat);
+    size_t bc_len = snobol_pattern_get_bc_len(pat);
+    size_t range_count = 0;
+    const snobol_range_meta_t *range_meta =
+        snobol_pattern_get_range_meta(pat, &range_count);
+
+    VM vm;
+    memset(&vm, 0, sizeof(vm));
+    vm.bc = bc;
+    vm.bc_len = bc_len;
+    vm.range_meta = range_meta;
+    vm.range_meta_count = range_count;
+
+    snobol_search_result_t result;
+    int64_t start = bench_ns();
+    for (int64_t i = 0; i < iters; i++) {
+        vm.s = subj;
+        vm.len = 900;
+        snobol_vm_reset(&vm);
+        memset(&result, 0, sizeof(result));
+        (void)snobol_search_exec(&vm, subj, 900, 0, meta, NULL, &result, NULL);
+        r->checksum += (int64_t)result.pike_overflowed;
+    }
+    int64_t end = bench_ns();
+
+    snobol_search_vm_cleanup(&vm);
+
+    r->iters = iters;
+    r->total_ns = end - start;
+    r->ns_per_iter = (iters > 0) ? (r->total_ns / iters) : 0;
+
+    capture_tiers(pat, 900, r);
+
+    snobol_pattern_free(pat);
+    snobol_context_destroy(ctx);
+}
+
 /* ---------------------------------------------------------------------------
  * Output
  * --------------------------------------------------------------------------- */
@@ -1377,8 +1432,8 @@ int main(void) {
     printf("Tokenize uses %" PRId64 " outer iters (one full pass each).\n\n",
            tokenize_iters);
 
-    /* Total scenarios: 34 snobol + 9 PCRE2 (when available) = 43 */
-    probe_result_t results[43];
+    /* Total scenarios: 35 snobol + 9 PCRE2 (when available) = 44 */
+    probe_result_t results[44];
     memset(results, 0, sizeof(results));
 
     /* Run each scenario */
@@ -1425,6 +1480,7 @@ int main(void) {
         { "residue_zero_width",    run_residue_zero_width,         iters,  "match" },
         { "residue_catastrophic",  run_residue_catastrophic,       1000,   "match" },
         { "pike_overflow",         run_pike_overflow,              iters,  "match" },
+        { "pike_spawn",            run_pike_spawn,                 iters,  "match" },
         { "prefilter_miss",        run_prefilter_miss,             iters,  "match" },
         { "zero_progress",         run_zero_progress,              iters,  "match" },
 #ifdef HAVE_PCRE2
