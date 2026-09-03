@@ -123,6 +123,36 @@ tagged `php/vX.Y.Z`.
   the PR hygiene gate in `pr-hygiene.yml` — no longer report
   "taking the address of a label is non-standard". The MSVC switch
   fallback is unchanged.
+- **Per-set_id ASCII bitmap cache for the search-VM class ops**
+  (`core/src/vm_exec.c`, `core/src/search_tiers.c`, `core/include/snobol/vm.h`):
+  `snobol_range_meta_t` now carries a precomputed `ascii_map[2]` +
+  `has_ascii_map`, filled once in `snobol_build_range_meta`; the search-VM
+  class ops (`svm_breakx`/`svm_span`/`svm_any`/`svm_notany`/`svm_break`) test
+  ASCII membership per byte with a bitmap load instead of rebuilding the
+  bitmap from ranges on every subject byte. Anchored `pike_overflow` probe
+  row (BREAKX over a 900-byte subject): ~2.33 µs → ~700 ns (3.3×). Callers
+  without `range_meta` keep the previous range/UTF-8 fallback path.
+- **Hot/cold split of the pike_scan thread state** (`core/src/search_tiers.c`,
+  `core/include/snobol/vm.h`, `core/src/search_meta.c`): `pike_thread_t`
+  shrinks from 2,288 to 32 bytes (ip/pos/match_start + cold-slab pointer);
+  capture/variable/counter registers live in a cold slab materialized
+  lazily from a pooled arena (`vm->pike_cold_pool`, 64 zero-once slots,
+  returned on thread death; SPLIT and BREAKX-retry forks deep-copy, so
+  capture divergence semantics are unchanged). Per-spawn `memset` of the
+  fat struct becomes 3 scalar writes; the per-position loop copies the hot
+  struct only. New `pike_spawn` probe row (unanchored tier-6 capture
+  pattern — worst case, every spawn materializes a slab): ~45.3 µs →
+  ~21.7 µs (2.1×); stack footprint of the stateless path drops ~585 KB →
+  ~150 KB (VM path 8 KB).
+- **Register-liveness gated restart-loop init** (`core/src/search_meta.c`,
+  `core/src/search_tiers.c`, `core/include/snobol/search.h`): a conservative
+  bytecode walk (`bc_uses_register_state`) classifies which register classes
+  a pattern can touch (captures, variables via `OP_ASSIGN`, loop counters),
+  exposed as `has_assign`/`has_counter` on `snobol_search_meta_t`;
+  `search_vm_init_from_vm` zeroes only those classes per restart position,
+  dropping the unconditional 4×512 B cap/var memsets for register-free
+  patterns. Anchored fixed intercept ~280 → ~275 ns; repeat rows unchanged
+  (they legitimately still zero counter state).
 
 ### Added
 
